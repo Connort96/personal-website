@@ -1,6 +1,23 @@
 .admin-page {
-  padding: var(--space-8) 0;
+  padding-top: calc(var(--nav-height) + var(--space-8));
+  padding-bottom: var(--space-16);
   min-height: 80vh;
+}
+
+.admin-page .page-header {
+  margin-bottom: var(--space-8);
+}
+
+.admin-page .page-header__title {
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: var(--text-4xl);
+  margin-bottom: var(--space-2);
+}
+
+.admin-page .page-header__subtitle {
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
 }
 
 .admin-card {
@@ -50,12 +67,12 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
 }
 
 .admin-submit-btn {
-  background-color: var(--accent);
-  color: white;
+  background-color: var(--accent-primary);
+  color: var(--text-primary);
   border: none;
   padding: var(--space-4);
   border-radius: var(--radius-md);
@@ -69,6 +86,7 @@
 
 .admin-submit-btn:hover {
   background-color: var(--accent-secondary);
+  color: white;
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
