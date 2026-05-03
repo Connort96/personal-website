@@ -1,0 +1,206 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import './Admin.css';
+
+export default function Admin() {
+  const { user } = useAuth();
+  const [genres, setGenres] = useState([]);
+  const [formData, setFormData] = useState({
+    genre_id: '',
+    title: '',
+    author: '',
+    note: ''
+  });
+  const [status, setStatus] = useState({ type: '', message: '' });
+  const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // Check if they are admin
+    if (user && user.email === 'theconison96@gmail.com') {
+      setIsAdmin(true);
+    }
+    
+    // Fetch unique genres from books
+    async function loadGenres() {
+      const { data, error } = await supabase
+        .from('books')
+        .select('genre_id, genre_name, color, badge, badge_label')
+        .order('genre_name');
+        
+      if (!error && data) {
+        // De-duplicate genres
+        const uniqueGenres = [];
+        const seen = new Set();
+        data.forEach(g => {
+          if (!seen.has(g.genre_id)) {
+            seen.add(g.genre_id);
+            uniqueGenres.push(g);
+          }
+        });
+        setGenres(uniqueGenres);
+      }
+    }
+    loadGenres();
+  }, [user]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.genre_id || !formData.title || !formData.author) {
+      setStatus({ type: 'error', message: 'Please fill in all required fields.' });
+      return;
+    }
+
+    setLoading(true);
+    setStatus({ type: '', message: '' });
+
+    try {
+      // 1. Get genre metadata and calculate next book_index
+      const { data: genreBooks, error: fetchError } = await supabase
+        .from('books')
+        .select('book_index, color, badge, badge_label, genre_name')
+        .eq('genre_id', formData.genre_id)
+        .order('book_index', { ascending: false });
+
+      if (fetchError) throw fetchError;
+      
+      if (!genreBooks || genreBooks.length === 0) {
+        throw new Error('Selected genre does not exist in database.');
+      }
+
+      // Max index is the first one since we ordered descending
+      const nextIndex = genreBooks[0].book_index + 1;
+      const genreMeta = genreBooks[0];
+
+      // 2. Insert into books table
+      // Let the database handle the ID generation because we reset the sequence!
+      const { error: insertError } = await supabase
+        .from('books')
+        .insert({
+          genre_id: formData.genre_id,
+          genre_name: genreMeta.genre_name,
+          color: genreMeta.color,
+          badge: genreMeta.badge,
+          badge_label: genreMeta.badge_label,
+          book_index: nextIndex,
+          title: formData.title,
+          author: formData.author,
+          note: formData.note || null
+        });
+
+      if (insertError) throw insertError;
+
+      setStatus({ type: 'success', message: `Successfully added "${formData.title}" to the catalog!` });
+      setFormData({ ...formData, title: '', author: '', note: '' }); // Clear text inputs
+      
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', message: err.message || 'Failed to add book.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  if (!user) {
+    return <div className="container" style={{ padding: '4rem 0', textAlign: 'center' }}>Please log in to access this page.</div>;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="container" style={{ padding: '4rem 0', textAlign: 'center' }}>
+        <h1 className="page-header__title">Unauthorized</h1>
+        <p>You do not have permission to view the admin dashboard.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-page container container--narrow animate-fade-in">
+      <header className="page-header">
+        <h1 className="page-header__title">Admin Dashboard</h1>
+        <p className="page-header__subtitle">Add new books to the global catalog.</p>
+      </header>
+
+      <div className="admin-card">
+        <form className="admin-form" onSubmit={handleSubmit}>
+          
+          <div className="form-group">
+            <label htmlFor="genre_id">Genre/Category *</label>
+            <select 
+              id="genre_id" 
+              name="genre_id" 
+              value={formData.genre_id} 
+              onChange={handleChange}
+              required
+            >
+              <option value="">Select a Category...</option>
+              {genres.map(g => (
+                <option key={g.genre_id} value={g.genre_id}>
+                  {g.genre_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="title">Book Title *</label>
+            <input 
+              type="text" 
+              id="title" 
+              name="title" 
+              value={formData.title} 
+              onChange={handleChange}
+              placeholder="e.g. Moby Dick"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="author">Author *</label>
+            <input 
+              type="text" 
+              id="author" 
+              name="author" 
+              value={formData.author} 
+              onChange={handleChange}
+              placeholder="e.g. Herman Melville"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="note">Notes (Optional)</label>
+            <textarea 
+              id="note" 
+              name="note" 
+              value={formData.note} 
+              onChange={handleChange}
+              placeholder="Any quick thoughts or reviews..."
+              rows={3}
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="admin-submit-btn"
+            disabled={loading}
+          >
+            {loading ? 'Adding Book...' : 'Add to Catalog'}
+          </button>
+
+        </form>
+        
+        {status.message && (
+          <div className={`admin-message ${status.type}`}>
+            {status.message}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

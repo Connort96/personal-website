@@ -59,6 +59,17 @@ export default function Navbar() {
               Collection
             </NavLink>
           </li>
+          {user && user.email === 'theconison96@gmail.com' && (
+            <li>
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+                id="nav-admin"
+              >
+                Admin
+              </NavLink>
+            </li>
+          )}
         </ul>
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingLeft: 'var(--space-4)' }}>
           {loading ? null : user ? (
