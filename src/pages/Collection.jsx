@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './Collection.css';
-import { libraryData } from '../data/libraryData.js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 export default function Collection() {
   const { user } = useAuth();
+  const [libraryData, setLibraryData] = useState([]);
   const [ownedBooks, setOwnedBooks] = useState(new Set());
   const [openGenres, setOpenGenres] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -13,61 +13,91 @@ export default function Collection() {
   const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
 
-  // Load from Supabase on mount or user change
+  // Load Catalog and Owned Books
   useEffect(() => {
     async function loadData() {
-      if (!user) {
-        setIsSyncing(false);
-        return;
-      }
       setIsSyncing(true);
       try {
-        const { data, error } = await supabase
-          .from('user_books')
-          .select('book_id');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          // Construct set of book IDs (genreId_index format matching our UI)
-          // To do this we need to fetch the actual books table to map int IDs back to our string IDs
-          // Or simpler: change our string IDs to the database IDs.
-          // For this implementation, since we seeded books matching the array order sequentially (1 to 1200+)
-          // We can map them.
+        // 1. Fetch entire catalog
+        const { data: booksData, error: catalogError } = await supabase
+          .from('books')
+          .select('*')
+          .order('id', { ascending: true });
           
-          const { data: bookMeta, error: metaError } = await supabase
-            .from('books')
-            .select('id, genre_id, book_index');
+        if (catalogError) throw catalogError;
+
+        // 2. Group into genres
+        const genresMap = new Map();
+        const stringToIdMap = {}; // For local storage migration
+
+        booksData.forEach(b => {
+          if (!genresMap.has(b.genre_id)) {
+            genresMap.set(b.genre_id, {
+              id: b.genre_id,
+              name: b.genre_name,
+              color: b.color,
+              badge: b.badge,
+              badgeLabel: b.badge_label,
+              books: []
+            });
+          }
+          genresMap.get(b.genre_id).books.push({
+            id: b.id,
+            t: b.title,
+            a: b.author,
+            n: b.note,
+          });
+          
+          stringToIdMap[`${b.genre_id}_${b.book_index}`] = b.id;
+        });
+        
+        const dynamicLibraryData = Array.from(genresMap.values());
+        setLibraryData(dynamicLibraryData);
+
+        // 3. Load owned books (Supabase or LocalStorage)
+        let ownedSet = new Set();
+        
+        if (user) {
+          const { data: userBooks, error: userError } = await supabase
+            .from('user_books')
+            .select('book_id');
             
-          if (metaError) throw metaError;
+          if (userError) throw userError;
           
-          // Create map of DB ID -> String ID
-          const idMap = {};
-          bookMeta.forEach(b => {
-            idMap[b.id] = `${b.genre_id}_${b.book_index}`;
-          });
-          
-          const ownedSet = new Set();
-          data.forEach(row => {
-            if (idMap[row.book_id]) {
-              ownedSet.add(idMap[row.book_id]);
+          if (userBooks && userBooks.length > 0) {
+            userBooks.forEach(row => ownedSet.add(row.book_id));
+          } else {
+            // Migration: User just logged in but has no cloud data. Try local storage.
+            const localOwned = localStorage.getItem('libraryOwned');
+            if (localOwned) {
+              const parsedLocal = JSON.parse(localOwned);
+              parsedLocal.forEach(item => {
+                if (typeof item === 'string' && stringToIdMap[item]) {
+                  ownedSet.add(stringToIdMap[item]);
+                } else if (typeof item === 'number') {
+                  ownedSet.add(item);
+                }
+              });
             }
-          });
-          
-          setOwnedBooks(ownedSet);
+          }
         } else {
-          // Migration from localStorage if Supabase is empty
+          // Unauthenticated: Load from local storage
           const localOwned = localStorage.getItem('libraryOwned');
           if (localOwned) {
             const parsedLocal = JSON.parse(localOwned);
-            if (parsedLocal.length > 0) {
-              setOwnedBooks(new Set(parsedLocal));
-              // TODO: Sync up to Supabase in background
-              // Note: This requires mapping string IDs to DB IDs for the INSERT.
-              // We'll just load the local state for now.
-            }
+            parsedLocal.forEach(item => {
+              // Convert legacy string format to integer ID
+              if (typeof item === 'string' && stringToIdMap[item]) {
+                ownedSet.add(stringToIdMap[item]);
+              } else if (typeof item === 'number') {
+                ownedSet.add(item);
+              }
+            });
           }
         }
+        
+        setOwnedBooks(ownedSet);
+        
       } catch (err) {
         console.error("Error loading collection:", err);
       } finally {
@@ -77,7 +107,13 @@ export default function Collection() {
     loadData();
   }, [user]);
 
-  // Persist open genres to localStorage (UI state only)
+  // Persist ownedBooks to localStorage (for unauthenticated users and migration)
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    localStorage.setItem('libraryOwned', JSON.stringify(Array.from(ownedBooks)));
+  }, [ownedBooks]);
+
+  // UI Local Storage
   useEffect(() => {
     const localGenres = localStorage.getItem('libraryOpenGenres');
     if (localGenres) {
@@ -108,7 +144,7 @@ export default function Collection() {
   const toggleBook = async (bookId, e) => {
     e.stopPropagation();
     
-    // Optimistic UI update
+    // Optimistic UI update (using integer ID)
     const isAdding = !ownedBooks.has(bookId);
     setOwnedBooks(prev => {
       const next = new Set(prev);
@@ -120,29 +156,15 @@ export default function Collection() {
     if (!user) return; // shouldn't happen due to ProtectedRoute
 
     try {
-      // Find the integer DB ID for this book. bookId is formatted as `${genre_id}_${index}`
-      const lastUnderscore = bookId.lastIndexOf('_');
-      const genreId = bookId.substring(0, lastUnderscore);
-      const bookIndex = parseInt(bookId.substring(lastUnderscore + 1));
-      
-      const { data: dbBook } = await supabase
-        .from('books')
-        .select('id')
-        .eq('genre_id', genreId)
-        .eq('book_index', bookIndex)
-        .single();
-
-      if (!dbBook) throw new Error("Book not found in database");
-
       if (isAdding) {
         await supabase.from('user_books').insert({
           user_id: user.id,
-          book_id: dbBook.id
+          book_id: bookId
         });
       } else {
         await supabase.from('user_books').delete()
           .eq('user_id', user.id)
-          .eq('book_id', dbBook.id);
+          .eq('book_id', bookId);
       }
     } catch (err) {
       console.error("Error syncing book:", err);
@@ -168,7 +190,7 @@ export default function Collection() {
       owned,
       pct: total === 0 ? 0 : Math.round((owned / total) * 100)
     };
-  }, [ownedBooks]);
+  }, [ownedBooks, libraryData]);
 
   // Render variables
   const lowerSearch = searchQuery.toLowerCase();
@@ -231,9 +253,8 @@ export default function Collection() {
       <div className="collection-library">
         {libraryData.map(genre => {
           // Filter books within genre
-          const visibleBooks = genre.books.map((book, index) => {
-            const bookId = `${genre.id}_${index}`;
-            const isOwned = ownedBooks.has(bookId);
+          const visibleBooks = genre.books.map((book) => {
+            const isOwned = ownedBooks.has(book.id);
             
             // Apply search filter
             if (searchQuery) {
@@ -246,7 +267,7 @@ export default function Collection() {
             if (activeFilter === 'missing' && isOwned) return null;
             if (activeFilter === 'owned' && !isOwned) return null;
 
-            return { ...book, bookId, isOwned, originalIndex: index };
+            return { ...book, isOwned };
           }).filter(Boolean);
 
           // If no books match filters in this genre, hide the genre
@@ -254,8 +275,8 @@ export default function Collection() {
 
           // Genre stats
           const genreTotal = genre.books.length;
-          const genreOwnedCount = genre.books.reduce((acc, _, index) => 
-            acc + (ownedBooks.has(`${genre.id}_${index}`) ? 1 : 0), 0
+          const genreOwnedCount = genre.books.reduce((acc, book) => 
+            acc + (ownedBooks.has(book.id) ? 1 : 0), 0
           );
 
           const isOpen = openGenres.has(genre.id) || searchQuery.length > 0;
@@ -277,9 +298,9 @@ export default function Collection() {
               <div className="collection-book-list">
                 {visibleBooks.map(book => (
                   <div 
-                    key={book.bookId} 
+                    key={book.id} 
                     className={`collection-book-item ${book.isOwned ? 'owned' : ''}`}
-                    onClick={(e) => toggleBook(book.bookId, e)}
+                    onClick={(e) => toggleBook(book.id, e)}
                   >
                     <div className="collection-checkbox"></div>
                     <div className="collection-book-details">

@@ -1,87 +1,115 @@
 import { useState, useEffect } from 'react';
 import CollectionCard from '../components/CollectionCard';
-import { libraryData } from '../data/libraryData';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import './Books.css';
 
 export default function Books() {
   const { user } = useAuth();
-  const [ownedBooks, setOwnedBooks] = useState(new Set());
+  const [displayBooks, setDisplayBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      if (!user) {
-        // Load from local storage
-        const localOwned = localStorage.getItem('libraryOwned');
-        if (localOwned) {
-          setOwnedBooks(new Set(JSON.parse(localOwned)));
-        }
-        setLoading(false);
-        return;
-      }
-      
       try {
-        const { data, error } = await supabase
-          .from('user_books')
-          .select('book_id');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const { data: bookMeta, error: metaError } = await supabase
+        if (!user) {
+          // Unauthenticated: Fetch catalog and filter by local storage
+          const localOwned = localStorage.getItem('libraryOwned');
+          if (!localOwned) {
+            setDisplayBooks([]);
+            setLoading(false);
+            return;
+          }
+          
+          const parsedLocal = JSON.parse(localOwned);
+          if (parsedLocal.length === 0) {
+            setDisplayBooks([]);
+            setLoading(false);
+            return;
+          }
+
+          // Fetch full catalog
+          const { data: booksData, error: catalogError } = await supabase
             .from('books')
-            .select('id, genre_id, book_index');
+            .select('*')
+            .order('id', { ascending: true });
             
-          if (metaError) throw metaError;
+          if (catalogError) throw catalogError;
           
-          const idMap = {};
-          bookMeta.forEach(b => {
-            idMap[b.id] = `${b.genre_id}_${b.book_index}`;
+          // Map local storage items (which might be legacy strings) to integer IDs
+          const stringToIdMap = {};
+          booksData.forEach(b => {
+             stringToIdMap[`${b.genre_id}_${b.book_index}`] = b.id;
           });
-          
+
           const ownedSet = new Set();
-          data.forEach(row => {
-            if (idMap[row.book_id]) {
-              ownedSet.add(idMap[row.book_id]);
+          parsedLocal.forEach(item => {
+            if (typeof item === 'string' && stringToIdMap[item]) {
+              ownedSet.add(stringToIdMap[item]);
+            } else if (typeof item === 'number') {
+              ownedSet.add(item);
             }
           });
+
+          // Map books
+          const mapped = booksData
+            .filter(b => ownedSet.has(b.id))
+            .map(b => ({
+              id: b.id,
+              title: b.title,
+              author: b.author,
+              genre: b.genre_name,
+              coverColor: b.color,
+              notes: b.note,
+            }));
+            
+          setDisplayBooks(mapped);
+          setLoading(false);
+          return;
+        }
+        
+        // Authenticated: Efficient SQL Join!
+        const { data, error } = await supabase
+          .from('user_books')
+          .select(`
+            book_id,
+            books (
+              id,
+              title,
+              author,
+              genre_name,
+              color,
+              note
+            )
+          `)
+          .eq('user_id', user.id);
           
-          setOwnedBooks(ownedSet);
-        } else {
-          // Fallback to local storage if empty
-          const localOwned = localStorage.getItem('libraryOwned');
-          if (localOwned) {
-            setOwnedBooks(new Set(JSON.parse(localOwned)));
-          }
+        if (error) throw error;
+        
+        if (data) {
+          // Supabase join syntax nests the joined table under its table name
+          const mapped = data.map(row => ({
+            id: row.books.id,
+            title: row.books.title,
+            author: row.books.author,
+            genre: row.books.genre_name,
+            coverColor: row.books.color,
+            notes: row.books.note,
+          }));
+          
+          // Sort by ID to preserve original genre grouping order
+          mapped.sort((a, b) => a.id - b.id);
+          setDisplayBooks(mapped);
         }
       } catch (err) {
-        console.error("Error loading collection:", err);
+        console.error("Error loading library:", err);
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, [user]);
-
-  // Map owned books to array for display
-  const displayBooks = [];
-  libraryData.forEach(genre => {
-    genre.books.forEach((book, index) => {
-      if (ownedBooks.has(`${genre.id}_${index}`)) {
-        displayBooks.push({
-          id: `${genre.id}_${index}`,
-          title: book.t,
-          author: book.a,
-          genre: genre.name,
-          coverColor: genre.color,
-          notes: book.n,
-        });
-      }
-    });
-  });
 
   return (
     <div className="books-page">
