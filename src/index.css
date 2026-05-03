@@ -102,6 +102,43 @@
   --nav-height: 72px;
 }
 
+[data-theme="dark"] {
+  /* Brand Colors - Midnight Library Theme */
+  --bg-primary: #1a1614;
+  --bg-secondary: #241e1b;
+  --bg-tertiary: #2a2420;
+  --bg-card: #2a2420;
+  --bg-card-hover: #332c28;
+  --bg-glass: rgba(26, 22, 20, 0.92);
+  
+  --text-primary: #e6dfd5;
+  --text-secondary: #b5a898;
+  --text-muted: #827769;
+  --text-accent: #c8a84b;
+  
+  --border-subtle: #3a322d;
+  --border-medium: #4a413a;
+  --border-strong: #5a5048;
+  
+  --accent-primary: #c8a84b; /* Gold pops more in dark mode */
+  --accent-secondary: #d4b85a;
+  --accent-tertiary: #a88a32;
+  
+  --accent-glow: rgba(200, 168, 75, 0.15);
+  --accent-glow-strong: rgba(200, 168, 75, 0.25);
+  
+  /* Status Colors */
+  --status-success: #4ade80;
+  --status-warning: #fbbf24;
+  --status-error: #f87171;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}
+
 /* ===== RESET & BASE ===== */
 *,
 *::before,

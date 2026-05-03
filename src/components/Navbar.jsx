@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle';
 import './Navbar.css';
 
 export default function Navbar() {
@@ -71,7 +72,8 @@ export default function Navbar() {
             </li>
           )}
         </ul>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingLeft: 'var(--space-4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingLeft: 'var(--space-4)', gap: 'var(--space-4)' }}>
+          <ThemeToggle />
           {loading ? null : user ? (
             <button 
               onClick={signOut} 
