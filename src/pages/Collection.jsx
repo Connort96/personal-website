@@ -18,13 +18,29 @@ export default function Collection() {
     async function loadData() {
       setIsSyncing(true);
       try {
-        // 1. Fetch entire catalog
-        const { data: booksData, error: catalogError } = await supabase
-          .from('books')
-          .select('*')
-          .order('id', { ascending: true });
+        // 1. Fetch entire catalog (handling the 1,000 row limit via pagination)
+        let booksData = [];
+        let hasMore = true;
+        let fromIndex = 0;
+        const pageSize = 1000;
+        
+        while (hasMore) {
+          const { data: pageData, error: catalogError } = await supabase
+            .from('books')
+            .select('*')
+            .order('id', { ascending: true })
+            .range(fromIndex, fromIndex + pageSize - 1);
+            
+          if (catalogError) throw catalogError;
           
-        if (catalogError) throw catalogError;
+          booksData = [...booksData, ...pageData];
+          
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          } else {
+            fromIndex += pageSize;
+          }
+        }
 
         // 2. Group into genres
         const genresMap = new Map();

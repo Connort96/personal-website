@@ -29,13 +29,29 @@ export default function Books() {
             return;
           }
 
-          // Fetch full catalog
-          const { data: booksData, error: catalogError } = await supabase
-            .from('books')
-            .select('*')
-            .order('id', { ascending: true });
+          // Fetch full catalog (handling the 1,000 row limit via pagination)
+          let booksData = [];
+          let hasMore = true;
+          let fromIndex = 0;
+          const pageSize = 1000;
+          
+          while (hasMore) {
+            const { data: pageData, error: catalogError } = await supabase
+              .from('books')
+              .select('*')
+              .order('id', { ascending: true })
+              .range(fromIndex, fromIndex + pageSize - 1);
+              
+            if (catalogError) throw catalogError;
             
-          if (catalogError) throw catalogError;
+            booksData = [...booksData, ...pageData];
+            
+            if (pageData.length < pageSize) {
+              hasMore = false;
+            } else {
+              fromIndex += pageSize;
+            }
+          }
           
           // Map local storage items (which might be legacy strings) to integer IDs
           const stringToIdMap = {};
