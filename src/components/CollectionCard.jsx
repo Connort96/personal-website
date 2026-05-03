@@ -1,6 +1,6 @@
 import './CollectionCard.css';
 
-export default function CollectionCard({ title, subtitle, year, genre, rating, coverColor, notes, onClick, index = 0, status }) {
+export default function CollectionCard({ title, subtitle, year, genre, rating, coverColor, coverUrl, notes, onClick, index = 0, status }) {
   const stars = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : null;
   const delay = Math.min(index * 0.05, 0.4);
 
@@ -14,9 +14,14 @@ export default function CollectionCard({ title, subtitle, year, genre, rating, c
     >
       <div
         className="collection-card__cover"
-        style={{ backgroundColor: coverColor || '#2a2a3a' }}
+        style={{ 
+          backgroundColor: coverColor || '#2a2a3a',
+          backgroundImage: coverUrl ? `url(${coverUrl})` : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
       >
-        <div className="collection-card__cover-pattern"></div>
+        {!coverUrl && <div className="collection-card__cover-pattern"></div>}
         {status && status !== 'unread' && (
           <div className="collection-card__status-badge">
             {status === 'reading' ? '📖' : '✓'}

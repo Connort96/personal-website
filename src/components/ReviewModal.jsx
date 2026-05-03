@@ -5,6 +5,7 @@ export default function ReviewModal({ book, isOpen, onClose, onSave }) {
   const [status, setStatus] = useState('unread');
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -12,6 +13,7 @@ export default function ReviewModal({ book, isOpen, onClose, onSave }) {
       setStatus(book.status || 'unread');
       setRating(book.rating || 0);
       setReview(book.review || '');
+      setCoverUrl(book.coverUrl || '');
     }
   }, [book]);
 
@@ -19,11 +21,15 @@ export default function ReviewModal({ book, isOpen, onClose, onSave }) {
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(book.id, {
-      status,
-      rating: rating > 0 ? rating : null,
-      review: review.trim() || null
-    });
+    await onSave(
+      book.id, 
+      {
+        status,
+        rating: rating > 0 ? rating : null,
+        review: review.trim() || null
+      },
+      coverUrl.trim() || null
+    );
     setSaving(false);
     onClose();
   };
@@ -72,6 +78,17 @@ export default function ReviewModal({ book, isOpen, onClose, onSave }) {
               onChange={e => setReview(e.target.value)}
               placeholder="What did you think of this book? Write your personal notes here..."
             />
+          </div>
+
+          <div className="form-group" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
+            <label>Global Cover Image URL</label>
+            <input 
+              type="url" 
+              value={coverUrl} 
+              onChange={e => setCoverUrl(e.target.value)}
+              placeholder="Paste image address here..."
+            />
+            <small style={{ color: 'var(--text-muted)' }}>Optional: Updating this attaches a cover image to the global catalog.</small>
           </div>
 
           <div className="modal-actions">

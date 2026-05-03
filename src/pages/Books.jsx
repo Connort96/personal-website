@@ -65,7 +65,8 @@ export default function Books() {
                 author,
                 genre_name,
                 color,
-                note
+                note,
+                cover_url
               )
             `)
             .eq('user_id', adminId)
@@ -89,6 +90,7 @@ export default function Books() {
             author: row.books.author,
             genre: row.books.genre_name,
             coverColor: row.books.color,
+            coverUrl: row.books.cover_url,
             notes: row.review || row.books.note, // Prefer personal review over global note
             status: row.status || 'unread',
             rating: row.rating,
@@ -107,13 +109,14 @@ export default function Books() {
     loadData();
   }, [user]);
 
-  const handleSaveReview = async (bookId, updates) => {
+  const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
     if (!isAdmin) {
       alert("Only the admin can save reviews!");
       return;
     }
 
     try {
+      // 1. Update user_books (status, rating, review)
       const { error } = await supabase
         .from('user_books')
         .update(updates)
@@ -122,13 +125,27 @@ export default function Books() {
 
       if (error) throw error;
 
+      // 2. Update global books table if a new cover URL was provided
+      if (globalCoverUrl !== undefined) {
+        const { error: coverError } = await supabase
+          .from('books')
+          .update({ cover_url: globalCoverUrl })
+          .eq('id', bookId);
+          
+        if (coverError) {
+          console.error("Failed to update global cover:", coverError);
+          // Don't throw, we still saved the review successfully
+        }
+      }
+
       // Update local state instantly
       setDisplayBooks(prev => prev.map(b => {
         if (b.id === bookId) {
           return {
             ...b,
             ...updates,
-            notes: updates.review || b.notes // Update the note displayed on the card
+            notes: updates.review || b.notes, // Update the note displayed on the card
+            coverUrl: globalCoverUrl !== undefined ? globalCoverUrl : b.coverUrl
           };
         }
         return b;
@@ -228,6 +245,7 @@ export default function Books() {
                 subtitle={book.author}
                 genre={book.genre}
                 coverColor={book.coverColor}
+                coverUrl={book.coverUrl}
                 notes={book.notes}
                 rating={book.rating}
                 status={book.status}

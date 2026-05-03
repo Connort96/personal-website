@@ -10,7 +10,8 @@ export default function Admin() {
     genre_id: '',
     title: '',
     author: '',
-    note: ''
+    note: '',
+    cover_url: ''
   });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,38 @@ export default function Admin() {
     }
     loadGenres();
   }, [user]);
+
+  const handleAutoFetchCover = async (e) => {
+    e.preventDefault();
+    if (!formData.title) {
+      setStatus({ type: 'error', message: 'Please enter a title to search for a cover.' });
+      return;
+    }
+    
+    setLoading(true);
+    setStatus({ type: '', message: 'Searching Google Books for cover...' });
+    
+    try {
+      const query = encodeURIComponent(`intitle:${formData.title} ${formData.author ? `inauthor:${formData.author}` : ''}`);
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`);
+      const data = await res.json();
+      
+      if (data.items && data.items.length > 0 && data.items[0].volumeInfo.imageLinks) {
+        let coverUrl = data.items[0].volumeInfo.imageLinks.thumbnail;
+        coverUrl = coverUrl.replace('http:', 'https:').replace('&edge=curl', ''); // remove edge curl if present
+        
+        setFormData(prev => ({ ...prev, cover_url: coverUrl }));
+        setStatus({ type: 'success', message: 'Cover found successfully!' });
+      } else {
+        setStatus({ type: 'error', message: 'Could not find a cover image for this book.' });
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', message: 'Error communicating with Google Books API.' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,13 +119,14 @@ export default function Admin() {
           book_index: nextIndex,
           title: formData.title,
           author: formData.author,
-          note: formData.note || null
+          note: formData.note || null,
+          cover_url: formData.cover_url || null
         });
 
       if (insertError) throw insertError;
 
       setStatus({ type: 'success', message: `Successfully added "${formData.title}" to the catalog!` });
-      setFormData({ ...formData, title: '', author: '', note: '' }); // Clear text inputs
+      setFormData({ ...formData, title: '', author: '', note: '', cover_url: '' }); // Clear text inputs
       
     } catch (err) {
       console.error(err);
@@ -183,6 +217,35 @@ export default function Admin() {
               placeholder="Any quick thoughts or reviews..."
               rows={3}
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="cover_url">Cover Image URL (Optional)</label>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <input 
+                type="url" 
+                id="cover_url" 
+                name="cover_url" 
+                value={formData.cover_url} 
+                onChange={handleChange}
+                placeholder="https://..."
+                style={{ flex: 1 }}
+              />
+              <button 
+                type="button"
+                className="btn-cancel"
+                onClick={handleAutoFetchCover}
+                disabled={loading || !formData.title}
+                style={{ whiteSpace: 'nowrap', marginTop: 0 }}
+              >
+                ✨ Auto-Fetch
+              </button>
+            </div>
+            {formData.cover_url && (
+              <div style={{ marginTop: 'var(--space-2)' }}>
+                <img src={formData.cover_url} alt="Cover Preview" style={{ height: '100px', borderRadius: 'var(--radius-sm)' }} />
+              </div>
+            )}
           </div>
 
           <button 
