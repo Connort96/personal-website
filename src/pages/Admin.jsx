@@ -19,8 +19,6 @@ export default function Admin() {
   const [backfillStatus, setBackfillStatus] = useState('');
 
   const handleBackfillCovers = async () => {
-    if (!window.confirm("Are you sure you want to backfill 1,200 covers? This will take ~15 minutes and you must leave this page open.")) return;
-    
     setBackfillStatus('Fetching missing books...');
     try {
       let allMissing = [];
