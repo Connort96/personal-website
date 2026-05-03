@@ -16,6 +16,68 @@ export default function Admin() {
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [backfillStatus, setBackfillStatus] = useState('');
+
+  const handleBackfillCovers = async () => {
+    if (!window.confirm("Are you sure you want to backfill 1,200 covers? This will take ~15 minutes and you must leave this page open.")) return;
+    
+    setBackfillStatus('Fetching missing books...');
+    try {
+      let allMissing = [];
+      let hasMore = true;
+      let from = 0;
+      const limit = 1000;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('books')
+          .select('id, title, author')
+          .is('cover_url', null)
+          .range(from, from + limit - 1);
+          
+        if (error) throw error;
+        
+        allMissing = [...allMissing, ...data];
+        if (data.length < limit) hasMore = false;
+        else from += limit;
+      }
+      
+      setBackfillStatus(`Found ${allMissing.length} books. Starting backfill...`);
+      
+      let success = 0;
+      let notFound = 0;
+      
+      for (let i = 0; i < allMissing.length; i++) {
+        const book = allMissing[i];
+        setBackfillStatus(`[${i+1}/${allMissing.length}] Processing: ${book.title}...`);
+        
+        try {
+          const query = encodeURIComponent(`intitle:${book.title} ${book.author ? `inauthor:${book.author}` : ''}`);
+          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`);
+          const apiData = await res.json();
+          
+          if (apiData.items && apiData.items.length > 0 && apiData.items[0].volumeInfo.imageLinks) {
+            let coverUrl = apiData.items[0].volumeInfo.imageLinks.thumbnail;
+            coverUrl = coverUrl.replace('http:', 'https:').replace('&edge=curl', '');
+            
+            await supabase.from('books').update({ cover_url: coverUrl }).eq('id', book.id);
+            success++;
+          } else {
+            notFound++;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+        
+        // Wait 500ms to avoid Google Rate Limits
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      setBackfillStatus(`Done! Successfully added ${success} covers. ${notFound} not found on Google Books.`);
+    } catch (err) {
+      setBackfillStatus(`Error: ${err.message}`);
+    }
+  };
 
   useEffect(() => {
     // Check if they are admin
@@ -158,6 +220,25 @@ export default function Admin() {
       <header className="page-header">
         <h1 className="page-header__title">Admin Dashboard</h1>
         <p className="page-header__subtitle">Add new books to the global catalog.</p>
+        
+        <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+          <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: 'var(--space-2)' }}>Bulk Cover Backfill</h3>
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+            Automatically ping the Google Books API to find and download covers for all 1,200+ books in your library that don't have one yet.
+          </p>
+          <button 
+            className="btn-cancel" 
+            onClick={handleBackfillCovers}
+            style={{ background: 'var(--bg-primary)' }}
+          >
+            Start Backfill Migration
+          </button>
+          {backfillStatus && (
+            <p style={{ marginTop: 'var(--space-3)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--accent-secondary)' }}>
+              {backfillStatus}
+            </p>
+          )}
+        </div>
       </header>
 
       <div className="admin-card">
