@@ -120,13 +120,16 @@ export default function Collection() {
     if (!user) return; // shouldn't happen due to ProtectedRoute
 
     try {
-      // Find the integer DB ID for this book
-      const [genreId, bookIndex] = bookId.split('_');
+      // Find the integer DB ID for this book. bookId is formatted as `${genre_id}_${index}`
+      const lastUnderscore = bookId.lastIndexOf('_');
+      const genreId = bookId.substring(0, lastUnderscore);
+      const bookIndex = parseInt(bookId.substring(lastUnderscore + 1));
+      
       const { data: dbBook } = await supabase
         .from('books')
         .select('id')
         .eq('genre_id', genreId)
-        .eq('book_index', parseInt(bookIndex))
+        .eq('book_index', bookIndex)
         .single();
 
       if (!dbBook) throw new Error("Book not found in database");
