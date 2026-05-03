@@ -1,79 +1,121 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CollectionCard from '../components/CollectionCard';
-import { books } from '../data/books';
+import { libraryData } from '../data/libraryData';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import './Books.css';
 
-const statusLabels = {
-  'all': 'All',
-  'read': 'Read',
-  'currently-reading': 'Currently Reading',
-  'want-to-read': 'Want to Read',
-};
-
-const statusEmojis = {
-  'read': '✓',
-  'currently-reading': '📖',
-  'want-to-read': '🔖',
-};
-
 export default function Books() {
-  const [activeStatus, setActiveStatus] = useState('all');
+  const { user } = useAuth();
+  const [ownedBooks, setOwnedBooks] = useState(new Set());
+  const [loading, setLoading] = useState(true);
 
-  const filtered = activeStatus === 'all'
-    ? books
-    : books.filter(b => b.status === activeStatus);
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      if (!user) {
+        // Load from local storage
+        const localOwned = localStorage.getItem('libraryOwned');
+        if (localOwned) {
+          setOwnedBooks(new Set(JSON.parse(localOwned)));
+        }
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_books')
+          .select('book_id');
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          const { data: bookMeta, error: metaError } = await supabase
+            .from('books')
+            .select('id, genre_id, book_index');
+            
+          if (metaError) throw metaError;
+          
+          const idMap = {};
+          bookMeta.forEach(b => {
+            idMap[b.id] = `${b.genre_id}_${b.book_index}`;
+          });
+          
+          const ownedSet = new Set();
+          data.forEach(row => {
+            if (idMap[row.book_id]) {
+              ownedSet.add(idMap[row.book_id]);
+            }
+          });
+          
+          setOwnedBooks(ownedSet);
+        } else {
+          // Fallback to local storage if empty
+          const localOwned = localStorage.getItem('libraryOwned');
+          if (localOwned) {
+            setOwnedBooks(new Set(JSON.parse(localOwned)));
+          }
+        }
+      } catch (err) {
+        console.error("Error loading collection:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [user]);
 
-  const statusCounts = {
-    'all': books.length,
-    'read': books.filter(b => b.status === 'read').length,
-    'currently-reading': books.filter(b => b.status === 'currently-reading').length,
-    'want-to-read': books.filter(b => b.status === 'want-to-read').length,
-  };
+  // Map owned books to array for display
+  const displayBooks = [];
+  libraryData.forEach(genre => {
+    genre.books.forEach((book, index) => {
+      if (ownedBooks.has(`${genre.id}_${index}`)) {
+        displayBooks.push({
+          id: `${genre.id}_${index}`,
+          title: book.t,
+          author: book.a,
+          genre: genre.name,
+          coverColor: genre.color,
+          notes: book.n,
+        });
+      }
+    });
+  });
 
   return (
     <div className="books-page">
       <div className="container">
         <header className="page-header animate-fade-in-up">
-          <h1 className="page-header__title">Book Collection</h1>
+          <h1 className="page-header__title">My Library</h1>
           <p className="page-header__subtitle">
-            Books that shaped my thinking, and those I can't wait to read.
+            Books I have collected and tracked. You currently own {displayBooks.length} books.
           </p>
         </header>
 
-        <div className="books-tabs animate-fade-in-up animate-stagger-2" id="book-tabs">
-          {Object.entries(statusLabels).map(([key, label]) => (
-            <button
-              key={key}
-              className={`books-tab ${activeStatus === key ? 'books-tab--active' : ''}`}
-              onClick={() => setActiveStatus(key)}
-              id={`tab-${key}`}
-            >
-              {statusEmojis[key] && <span className="books-tab__emoji">{statusEmojis[key]}</span>}
-              {label}
-              <span className="books-tab__count">{statusCounts[key]}</span>
-            </button>
-          ))}
-        </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', margin: 'var(--space-12) 0', color: 'var(--text-muted)' }}>
+            Loading library...
+          </div>
+        ) : (
+          <div className="books-grid" id="books-grid">
+            {displayBooks.map((book, i) => (
+              <CollectionCard
+                key={book.id}
+                title={book.title}
+                subtitle={book.author}
+                genre={book.genre}
+                coverColor={book.coverColor}
+                notes={book.notes}
+                index={i}
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="books-grid" id="books-grid">
-          {filtered.map((book, i) => (
-            <CollectionCard
-              key={book.id}
-              title={book.title}
-              subtitle={book.author}
-              year={book.year}
-              genre={book.genre}
-              rating={book.rating}
-              coverColor={book.coverColor}
-              notes={book.notes}
-              index={i}
-            />
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
+        {!loading && displayBooks.length === 0 && (
           <div className="books-empty animate-fade-in-up">
-            <p>No books in this category yet.</p>
+            <p>You haven't added any books to your collection yet. Head over to the Collection tab to start checking them off!</p>
           </div>
         )}
       </div>
