@@ -1,5 +1,5 @@
 import BlogCard from '../components/BlogCard';
-import { posts } from '../data/posts';
+import { posts } from '../data/postLoader';
 import './Blog.css';
 
 export default function Blog() {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { posts } from '../data/posts';
+import { posts } from '../data/postLoader';
 import { albums } from '../data/music';
 import { books } from '../data/books';
 import './Home.css';

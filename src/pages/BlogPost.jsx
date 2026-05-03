@@ -1,10 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
-import { posts } from '../data/posts';
+import { getPost } from '../data/postLoader';
 import './BlogPost.css';
 
 export default function BlogPost() {
   const { id } = useParams();
-  const post = posts.find(p => p.id === id);
+  const post = getPost(id);
 
   if (!post) {
     return (
@@ -23,69 +23,6 @@ export default function BlogPost() {
   const dateStr = new Date(post.date).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric'
   });
-
-  // Simple markdown-like rendering
-  const renderContent = (content) => {
-    const lines = content.trim().split('\n');
-    const elements = [];
-    let i = 0;
-
-    while (i < lines.length) {
-      const line = lines[i];
-
-      if (line.startsWith('### ')) {
-        elements.push(<h3 key={i}>{line.replace('### ', '').replace(/\*/g, '')}</h3>);
-      } else if (line.startsWith('## ')) {
-        elements.push(<h2 key={i}>{line.replace('## ', '')}</h2>);
-      } else if (line.startsWith('- **')) {
-        // Collect list items
-        const items = [];
-        let j = i;
-        while (j < lines.length && lines[j].startsWith('- ')) {
-          const text = lines[j].replace(/^- /, '');
-          const parts = text.split(/(\*\*.*?\*\*)/g).map((part, idx) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return <strong key={idx}>{part.slice(2, -2)}</strong>;
-            }
-            return part;
-          });
-          items.push(<li key={j}>{parts}</li>);
-          j++;
-        }
-        elements.push(<ul key={i}>{items}</ul>);
-        i = j - 1;
-      } else if (line.match(/^\d+\. /)) {
-        const items = [];
-        let j = i;
-        while (j < lines.length && lines[j].match(/^\d+\. /)) {
-          const text = lines[j].replace(/^\d+\. /, '');
-          const parts = text.split(/(\*\*.*?\*\*)/g).map((part, idx) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return <strong key={idx}>{part.slice(2, -2)}</strong>;
-            }
-            return part;
-          });
-          items.push(<li key={j}>{parts}</li>);
-          j++;
-        }
-        elements.push(<ol key={i}>{items}</ol>);
-        i = j - 1;
-      } else if (line.trim() === '') {
-        // skip
-      } else {
-        // Render paragraph with inline formatting
-        const parts = line.split(/(\*[^*]+\*)/g).map((part, idx) => {
-          if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
-            return <em key={idx}>{part.slice(1, -1)}</em>;
-          }
-          return part;
-        });
-        elements.push(<p key={i}>{parts}</p>);
-      }
-      i++;
-    }
-    return elements;
-  };
 
   return (
     <div className="blog-post-page">
@@ -107,9 +44,10 @@ export default function BlogPost() {
               ))}
             </div>
           </header>
-          <div className="blog-post__content">
-            {renderContent(post.content)}
-          </div>
+          <div
+            className="blog-post__content"
+            dangerouslySetInnerHTML={{ __html: post.html }}
+          />
         </article>
       </div>
     </div>
