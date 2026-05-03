@@ -53,6 +53,23 @@
   border-radius: var(--radius-sm);
 }
 
+.collection-card__status-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: rgba(26, 21, 16, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: white;
+  box-shadow: var(--shadow-sm);
+  z-index: 2;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
 .collection-card__info {
   padding: var(--space-4);
   display: flex;
