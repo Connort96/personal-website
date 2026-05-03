@@ -4,11 +4,48 @@
   min-height: 100vh;
 }
 
+.books-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-bottom: var(--space-10);
+}
+
 .books-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-10);
+}
+
+.books-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.books-sort label {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.books-sort-select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-primary);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.books-sort-select:focus {
+  border-color: var(--accent-primary);
 }
 
 .books-tab {
