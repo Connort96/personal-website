@@ -1,0 +1,4 @@
+/* App-level styles are minimal since we use index.css for the design system */
+main {
+  flex: 1;
+}
