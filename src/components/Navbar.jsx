@@ -1,7 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
 export default function Navbar() {
+  const location = useLocation();
+  const { user, signOut, loading } = useAuth();
   return (
     <nav className="navbar" id="main-nav">
       <div className="navbar__inner container">
@@ -47,7 +50,34 @@ export default function Navbar() {
               Books
             </NavLink>
           </li>
+          <li>
+            <NavLink
+              to="/collection"
+              className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+              id="nav-collection"
+            >
+              Collection
+            </NavLink>
+          </li>
         </ul>
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingLeft: 'var(--space-4)' }}>
+          {loading ? null : user ? (
+            <button 
+              onClick={signOut} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: '500' }}
+              title={`Signed in as ${user.email}`}
+            >
+              Sign Out
+            </button>
+          ) : (
+            <NavLink 
+              to="/login" 
+              style={{ color: 'var(--accent-secondary)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: '500' }}
+            >
+              Sign In
+            </NavLink>
+          )}
+        </div>
       </div>
     </nav>
   );

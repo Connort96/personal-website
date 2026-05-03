@@ -33,7 +33,7 @@
 .collection-card__cover-pattern {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 9px);
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(26,21,16,0.05) 8px, rgba(26,21,16,0.05) 9px);
   transition: opacity var(--duration-normal) var(--ease-out);
 }
 
@@ -46,8 +46,8 @@
   z-index: 1;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.6);
-  background: rgba(0, 0, 0, 0.3);
+  color: rgba(26, 21, 16, 0.8);
+  background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(8px);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);

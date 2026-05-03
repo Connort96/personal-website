@@ -1,0 +1,281 @@
+.collection-page {
+  padding-top: calc(var(--nav-height) + var(--space-8));
+  padding-bottom: var(--space-24);
+  min-height: 100vh;
+}
+
+.collection-header-container {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 90;
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-6);
+}
+
+.collection-title {
+  font-family: var(--font-serif);
+  font-size: var(--text-3xl);
+  line-height: 1.2;
+}
+
+.collection-title em {
+  color: var(--accent-gold);
+  font-style: italic;
+}
+
+/* Stats Grid */
+.collection-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.collection-stat-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.collection-stat-val {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.collection-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Controls */
+.collection-search-bar {
+  width: 100%;
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  margin-top: var(--space-4);
+  outline: none;
+  transition: border-color var(--duration-fast);
+}
+
+.collection-search-bar:focus {
+  border-color: var(--accent-primary);
+}
+
+.collection-filters {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: 5px;
+  scrollbar-width: none;
+}
+
+.collection-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.collection-filter-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.collection-filter-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.collection-filter-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-card);
+  border-color: var(--text-primary);
+}
+
+/* Lists */
+.collection-genre-section {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.collection-genre-header {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  background: var(--bg-card);
+  transition: background var(--duration-fast);
+}
+
+.collection-genre-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.collection-genre-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.collection-genre-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.collection-genre-title {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+/* Spine Badges */
+.collection-spine-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.03em;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.badge-black  { background: #1a1a1a; color: #f0ebe0; }
+.badge-red    { background: #b5231a; color: #fdf0ef; }
+.badge-orange { background: #d4661a; color: #fff5ee; }
+.badge-green  { background: #1e5c3a; color: #d8f3dc; }
+.badge-blue   { background: #1e3a6e; color: #dce8f8; }
+.badge-mix    { background: var(--border-medium); color: var(--text-secondary); }
+
+.collection-genre-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.collection-chevron {
+  transition: transform 0.3s ease;
+  font-size: 12px;
+}
+
+.collection-genre-section.open .collection-chevron {
+  transform: rotate(180deg);
+}
+
+.collection-book-list {
+  display: none;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.collection-genre-section.open .collection-book-list {
+  display: block;
+}
+
+.collection-book-item {
+  display: flex;
+  gap: 15px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(26,21,16,0.05);
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.collection-book-item:hover {
+  background: rgba(26,21,16,0.02);
+}
+
+.collection-book-item:last-child {
+  border-bottom: none;
+}
+
+.collection-checkbox {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  margin-top: 2px;
+}
+
+.collection-book-item.owned .collection-checkbox {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.collection-checkbox::after {
+  content: "✓";
+  color: white;
+  font-size: 12px;
+  display: none;
+  font-family: sans-serif;
+}
+
+.collection-book-item.owned .collection-checkbox::after {
+  display: block;
+}
+
+.collection-book-details {
+  flex-grow: 1;
+}
+
+.collection-book-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.3;
+  transition: color 0.2s;
+}
+
+.collection-book-author {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.collection-book-note {
+  font-size: var(--text-xs);
+  color: var(--border-strong);
+  margin-top: 3px;
+}
+
+.collection-book-item.owned .collection-book-title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--accent-primary);
+}

@@ -8,6 +8,10 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import Music from './pages/Music';
 import Books from './pages/Books';
+import Collection from './pages/Collection';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 import './index.css';
 
 function ScrollToTop() {
@@ -18,29 +22,32 @@ function ScrollToTop() {
   return null;
 }
 
-function AppLayout() {
-  return (
-    <>
-      <ScrollToTop />
-      <Navbar />
-      <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/blog/:id" element={<BlogPost />} />
-          <Route path="/music" element={<Music />} />
-          <Route path="/books" element={<Books />} />
-        </Routes>
-      </main>
-      <Footer />
-    </>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
-      <AppLayout />
+      <AuthProvider>
+        <ScrollToTop />
+        <Navbar />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:id" element={<BlogPost />} />
+            <Route path="/music" element={<Music />} />
+            <Route path="/books" element={<Books />} />
+            <Route path="/login" element={<Login />} />
+            <Route 
+              path="/collection" 
+              element={
+                <ProtectedRoute>
+                  <Collection />
+                </ProtectedRoute>
+              } 
+            />
+          </Routes>
+        </main>
+        <Footer />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
