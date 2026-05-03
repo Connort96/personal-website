@@ -227,8 +227,12 @@ export default function Admin() {
             Automatically ping the Google Books API to find and download covers for all 1,200+ books in your library that don't have one yet.
           </p>
           <button 
+            type="button"
             className="btn-cancel" 
-            onClick={handleBackfillCovers}
+            onClick={(e) => {
+              e.preventDefault();
+              handleBackfillCovers();
+            }}
             style={{ background: 'var(--bg-primary)' }}
           >
             Start Backfill Migration
