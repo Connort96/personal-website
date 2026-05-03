@@ -136,6 +136,12 @@ export default function Books() {
             notes: row.review || '',
             owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
             editions: edition ? [edition] : [],
+            // New metadata fields
+            publisher: edition?.publisher || legacy?.publisher || null,
+            pageCount: edition?.page_count || legacy?.page_count || null,
+            isbn: edition?.isbn || legacy?.isbn || null,
+            publicationDate: edition?.publication_date || legacy?.publication_date || null,
+            translator: edition?.translator || legacy?.translator || null,
           };
         });
 

@@ -62,6 +62,9 @@ export default function Collection() {
             t: b.title,
             a: b.author,
             n: b.note,
+            year: b.publication_date ? new Date(b.publication_date).getFullYear() : null,
+            pages: b.page_count || null,
+            isbn: b.isbn || null,
           });
           
           stringToIdMap[`${b.genre_id}_${b.book_index}`] = b.id;
@@ -322,6 +325,13 @@ export default function Collection() {
                     <div className="collection-book-details">
                       <div className="collection-book-title">{book.t}</div>
                       <div className="collection-book-author">{book.a}</div>
+                      {(book.year || book.pages || book.isbn) && (
+                        <div className="collection-book-meta">
+                          {book.year && <span>{book.year}</span>}
+                          {book.pages && <span>{book.pages} pp</span>}
+                          {book.isbn && <span>{book.isbn}</span>}
+                        </div>
+                      )}
                       {book.n && <div className="collection-book-note">{book.n}</div>}
                     </div>
                   </div>

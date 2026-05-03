@@ -96,6 +96,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
           <div className="slideover-meta">
             <h2 className="slideover-title">{book.title}</h2>
             <p className="slideover-author">by {book.author}</p>
+            {book.translator && <p className="slideover-translator">Translated by {book.translator}</p>}
             {book.genre && <span className="slideover-genre">{book.genre}</span>}
             <span
               className="slideover-status-pill"
@@ -105,6 +106,16 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
             </span>
           </div>
         </div>
+
+        {/* Edition Details (public) */}
+        {(book.publisher || book.pageCount || book.isbn || book.publicationDate) && (
+          <div className="slideover-edition-details">
+            {book.publisher && <span>{book.publisher}</span>}
+            {book.publicationDate && <span>{new Date(book.publicationDate).getFullYear()}</span>}
+            {book.pageCount && <span>{book.pageCount} pages</span>}
+            {book.isbn && <span className="slideover-isbn">{book.isbn}</span>}
+          </div>
+        )}
       </div>
 
       <div className="slideover-body">
