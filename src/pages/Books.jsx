@@ -46,7 +46,9 @@ export default function Books() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const isAdmin = user?.email === 'theconison96@gmail.com';
+  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.id === selectedBook?.user_id);
+  // We'll also need to track the owner of the library we're currently viewing
+  const [libraryOwnerId, setLibraryOwnerId] = useState(null);
 
   // Persist view mode preference
   const handleViewChange = (mode) => {
@@ -68,6 +70,11 @@ export default function Books() {
         if (adminErr || !adminSettings) throw new Error('Could not find admin settings.');
         const adminId = adminSettings.admin_user_id;
 
+        // Determine whose library to show
+        // Priority: Logged in user > Admin
+        const displayUserId = user?.id || adminId;
+        setLibraryOwnerId(displayUserId);
+
         // Fetch user_books joined with editions → works, paginated
         let allRows = [];
         let from = 0;
@@ -77,6 +84,7 @@ export default function Books() {
           const { data, error: fetchErr } = await supabase
             .from('user_books')
             .select(`
+              user_id,
               book_id,
               edition_id,
               status,
@@ -115,7 +123,7 @@ export default function Books() {
                 translator
               )
             `)
-            .eq('user_id', adminId)
+            .eq('user_id', displayUserId)
             .range(from, from + pageSize - 1);
 
           if (fetchErr) throw fetchErr;
@@ -144,6 +152,7 @@ export default function Books() {
             review: row.review || '',
             notes: row.review || '',
             owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
+            user_id: row.user_id,
             editions: edition ? [edition] : [],
             // New metadata fields
             publisher: edition?.publisher || legacy?.publisher || null,
@@ -176,9 +185,10 @@ export default function Books() {
     loadData();
   }, [user]);
 
-  // ─── Save review (admin only) ──────────────────────────────────────────────
+  // ─── Save review (admin/owner only) ──────────────────────────────────────────────
   const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
-    if (!isAdmin) return;
+    const isOwner = user?.id === libraryOwnerId;
+    if (!isOwner) return;
     try {
       const { error } = await supabase
         .from('user_books')
@@ -254,7 +264,9 @@ export default function Books() {
       <div className="container">
         {/* Page Header */}
         <header className="page-header animate-fade-in-up">
-          <h1 className="page-header__title">My Library</h1>
+          <h1 className="page-header__title">
+            {user?.id === libraryOwnerId ? 'My Library' : "Connor's Library"}
+          </h1>
           <p className="page-header__subtitle">
             {allBooks.length > 0
               ? `${allBooks.length} books collected.${isAdmin ? ' Click any book to edit.' : ''}`
