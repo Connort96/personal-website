@@ -28,6 +28,13 @@ export default function Navbar() {
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
+  const toggleDropdown = (name, e) => {
+    if (window.innerWidth <= 768) {
+      e.preventDefault();
+      setActiveDropdown(activeDropdown === name ? null : name);
+    }
+  };
+
   const navLinks = {
     journal: [
       { name: 'Blog', to: '/blog' },
@@ -64,10 +71,13 @@ export default function Navbar() {
             {/* Journal Dropdown */}
             <li 
               className="navbar__item navbar__item--has-dropdown"
-              onMouseEnter={() => setActiveDropdown('journal')}
-              onMouseLeave={() => setActiveDropdown(null)}
+              onMouseEnter={() => window.innerWidth > 768 && setActiveDropdown('journal')}
+              onMouseLeave={() => window.innerWidth > 768 && setActiveDropdown(null)}
             >
-              <button className="navbar__link navbar__link--dropdown-trigger">
+              <button 
+                className="navbar__link navbar__link--dropdown-trigger"
+                onClick={(e) => toggleDropdown('journal', e)}
+              >
                 Journal
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="navbar__dropdown-arrow">
                   <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -77,9 +87,9 @@ export default function Navbar() {
                 {activeDropdown === 'journal' && (
                   <motion.div 
                     className="navbar__dropdown"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
+                    initial={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
+                    animate={window.innerWidth > 768 ? { opacity: 1, y: 0 } : { height: 'auto', opacity: 1 }}
+                    exit={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
                     {navLinks.journal.map(link => (
@@ -95,10 +105,13 @@ export default function Navbar() {
             {/* Collections Dropdown */}
             <li 
               className="navbar__item navbar__item--has-dropdown"
-              onMouseEnter={() => setActiveDropdown('collections')}
-              onMouseLeave={() => setActiveDropdown(null)}
+              onMouseEnter={() => window.innerWidth > 768 && setActiveDropdown('collections')}
+              onMouseLeave={() => window.innerWidth > 768 && setActiveDropdown(null)}
             >
-              <button className="navbar__link navbar__link--dropdown-trigger">
+              <button 
+                className="navbar__link navbar__link--dropdown-trigger"
+                onClick={(e) => toggleDropdown('collections', e)}
+              >
                 Collections
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="navbar__dropdown-arrow">
                   <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -108,9 +121,9 @@ export default function Navbar() {
                 {activeDropdown === 'collections' && (
                   <motion.div 
                     className="navbar__dropdown"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
+                    initial={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
+                    animate={window.innerWidth > 768 ? { opacity: 1, y: 0 } : { height: 'auto', opacity: 1 }}
+                    exit={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
                     {navLinks.collections.map(link => (
