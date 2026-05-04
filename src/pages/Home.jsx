@@ -25,11 +25,16 @@ export default function Home() {
           const { data: readingData } = await supabase
             .from('user_books')
             .select(`
-              id,
+              book_id,
               status,
               editions ( 
                 cover_url, 
                 works ( title, author ) 
+              ),
+              books (
+                title,
+                author,
+                cover_url
               )
             `)
             .eq('user_id', adminId)
@@ -39,10 +44,10 @@ export default function Home() {
           if (readingData && readingData.length > 0) {
             const item = readingData[0];
             setCurrentlyReading({
-              id: item.id,
-              title: item.editions?.works?.title || 'Unknown Title',
-              author: item.editions?.works?.author || 'Unknown Author',
-              cover_url: item.editions?.cover_url,
+              id: item.book_id,
+              title: item.editions?.works?.title || item.books?.title || 'Unknown Title',
+              author: item.editions?.works?.author || item.books?.author || 'Unknown Author',
+              cover_url: item.editions?.cover_url || item.books?.cover_url,
             });
           }
 
@@ -50,26 +55,31 @@ export default function Home() {
           const { data: reviewsData } = await supabase
             .from('user_books')
             .select(`
-              id,
+              book_id,
               rating,
               review,
               owned_at,
               editions ( 
                 cover_url, 
                 works ( title, author ) 
+              ),
+              books (
+                title,
+                author,
+                cover_url
               )
             `)
             .eq('user_id', adminId)
-            .gte('rating', 4) // Show 4 and 5 stars if list is short
+            .gte('rating', 4)
             .order('owned_at', { ascending: false })
             .limit(3);
 
           if (reviewsData) {
             setTopReviews(reviewsData.map(item => ({
-              id: item.id,
-              title: item.editions?.works?.title || 'Unknown Title',
-              author: item.editions?.works?.author || 'Unknown Author',
-              cover_url: item.editions?.cover_url,
+              id: item.book_id,
+              title: item.editions?.works?.title || item.books?.title || 'Unknown Title',
+              author: item.editions?.works?.author || item.books?.author || 'Unknown Author',
+              cover_url: item.editions?.cover_url || item.books?.cover_url,
               review: item.review || 'No review written yet.',
               rating: item.rating
             })));
