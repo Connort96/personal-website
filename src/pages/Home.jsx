@@ -86,15 +86,21 @@ export default function Home() {
             })));
           }
 
-          // Fetch recent travel trips
+          // Fetch recent travel trips with photos
           const { data: travelData } = await supabase
             .from('trips')
-            .select('*')
+            .select(`
+              *,
+              trip_photos ( url )
+            `)
             .order('start_date', { ascending: false })
             .limit(3);
             
           if (travelData) {
-            setRecentTrips(travelData);
+            setRecentTrips(travelData.map(trip => ({
+              ...trip,
+              display_image: trip.cover_image_url || (trip.trip_photos && trip.trip_photos.length > 0 ? trip.trip_photos[0].url : null)
+            })));
           }
 
           // Fetch latest post
@@ -245,10 +251,10 @@ export default function Home() {
               whileHover={{ y: -5, borderColor: 'rgba(200, 168, 75, 0.5)' }}
               transition={{ duration: 0.3 }}
             >
-              {recentTrips.length > 0 && recentTrips[0].cover_image_url && (
+              {recentTrips.length > 0 && recentTrips[0].display_image && (
                 <div 
                   className="bento-travel-bg"
-                  style={{ backgroundImage: `url(${recentTrips[0].cover_image_url})` }}
+                  style={{ backgroundImage: `url(${recentTrips[0].display_image})` }}
                 ></div>
               )}
               <div className="bento-travel-overlay"></div>
