@@ -155,8 +155,7 @@ export default function Home() {
               <span className="hero__title-line">CONNOR’S COLLECTIONS</span>
             </h1>
             <p className="hero__subtitle">
-              An editorial anthology of literature, sound, and observations from the road. 
-              Exploring the texture of a life lived intentionally.
+              Connor's blog of random filth
             </p>
             <div className="hero__actions">
               {latestPost && (
