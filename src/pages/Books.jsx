@@ -91,6 +91,10 @@ export default function Books() {
                 genre_name,
                 color,
                 publisher,
+                page_count,
+                isbn,
+                publication_date,
+                translator,
                 works (
                   id,
                   title,
@@ -103,7 +107,12 @@ export default function Books() {
                 author,
                 genre_name,
                 color,
-                cover_url
+                cover_url,
+                publisher,
+                page_count,
+                isbn,
+                publication_date,
+                translator
               )
             `)
             .eq('user_id', adminId)
