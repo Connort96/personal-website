@@ -60,11 +60,29 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
+  // Send password reset email
+  const sendPasswordResetEmail = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/reset-password',
+    });
+    if (error) throw error;
+  };
+
+  // Update password (used after clicking reset link)
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    if (error) throw error;
+  };
+
   const value = {
     signInWithGitHub,
     signInWithGoogle,
     signInWithEmail,
     signOut,
+    sendPasswordResetEmail,
+    updatePassword,
     user,
     loading
   };

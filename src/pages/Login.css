@@ -154,3 +154,30 @@
   margin-bottom: var(--space-4);
   text-align: center;
 }
+
+.login-success {
+  background: #f0fdf4;
+  color: #15803d;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-4);
+  text-align: center;
+}
+
+.login-forgot-link {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.8;
+  transition: opacity var(--duration-fast);
+}
+
+.login-forgot-link:hover {
+  opacity: 1;
+}

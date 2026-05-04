@@ -15,6 +15,7 @@ import Travel from './pages/Travel';
 import Now from './pages/Now';
 import About from './pages/About';
 import Films from './pages/Films';
+import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/films" element={<Films />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route 
               path="/collection" 
               element={
