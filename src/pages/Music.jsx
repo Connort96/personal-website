@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { motion } from 'framer-motion';
 import NowPlaying from '../components/NowPlaying';
 import TopArtists from '../components/TopArtists';
+import ListeningLog from '../components/ListeningLog';
+import TheCrate from '../components/TheCrate';
 import Image from '../components/Image';
 import './Music.css';
 
@@ -14,14 +17,12 @@ export default function Music() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch Spotify data from Edge Function
         const spotifyRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spotify`, {
           headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
         });
         const spotifyJson = await spotifyRes.json();
         setSpotifyData(spotifyJson);
 
-        // Fetch featured music from Supabase
         const { data: featuredData, error } = await supabase
           .from('featured_music')
           .select('*')
@@ -54,9 +55,13 @@ export default function Music() {
             <NowPlaying />
           </div>
           <h1 className="page-header__title">Music</h1>
-          <p className="page-header__subtitle">
-            Curated rotations, top stats, and the soundtracks of my life.
-          </p>
+          <div className="page-header__stats">
+            {spotifyData?.top_genres && (
+              <p className="genre-summary">
+                Mainly listening to: <span>{spotifyData.top_genres.join(', ')}</span>
+              </p>
+            )}
+          </div>
         </header>
 
         {loading ? (
@@ -65,36 +70,40 @@ export default function Music() {
           <>
             <TopArtists artists={spotifyData?.top_artists?.items} />
 
-            <section className="music-featured animate-fade-in-up">
-              <h2 className="section-title">Featured Rotation</h2>
-              <div className="music-grid">
-                {featured.map((item, i) => (
-                  <div 
-                    key={item.id} 
-                    className="music-card" 
-                    onClick={() => openPlaylist(item)}
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                  >
-                    <div className="music-card__cover-wrapper">
-                      <Image src={item.cover_url} alt={item.title} className="music-card__cover" />
-                      <div className="music-card__overlay">
-                        <span className="play-icon">▶</span>
+            <div className="music-split-view">
+              <section className="music-featured">
+                <h2 className="section-title--left">Featured Rotation</h2>
+                <div className="music-grid">
+                  {featured.map((item, i) => (
+                    <motion.div 
+                      key={item.id} 
+                      className="music-card" 
+                      onClick={() => openPlaylist(item)}
+                      whileHover={{ scale: 1.05, y: -5 }}
+                    >
+                      <div className="music-card__cover-wrapper">
+                        <Image src={item.cover_url} alt={item.title} className="music-card__cover" />
+                        <div className="music-card__overlay">
+                          <span className="play-icon">▶</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="music-card__info">
-                      <h3 className="music-card__title">{item.title}</h3>
-                      <p className="music-card__artist">{item.artist}</p>
-                      <span className="music-card__type">{item.type}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                      <div className="music-card__info">
+                        <h3 className="music-card__title">{item.title}</h3>
+                        <p className="music-card__artist">{item.artist}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+
+              <ListeningLog tracks={spotifyData?.recently_played?.items} />
+            </div>
+
+            <TheCrate playlists={spotifyData?.playlists?.items} />
           </>
         )}
       </div>
 
-      {/* Playlist Modal */}
       {selectedPlaylist && (
         <div className="playlist-modal" onClick={() => setSelectedPlaylist(null)}>
           <div className="playlist-modal__content" onClick={e => e.stopPropagation()}>

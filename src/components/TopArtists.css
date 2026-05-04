@@ -1,40 +1,53 @@
 .top-artists {
   margin: var(--space-12) 0;
+  perspective: 1000px;
 }
 
-.section-title {
-  font-family: var(--font-serif);
-  font-size: var(--text-2xl);
-  color: var(--text-primary);
-  margin-bottom: var(--space-8);
-  text-align: center;
-}
-
-.top-artists__grid {
+.top-artists__bento {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: var(--space-8);
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 180px;
+  gap: var(--space-6);
 }
 
-.artist-vinyl-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  animation: fade-in-up 0.5s ease-out forwards;
-  animation-delay: var(--delay);
-  opacity: 0;
+.artist-bento-card {
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #111;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transform-style: preserve-3d;
+}
+
+.card--large {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.card--small {
+  grid-column: span 1;
+  grid-row: span 1;
 }
 
 .vinyl-wrapper {
   position: relative;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  padding: 4px;
-  background: #111;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.artist-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.5s ease;
+}
+
+.artist-bento-card:hover .artist-photo {
+  filter: brightness(0.6) blur(2px);
 }
 
 .vinyl-grooves {
@@ -43,30 +56,30 @@
   left: 0;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
   background: repeating-radial-gradient(
     circle at center,
     transparent 0,
     transparent 2px,
-    rgba(255, 255, 255, 0.03) 3px
+    rgba(255, 255, 255, 0.05) 3px
   );
+  z-index: 2;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
 }
 
-.artist-photo {
+.artist-bento-card:hover .vinyl-grooves {
+  opacity: 1;
+}
+
+.artist-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #222;
-}
-
-.artist-vinyl-card:hover .vinyl-wrapper {
-  transform: rotate(360deg);
-}
-
-.artist-info {
-  text-align: center;
+  padding: var(--space-4);
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  z-index: 3;
 }
 
 .artist-rank {
@@ -79,18 +92,37 @@
 
 .artist-name {
   font-family: var(--font-serif);
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   font-weight: 600;
-  color: var(--text-primary);
+  color: white;
+  margin: 0;
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+.card--large .artist-name {
+  font-size: var(--text-2xl);
+}
+
+.artist-genre {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+@media (max-width: 1024px) {
+  .top-artists__bento {
+    grid-template-columns: repeat(2, 1fr);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .top-artists__bento {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 200px;
+  }
+  .card--large {
+    grid-column: span 1;
+    grid-row: span 1;
   }
 }
