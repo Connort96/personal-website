@@ -1,18 +1,49 @@
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 import './Navbar.css';
 
 export default function Navbar() {
+  const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const { user, signOut, loading } = useAuth();
+
+  // Close menu on route change
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location]);
+
+  // Prevent scrolling when menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [isOpen]);
+
+  const toggleMenu = () => setIsOpen(!isOpen);
+
   return (
-    <nav className="navbar" id="main-nav">
+    <nav className={`navbar ${isOpen ? 'navbar--open' : ''}`} id="main-nav">
       <div className="navbar__inner container">
         <NavLink to="/" className="navbar__logo" id="nav-logo">
           <img src="/logo.png" alt="Connor's Collection" className="navbar__logo-img" />
         </NavLink>
-        <ul className="navbar__links">
+
+        <button 
+          className={`navbar__hamburger ${isOpen ? 'navbar__hamburger--open' : ''}`}
+          onClick={toggleMenu}
+          aria-label="Toggle navigation"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <div className={`navbar__menu ${isOpen ? 'navbar__menu--open' : ''}`}>
+          <ul className="navbar__links">
           <li>
             <NavLink
               to="/"
@@ -106,25 +137,27 @@ export default function Navbar() {
               </NavLink>
             </li>
           )}
-        </ul>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingLeft: 'var(--space-4)', gap: 'var(--space-4)' }}>
-          <ThemeToggle />
-          {loading ? null : user ? (
-            <button 
-              onClick={signOut} 
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: '500' }}
-              title={`Signed in as ${user.email}`}
-            >
-              Sign Out
-            </button>
-          ) : (
-            <NavLink 
-              to="/login" 
-              style={{ color: 'var(--accent-secondary)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: '500' }}
-            >
-              Sign In
-            </NavLink>
-          )}
+          </ul>
+          
+          <div className="navbar__actions">
+            <ThemeToggle />
+            {loading ? null : user ? (
+              <button 
+                onClick={signOut} 
+                className="navbar__auth-btn"
+                title={`Signed in as ${user.email}`}
+              >
+                Sign Out
+              </button>
+            ) : (
+              <NavLink 
+                to="/login" 
+                className="navbar__login-link"
+              >
+                Sign In
+              </NavLink>
+            )}
+          </div>
         </div>
       </div>
     </nav>
