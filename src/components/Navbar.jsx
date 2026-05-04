@@ -10,8 +10,7 @@ export default function Navbar() {
     <nav className="navbar" id="main-nav">
       <div className="navbar__inner container">
         <NavLink to="/" className="navbar__logo" id="nav-logo">
-          <span className="navbar__logo-dot"></span>
-          <span className="navbar__logo-text">collected</span>
+          <img src="/logo.png" alt="Connor's Collections" className="navbar__logo-img" />
         </NavLink>
         <ul className="navbar__links">
           <li>
