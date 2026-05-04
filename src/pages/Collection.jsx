@@ -11,7 +11,6 @@ export default function Collection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
   const [isSyncing, setIsSyncing] = useState(true);
-  const [adminId, setAdminId] = useState(null);
   const isInitialMount = useRef(true);
 
   // Load Catalog and Owned Books
@@ -86,14 +85,10 @@ export default function Collection() {
         let ownedSet = new Set();
         
         if (user) {
-          // Authorized users always fetch the shared admin's books
-          const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com';
-          const fetchId = isAuth ? aId : user.id;
-
           const { data: userBooks, error: userError } = await supabase
             .from('user_books')
             .select('book_id')
-            .eq('user_id', fetchId);
+            .eq('user_id', user.id);
             
           if (userError) throw userError;
           
@@ -188,18 +183,15 @@ export default function Collection() {
 
     if (!user) return;
 
-    const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com';
-    const targetUserId = isAuth ? adminId : user.id;
-
     try {
       if (isAdding) {
         await supabase.from('user_books').insert({
-          user_id: targetUserId,
+          user_id: user.id,
           book_id: bookId
         });
       } else {
         await supabase.from('user_books').delete()
-          .eq('user_id', targetUserId)
+          .eq('user_id', user.id)
           .eq('book_id', bookId);
       }
     } catch (err) {

@@ -46,9 +46,7 @@ export default function Books() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com');
-  // Both accounts will now view and manage this shared ID
-  const [sharedAdminId, setSharedAdminId] = useState(null);
+  const isAdmin = user?.email === 'theconison96@gmail.com';
 
   // Persist view mode preference
   const handleViewChange = (mode) => {
@@ -70,7 +68,6 @@ export default function Books() {
         if (adminErr || !adminSettings) throw new Error('Could not find admin settings.');
         // Always show the master admin collection
         const adminId = adminSettings.admin_user_id;
-        setSharedAdminId(adminId);
 
         // Fetch user_books joined with editions → works, paginated
         let allRows = [];
@@ -182,14 +179,14 @@ export default function Books() {
     loadData();
   }, [user]);
 
-  // ─── Save review (shared admin only) ──────────────────────────────────────────────
+  // ─── Save review (any authorized admin can edit their own entry) ──────────────────
   const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
     if (!isAdmin) return;
     try {
       const { error } = await supabase
         .from('user_books')
         .update(updates)
-        .eq('user_id', sharedAdminId)
+        .eq('user_id', user.id)
         .eq('book_id', bookId);
       if (error) throw error;
 
