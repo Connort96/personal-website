@@ -1,0 +1,34 @@
+.admin-sub-tab-container {
+  width: 100%;
+}
+
+.admin-sub-tabs {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: var(--space-2);
+}
+
+.admin-sub-tabs button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.admin-sub-tabs button:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.admin-sub-tabs button.active {
+  background: var(--accent-glow);
+  color: var(--accent-primary);
+}

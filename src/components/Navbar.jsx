@@ -60,6 +60,42 @@ export default function Navbar() {
               Collection
             </NavLink>
           </li>
+          <li>
+            <NavLink
+              to="/travel"
+              className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+              id="nav-travel"
+            >
+              Travel
+            </NavLink>
+          </li>
+          <li>
+            <NavLink
+              to="/films"
+              className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+              id="nav-films"
+            >
+              Films
+            </NavLink>
+          </li>
+          <li>
+            <NavLink
+              to="/about"
+              className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+              id="nav-about"
+            >
+              About
+            </NavLink>
+          </li>
+          <li>
+            <NavLink
+              to="/now"
+              className={({ isActive }) => `navbar__link ${isActive ? 'navbar__link--active' : ''}`}
+              id="nav-now"
+            >
+              Now
+            </NavLink>
+          </li>
           {user && user.email === 'theconison96@gmail.com' && (
             <li>
               <NavLink

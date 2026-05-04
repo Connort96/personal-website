@@ -1,0 +1,126 @@
+.films-search-form {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.films-search-form input {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.films-search-form button {
+  padding: 0 var(--space-6);
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.films-search-form button:hover {
+  background: var(--accent-secondary);
+}
+
+.films-search-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.films-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-4);
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.film-result-card {
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.film-result-card:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+}
+
+.film-result-card img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+
+.film-result-placeholder {
+  width: 100%;
+  aspect-ratio: 2/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.film-result-info {
+  padding: var(--space-2);
+}
+
+.film-result-info h4 {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.film-result-info p {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.film-review-form {
+  background: var(--bg-card);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+}
+
+.film-review-header {
+  display: flex;
+  gap: var(--space-6);
+  margin: var(--space-6) 0;
+}
+
+.film-review-header img {
+  width: 80px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.film-review-header h3 {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.film-review-header p {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

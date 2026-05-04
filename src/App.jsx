@@ -11,6 +11,10 @@ import Books from './pages/Books';
 import Collection from './pages/Collection';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
+import Travel from './pages/Travel';
+import Now from './pages/Now';
+import About from './pages/About';
+import Films from './pages/Films';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
@@ -36,6 +40,10 @@ export default function App() {
             <Route path="/blog/:id" element={<BlogPost />} />
             <Route path="/music" element={<Music />} />
             <Route path="/books" element={<Books />} />
+            <Route path="/travel" element={<Travel />} />
+            <Route path="/now" element={<Now />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/films" element={<Films />} />
             <Route path="/login" element={<Login />} />
             <Route 
               path="/collection" 

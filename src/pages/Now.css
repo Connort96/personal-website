@@ -1,0 +1,38 @@
+.now-page {
+  padding: calc(var(--nav-height) + var(--space-8)) 0 var(--space-24);
+}
+
+.now-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: var(--space-12);
+}
+
+.now-content {
+  margin-top: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.now-status {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  font-size: var(--text-xl);
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  box-shadow: var(--shadow-md);
+}
+
+.now-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: right;
+}

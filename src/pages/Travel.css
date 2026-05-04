@@ -1,0 +1,77 @@
+.travel-page {
+  padding: calc(var(--nav-height) + var(--space-8)) 0 var(--space-24);
+}
+
+.travel-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: var(--space-12);
+}
+
+.trips-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.trip-section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-12);
+}
+
+.trip-header {
+  margin-bottom: var(--space-8);
+  max-width: 600px;
+}
+
+.trip-title {
+  font-family: var(--font-serif);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.trip-meta {
+  display: flex;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--accent-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-4);
+}
+
+.trip-notes {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.trip-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.trip-photo-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trip-photo {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  aspect-ratio: 4/3;
+}
+
+.trip-photo-caption {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  font-style: italic;
+}

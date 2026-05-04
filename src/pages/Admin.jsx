@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import BlogAdmin from '../components/BlogAdmin';
+import TravelAdmin from '../components/TravelAdmin';
+import NowAdmin from '../components/NowAdmin';
+import GearAdmin from '../components/GearAdmin';
+import FilmsAdmin from '../components/FilmsAdmin';
 import './Admin.css';
 
 // ─── Dual-API lookup helper ───────────────────────────────────────────────────
@@ -339,8 +343,17 @@ export default function Admin() {
       </header>
 
       {/* Tab nav */}
-      <div className="admin-tabs">
-        {[['single', 'Add Single Book'], ['batch', 'Batch CSV Import'], ['backfill', 'Backfill Metadata'], ['blog', 'Blog Posts']].map(([key, label]) => (
+      <div className="admin-tabs" style={{ flexWrap: 'wrap' }}>
+        {[
+          ['single', 'Books (Single)'], 
+          ['batch', 'Books (Batch)'], 
+          ['backfill', 'Books (Meta)'], 
+          ['blog', 'Blog'],
+          ['travel', 'Travel'],
+          ['now', 'Now'],
+          ['gear', 'Gear'],
+          ['films', 'Films']
+        ].map(([key, label]) => (
           <button key={key} type="button"
             className={`admin-tab ${activeTab === key ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab(key)}
@@ -513,6 +526,46 @@ export default function Admin() {
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>Write and publish directly to the website.</p>
           </div>
           <BlogAdmin />
+        </div>
+      )}
+
+      {/* ── Travel Admin ── */}
+      {activeTab === 'travel' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Travel</h3>
+          </div>
+          <TravelAdmin />
+        </div>
+      )}
+
+      {/* ── Now Admin ── */}
+      {activeTab === 'now' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Now</h3>
+          </div>
+          <NowAdmin />
+        </div>
+      )}
+
+      {/* ── Gear Admin ── */}
+      {activeTab === 'gear' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Gear (About)</h3>
+          </div>
+          <GearAdmin />
+        </div>
+      )}
+
+      {/* ── Films Admin ── */}
+      {activeTab === 'films' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Films</h3>
+          </div>
+          <FilmsAdmin />
         </div>
       )}
     </div>
