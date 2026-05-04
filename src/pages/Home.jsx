@@ -8,6 +8,7 @@ export default function Home() {
   const [latestPost, setLatestPost] = useState(null);
   const [currentlyReading, setCurrentlyReading] = useState(null);
   const [topReviews, setTopReviews] = useState([]);
+  const [recentTrips, setRecentTrips] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,8 +27,10 @@ export default function Home() {
             .select(`
               id,
               status,
-              editions ( cover_url, works ( title, author ) ),
-              books ( title, author, cover_url )
+              editions ( 
+                cover_url, 
+                works ( title, author ) 
+              )
             `)
             .eq('user_id', adminId)
             .eq('status', 'reading')
@@ -37,9 +40,9 @@ export default function Home() {
             const item = readingData[0];
             setCurrentlyReading({
               id: item.id,
-              title: item.editions?.works?.title || item.books?.title,
-              author: item.editions?.works?.author || item.books?.author,
-              cover_url: item.editions?.cover_url || item.books?.cover_url,
+              title: item.editions?.works?.title || 'Unknown Title',
+              author: item.editions?.works?.author || 'Unknown Author',
+              cover_url: item.editions?.cover_url,
             });
           }
 
@@ -50,25 +53,39 @@ export default function Home() {
               id,
               rating,
               review,
-              editions ( cover_url, works ( title, author ) ),
-              books ( title, author, cover_url )
+              owned_at,
+              editions ( 
+                cover_url, 
+                works ( title, author ) 
+              )
             `)
             .eq('user_id', adminId)
-            .eq('rating', 5)
-            .not('review', 'is', null)
-            .not('review', 'eq', '')
+            .gte('rating', 4) // Show 4 and 5 stars if list is short
             .order('owned_at', { ascending: false })
             .limit(3);
 
           if (reviewsData) {
             setTopReviews(reviewsData.map(item => ({
               id: item.id,
-              title: item.editions?.works?.title || item.books?.title,
-              author: item.editions?.works?.author || item.books?.author,
-              cover_url: item.editions?.cover_url || item.books?.cover_url,
-              review: item.review
+              title: item.editions?.works?.title || 'Unknown Title',
+              author: item.editions?.works?.author || 'Unknown Author',
+              cover_url: item.editions?.cover_url,
+              review: item.review || 'No review written yet.',
+              rating: item.rating
             })));
           }
+
+          // Fetch recent travel trips
+          const { data: travelData } = await supabase
+            .from('trips')
+            .select('*')
+            .order('start_date', { ascending: false })
+            .limit(3);
+            
+          if (travelData) {
+            setRecentTrips(travelData);
+          }
+
           // Fetch latest post
           const { data: latestPostData } = await supabase
             .from('posts')
@@ -210,12 +227,27 @@ export default function Home() {
             <div className="bento-item bento-travel animate-fade-in-up animate-stagger-2">
               <div className="bento-item__header">
                 <h2 className="bento-item__title">Recent Travels</h2>
+                <Link to="/travel" className="bento-item__link">Explore →</Link>
               </div>
               <div className="bento-travel__content">
-                <div className="bento-travel__photo-placeholder">
-                  <span className="bento-travel__icon">✈️</span>
-                  <p>Travel gallery coming soon</p>
-                </div>
+                {recentTrips.length > 0 ? (
+                  <div className="bento-travel__list">
+                    {recentTrips.map(trip => (
+                      <Link key={trip.id} to={`/travel`} className="bento-trip-card">
+                        <div className="bento-trip-card__info">
+                          <h3 className="bento-trip-card__title">{trip.title}</h3>
+                          <p className="bento-trip-card__meta">{trip.location} • {new Date(trip.start_date).getFullYear()}</p>
+                        </div>
+                        <span className="bento-trip-card__arrow">→</span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bento-travel__photo-placeholder">
+                    <span className="bento-travel__icon">✈️</span>
+                    <p>Travel gallery coming soon</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

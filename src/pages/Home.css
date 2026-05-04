@@ -575,6 +575,59 @@
   opacity: 0.7;
 }
 
+.bento-travel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.bento-trip-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast);
+  color: inherit;
+}
+
+.bento-trip-card:hover {
+  border-color: var(--accent-primary);
+  background: var(--accent-glow);
+  transform: translateX(4px);
+}
+
+.bento-trip-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bento-trip-card__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bento-trip-card__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bento-trip-card__arrow {
+  color: var(--accent-secondary);
+  font-size: var(--text-sm);
+  opacity: 0.5;
+  transition: opacity var(--duration-fast);
+}
+
+.bento-trip-card:hover .bento-trip-card__arrow {
+  opacity: 1;
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .hero__content {
