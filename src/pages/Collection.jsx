@@ -218,7 +218,7 @@ export default function Collection() {
   return (
     <div className="collection-page container container--narrow animate-fade-in">
       <div className="collection-header-container">
-        <h1 className="collection-title">The <em>Collector's</em> Checklist</h1>
+        <h1 className="collection-title">Collection Checklist</h1>
         
         {isSyncing && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>Syncing with cloud...</div>}
         
