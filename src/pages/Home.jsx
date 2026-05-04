@@ -10,21 +10,9 @@ export default function Home() {
   const [currentlyReading, setCurrentlyReading] = useState(null);
   const [topReviews, setTopReviews] = useState([]);
   const [recentTrips, setRecentTrips] = useState([]);
-  const [spotifyData, setSpotifyData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     async function fetchHomeData() {
       try {
-        // Fetch Spotify data
-        const spotifyRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spotify`, {
-          headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
-        });
-        if (spotifyRes.ok) {
-          const sData = await spotifyRes.json();
-          setSpotifyData(sData);
-        }
-
         const { data: adminSettings } = await supabase
           .from('admin_settings')
           .select('admin_user_id')
@@ -143,10 +131,6 @@ export default function Home() {
   const renderStars = (rating) => {
     return '★'.repeat(rating || 0) + '☆'.repeat(5 - (rating || 0));
   };
-
-  const nowPlaying = spotifyData?.currently_playing?.is_playing ? spotifyData.currently_playing.item : null;
-  const lastPlayed = !nowPlaying ? spotifyData?.recently_played?.items?.[0]?.track : null;
-  const activeTrack = nowPlaying || lastPlayed;
 
   return (
     <div className="home">
@@ -282,31 +266,7 @@ export default function Home() {
                 <Link to="/music" className="bento-header__link">Library →</Link>
               </div>
               <div className="bento-music-content">
-                {activeTrack ? (
-                  <div className="bento-music-track animate-fade-in">
-                    <div className="bento-music-track__image-wrapper">
-                      <img 
-                        src={activeTrack.album?.images?.[0]?.url} 
-                        alt={activeTrack.name} 
-                        className="bento-music-track__image"
-                      />
-                      {nowPlaying && (
-                        <div className="bento-music-track__eq">
-                          <span></span><span></span><span></span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="bento-music-track__info">
-                      <p className="bento-music-track__status">
-                        {nowPlaying ? 'Now Playing' : 'Recently Played'}
-                      </p>
-                      <h3 className="bento-music-track__title">{activeTrack.name}</h3>
-                      <p className="bento-music-track__artist">{activeTrack.artists?.[0]?.name}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="bento-empty">Connecting to the airwaves...</p>
-                )}
+                <NowPlaying />
               </div>
             </motion.div>
 
