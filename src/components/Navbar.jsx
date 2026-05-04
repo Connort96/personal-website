@@ -137,6 +137,9 @@ export default function Navbar() {
             </li>
 
             <li>
+              <NavLink to="/collection" className="navbar__link">Checklist</NavLink>
+            </li>
+            <li>
               <NavLink to="/about" className="navbar__link">About</NavLink>
             </li>
           </ul>
