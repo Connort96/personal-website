@@ -87,7 +87,7 @@ export default function Collection() {
         
         if (user) {
           // Authorized users always fetch the shared admin's books
-          const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com';
+          const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com';
           const fetchId = isAuth ? aId : user.id;
 
           const { data: userBooks, error: userError } = await supabase
@@ -188,7 +188,7 @@ export default function Collection() {
 
     if (!user) return;
 
-    const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com';
+    const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com';
     const targetUserId = isAuth ? adminId : user.id;
 
     try {

@@ -46,7 +46,7 @@ export default function Books() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com');
+  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.email === 'eviegentle@hotmail.com');
   // Both accounts will now view and manage this shared ID
   const [sharedAdminId, setSharedAdminId] = useState(null);
 
