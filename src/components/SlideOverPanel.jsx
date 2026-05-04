@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './SlideOverPanel.css';
 
@@ -52,23 +53,34 @@ export default function SlideOverPanel({ book, isOpen, onClose, onSave, isAdmin 
 }
 
 function SlideOverContent({ book, onClose, onSave, isAdmin }) {
-  const [status, setStatus] = React.useState(book.status || 'unread');
-  const [rating, setRating] = React.useState(book.rating || 0);
-  const [review, setReview] = React.useState(book.review || '');
-  const [coverUrl, setCoverUrl] = React.useState(book.coverUrl || '');
-  const [saving, setSaving] = React.useState(false);
-  const [hoverRating, setHoverRating] = React.useState(0);
+  const [status, setStatus] = useState(book.status || 'unread');
+  const [rating, setRating] = useState(book.rating || 0);
+  const [review, setReview] = useState(book.review || '');
+  const [coverUrl, setCoverUrl] = useState(book.coverUrl || '');
+  const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
+  const [saving, setSaving] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setStatus(book.status || 'unread');
     setRating(book.rating || 0);
     setReview(book.review || '');
     setCoverUrl(book.coverUrl || '');
+    setCurrentPage(book.currentPage || 0);
   }, [book]);
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(book.id, { status, rating: rating || null, review: review.trim() || null }, coverUrl.trim() || null);
+    await onSave(
+      book.bookId, // Use bookId for user_books table
+      { 
+        status, 
+        rating: rating || null, 
+        review: review.trim() || null,
+        current_page: parseInt(currentPage) || 0 
+      }, 
+      coverUrl.trim() || null
+    );
     setSaving(false);
     onClose();
   };
@@ -155,6 +167,26 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
               <option value="reading">Currently Reading</option>
               <option value="read">Finished Reading</option>
             </select>
+            
+            {status === 'reading' && (
+              <div style={{ marginTop: 'var(--space-4)' }}>
+                <h3 className="slideover-section-label">Reading Progress</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                  <input
+                    type="number"
+                    className="slideover-input"
+                    style={{ width: '80px' }}
+                    value={currentPage}
+                    onChange={e => setCurrentPage(e.target.value)}
+                    min="0"
+                    max={book.pageCount || 9999}
+                  />
+                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                    of {book.pageCount || '???'} pages
+                  </span>
+                </div>
+              </div>
+            )}
 
             <h3 className="slideover-section-label" style={{ marginTop: 'var(--space-5)' }}>Rating</h3>
             <div className="slideover-star-input">
@@ -229,5 +261,4 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   );
 }
 
-// Need React in scope for hooks inside named function component
-import React from 'react';
+

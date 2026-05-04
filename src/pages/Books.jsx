@@ -84,6 +84,7 @@ export default function Books() {
               status,
               rating,
               review,
+              current_page,
               owned_at,
               editions (
                 id,
@@ -145,6 +146,7 @@ export default function Books() {
             rating: row.rating || 0,
             review: row.review || '',
             notes: row.review || '',
+            currentPage: row.current_page || 0,
             owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
             user_id: row.user_id,
             editions: edition ? [edition] : [],
