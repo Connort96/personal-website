@@ -144,77 +144,73 @@ export default function Home() {
         <div className="hero__micro-tag hero__micro-tag--top-left">SO-UK // 2026</div>
         
         <div className="hero__content container">
-          <div className="hero__split-grid">
-            {/* Left Column: Branding & Latest */}
-            <motion.div 
-              className="hero__left-col"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              <p className="hero__greeting">A Digital Anthology</p>
-              <h1 className="hero__title">
-                <span className="hero__title-line">CONNOR’S COLLECTIONS</span>
-              </h1>
-              <p className="hero__subtitle">
-                An editorial archive of sound, literature, and the road.
-              </p>
-              
-              <div className="hero__actions">
-                {latestPost && (
-                  <Link to={`/blog/${latestPost.slug}`} className="hero-post-card">
-                    {latestPost.featured_image && (
-                      <div className="hero-post-card__thumb">
-                        <img src={latestPost.featured_image} alt={latestPost.title} />
-                      </div>
-                    )}
-                    <div className="hero-post-card__content">
-                      <span className="hero-post-card__label">Latest Entry</span>
-                      <h3 className="hero-post-card__title">{latestPost.title}</h3>
-                      <span className="hero-post-card__link">Read Entry →</span>
+          <motion.div 
+            className="hero__text"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <p className="hero__greeting">A Personal Archive</p>
+            <h1 className="hero__title">
+              <span className="hero__title-line">CONNOR’S COLLECTIONS</span>
+            </h1>
+            <p className="hero__subtitle">
+              An editorial anthology of literature, sound, and observations from the road. 
+              Exploring the texture of a life lived intentionally.
+            </p>
+            <div className="hero__actions">
+              {latestPost && (
+                <Link to={`/blog/${latestPost.slug}`} className="hero-large-post">
+                  {latestPost.featured_image && (
+                    <div className="hero-large-post__thumb">
+                      <img src={latestPost.featured_image} alt={latestPost.title} />
                     </div>
-                  </Link>
-                )}
-              </div>
-            </motion.div>
-            
-            {/* Right Column: Currently Reading */}
-            <motion.div 
-              className="hero__right-col"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              <div className="hero__spotlight"></div>
-              {currentlyReading && (
-                <div className="hero-reading-card-sophisticated">
-                  <div className="hero-reading-card-sophisticated__header">
-                    <span className="hero-reading-card-sophisticated__badge">Currently Reading</span>
+                  )}
+                  <div className="hero-large-post__content">
+                    <span className="hero-large-post__label">Latest Journal Entry</span>
+                    <h3 className="hero-large-post__title">{latestPost.title}</h3>
+                    <span className="hero-large-post__link">Read Entry →</span>
                   </div>
-                  <div className="hero-reading-card-sophisticated__content">
-                    {currentlyReading.cover_url ? (
-                      <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card-sophisticated__cover" />
-                    ) : (
-                      <div className="hero-reading-card-sophisticated__cover-placeholder">
-                        {currentlyReading.title?.[0]}
-                      </div>
-                    )}
-                    <div className="hero-reading-card-sophisticated__info">
-                      <h3 className="hero-reading-card-sophisticated__title">{currentlyReading.title}</h3>
-                      <p className="hero-reading-card-sophisticated__author">{currentlyReading.author}</p>
-                      <Link to="/books" className="hero-reading-card-sophisticated__link">Archive →</Link>
+                </Link>
+              )}
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            className="hero__visual"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="hero__spotlight"></div>
+            {currentlyReading && (
+              <div className="hero-reading-card">
+                <div className="hero-reading-card__header">
+                  <span className="hero-reading-card__badge">Currently Reading</span>
+                </div>
+                <div className="hero-reading-card__content">
+                  {currentlyReading.cover_url ? (
+                    <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card__cover" />
+                  ) : (
+                    <div className="hero-reading-card__cover-placeholder">
+                      {currentlyReading.title?.[0]}
                     </div>
-                  </div>
-                  <div className="hero-reading-card-sophisticated__progress">
-                    <div 
-                      className="hero-reading-card-sophisticated__progress-bar" 
-                      style={{ width: `${currentlyReading.progress}%` }}
-                    ></div>
+                  )}
+                  <div className="hero-reading-card__info">
+                    <h3 className="hero-reading-card__title">{currentlyReading.title}</h3>
+                    <p className="hero-reading-card__author">{currentlyReading.author}</p>
+                    <Link to="/books" className="hero-reading-card__link">Library →</Link>
                   </div>
                 </div>
-              )}
-            </motion.div>
-          </div>
+                <div className="hero-reading-card__progress">
+                  <div 
+                    className="hero-reading-card__progress-bar" 
+                    style={{ width: `${currentlyReading.progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </motion.div>
         </div>
       </section>
 
