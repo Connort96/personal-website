@@ -153,16 +153,18 @@ export default function Admin() {
     setFormLoading(true);
     setFormStatus({ type: '', message: '' });
     try {
+      // 1. Get genre meta (needed for both tables)
       const { data: genreBooks, error: fetchError } = await supabase
-        .from('books').select('book_index, color, badge, badge_label, genre_name')
+        .from('books').select('genre_id, color, badge, badge_label, genre_name, book_index')
         .eq('genre_id', formData.genre_id).order('book_index', { ascending: false });
       if (fetchError) throw fetchError;
       if (!genreBooks || genreBooks.length === 0) throw new Error('Genre not found in database.');
 
-      const nextIndex = genreBooks[0].book_index + 1;
+      const nextIndex = (genreBooks[0]?.book_index || 0) + 1;
       const genreMeta = genreBooks[0];
 
-      const { error: insertError } = await supabase.from('books').insert({
+      // 2. Insert into master books table (legacy)
+      const { data: bookData, error: bookError } = await supabase.from('books').insert({
         genre_id: formData.genre_id,
         genre_name: genreMeta.genre_name,
         color: genreMeta.color,
@@ -178,10 +180,35 @@ export default function Admin() {
         isbn: formData.isbn || null,
         publication_date: formData.publication_date || null,
         translator: formData.translator || null,
-      });
-      if (insertError) throw insertError;
+      }).select().single();
+      if (bookError) throw bookError;
 
-      setFormStatus({ type: 'success', message: `"${formData.title}" added successfully!` });
+      // 3. Insert into works table
+      const { data: workData, error: workError } = await supabase.from('works').insert({
+        title: formData.title,
+        author: formData.author
+      }).select().single();
+      if (workError) throw workError;
+
+      // 4. Insert into editions table (source of truth for UI)
+      const { error: editionError } = await supabase.from('editions').insert({
+        work_id: workData.id,
+        cover_url: formData.cover_url || null,
+        publisher: formData.publisher || null,
+        page_count: formData.page_count ? parseInt(formData.page_count) : null,
+        isbn: formData.isbn || null,
+        publication_date: formData.publication_date || null,
+        translator: formData.translator || null,
+        genre_id: formData.genre_id,
+        genre_name: genreMeta.genre_name,
+        color: genreMeta.color,
+        badge: genreMeta.badge,
+        badge_label: genreMeta.badge_label,
+        book_index: nextIndex
+      });
+      if (editionError) throw editionError;
+
+      setFormStatus({ type: 'success', message: `"${formData.title}" added successfully to all tables!` });
       setFormData({ ...emptyForm, genre_id: formData.genre_id }); // keep genre selected
       setLookupSource('');
     } catch (err) {
@@ -246,7 +273,8 @@ export default function Admin() {
       genreMaxIndex[gid] = nextIndex;
 
       try {
-        const { error } = await supabase.from('books').insert({
+        // 1. Master books insert
+        const { data: bookData, error: bookError } = await supabase.from('books').insert({
           genre_id: gid,
           genre_name: genreMeta[gid].genre_name,
           color: genreMeta[gid].color,
@@ -262,8 +290,38 @@ export default function Admin() {
           isbn: meta.isbn || null,
           publication_date: meta.publication_date || null,
           translator: meta.translator || null,
+        }).select().single();
+
+        if (bookError) throw bookError;
+
+        // 2. Works insert
+        const { data: workData, error: workError } = await supabase.from('works').insert({
+          title: row.title,
+          author: row.author
+        }).select().single();
+
+        if (workError) throw workError;
+
+        // 3. Editions insert
+        const { error: editionError } = await supabase.from('editions').insert({
+          work_id: workData.id,
+          cover_url: meta.cover_url || null,
+          publisher: meta.publisher || null,
+          page_count: meta.page_count || null,
+          isbn: meta.isbn || null,
+          publication_date: meta.publication_date || null,
+          translator: meta.translator || null,
+          genre_id: gid,
+          genre_name: genreMeta[gid].genre_name,
+          color: genreMeta[gid].color,
+          badge: genreMeta[gid].badge,
+          badge_label: genreMeta[gid].badge_label,
+          book_index: nextIndex
         });
-        updated[i] = { ...row, _status: error ? 'error' : 'done', _msg: error?.message };
+
+        if (editionError) throw editionError;
+        
+        updated[i] = { ...row, _status: 'done' };
       } catch (err) {
         updated[i] = { ...row, _status: 'error', _msg: err.message };
       }
@@ -281,13 +339,18 @@ export default function Admin() {
 
   // ── Backfill (dual API, all metadata) ──
   const handleBackfillCovers = async () => {
-    setBackfillStatus('Fetching books missing covers or metadata…');
+    setBackfillStatus('Fetching editions missing covers or metadata…');
     try {
+      // Fetch from editions where cover is missing
       let allMissing = [];
       let from = 0;
       while (true) {
-        const { data, error } = await supabase.from('books')
-          .select('id, title, author')
+        const { data, error } = await supabase.from('editions')
+          .select(`
+            id, 
+            work_id,
+            works ( title, author )
+          `)
           .is('cover_url', null)
           .range(from, from + 999);
         if (error) throw error;
@@ -296,24 +359,44 @@ export default function Admin() {
         from += 1000;
       }
 
-      setBackfillStatus(`Found ${allMissing.length} books. Starting dual-API backfill…`);
-      let success = 0, notFound = 0;
+      setBackfillStatus(`Found ${allMissing.length} editions. Starting dual-API backfill…`);
+      let success = 0, notFound = 0, failed = 0;
 
       for (let i = 0; i < allMissing.length; i++) {
-        const book = allMissing[i];
-        setBackfillStatus(`[${i + 1}/${allMissing.length}] "${book.title}"…`);
+        const edition = allMissing[i];
+        const title = edition.works.title;
+        const author = edition.works.author;
+        
+        setBackfillStatus(`[${i + 1}/${allMissing.length}] "${title}"…`);
 
-        const result = await lookupBookMetadata(book.title, book.author);
+        const result = await lookupBookMetadata(title, author);
         if (result) {
-          await supabase.from('books').update({
+          // Update Editions
+          const { error: edError } = await supabase.from('editions').update({
             cover_url: result.cover_url,
             publisher: result.publisher,
             page_count: result.page_count,
             isbn: result.isbn,
             publication_date: result.publication_date,
             translator: result.translator,
-          }).eq('id', book.id);
-          success++;
+          }).eq('id', edition.id);
+
+          // Update legacy Books (if ID matches, which it should for 1:1 migration)
+          const { error: bkError } = await supabase.from('books').update({
+            cover_url: result.cover_url,
+            publisher: result.publisher,
+            page_count: result.page_count,
+            isbn: result.isbn,
+            publication_date: result.publication_date,
+            translator: result.translator,
+          }).eq('id', edition.id);
+
+          if (edError || bkError) {
+            console.error('Update failed:', edError || bkError);
+            failed++;
+          } else {
+            success++;
+          }
         } else {
           notFound++;
         }
@@ -321,7 +404,7 @@ export default function Admin() {
         await new Promise(r => setTimeout(r, 300));
       }
 
-      setBackfillStatus(`Done! ${success} enriched via Google Books/Open Library. ${notFound} not found.`);
+      setBackfillStatus(`Done! ${success} enriched. ${notFound} not found. ${failed} failed to save.`);
     } catch (err) {
       setBackfillStatus(`Error: ${err.message}`);
     }
