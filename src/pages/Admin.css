@@ -21,8 +21,8 @@
 }
 
 .admin-card {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-8);
   box-shadow: var(--shadow-md);
@@ -46,7 +46,7 @@
 .form-group label {
   font-family: var(--font-serif);
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: var(--text-base);
 }
 
@@ -54,12 +54,12 @@
 .form-group select,
 .form-group textarea {
   padding: var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background-color: var(--background);
+  background-color: var(--bg-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  color: var(--text);
+  color: var(--text-primary);
   transition: border-color 0.2s ease;
 }
 
