@@ -12,7 +12,8 @@ ALTER TABLE editions
 
 -- Mirror on legacy books table for Collection.jsx backwards compatibility
 ALTER TABLE books
-  ADD COLUMN IF NOT EXISTS page_count       INT,
-  ADD COLUMN IF NOT EXISTS isbn             TEXT,
-  ADD COLUMN IF NOT EXISTS publication_date DATE,
-  ADD COLUMN IF NOT EXISTS translator       TEXT;
+  ADD COLUMN IF NOT EXISTS publisher         TEXT,
+  ADD COLUMN IF NOT EXISTS page_count        INT,
+  ADD COLUMN IF NOT EXISTS isbn              TEXT,
+  ADD COLUMN IF NOT EXISTS publication_date  DATE,
+  ADD COLUMN IF NOT EXISTS translator        TEXT;
