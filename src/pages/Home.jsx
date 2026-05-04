@@ -52,7 +52,7 @@ export default function Home() {
             });
           }
 
-          // Fetch recent 5-star reviews
+          // Fetch recent reviews
           const { data: reviewsData } = await supabase
             .from('user_books')
             .select(`
@@ -71,7 +71,7 @@ export default function Home() {
               )
             `)
             .eq('user_id', adminId)
-            .gte('rating', 4)
+            .not('rating', 'is', null) // Must have at least a rating
             .order('owned_at', { ascending: false })
             .limit(3);
 
@@ -124,6 +124,10 @@ export default function Home() {
     fetchHomeData();
   }, []);
 
+  const renderStars = (rating) => {
+    return '★'.repeat(rating || 0) + '☆'.repeat(5 - (rating || 0));
+  };
+
   return (
     <div className="home">
       <div className="home__noise-overlay"></div>
@@ -148,10 +152,12 @@ export default function Home() {
             </p>
             <div className="hero__actions">
               {latestPost && (
-                <Link to={`/blog/${latestPost.slug}`} className="hero-latest-card">
-                  <span className="hero-latest-card__label">Latest Journal Entry</span>
-                  <h3 className="hero-latest-card__title">{latestPost.title}</h3>
-                  <span className="hero-latest-card__link">Read Entry →</span>
+                <Link to={`/blog/${latestPost.slug}`} className="hero-compact-post">
+                  <div className="hero-compact-post__content">
+                    <span className="hero-compact-post__label">Latest Entry</span>
+                    <h3 className="hero-compact-post__title">{latestPost.title}</h3>
+                  </div>
+                  <span className="hero-compact-post__arrow">→</span>
                 </Link>
               )}
             </div>
@@ -200,8 +206,8 @@ export default function Home() {
             >
               <div className="bento-header">
                 <div>
-                  <h2 className="bento-header__title">Recent 5-Star Reads</h2>
-                  <p className="bento-header__sublabel">The best of the collection</p>
+                  <h2 className="bento-header__title">Recent Reviews</h2>
+                  <p className="bento-header__sublabel">Reflections on recent reads</p>
                 </div>
                 <Link to="/books" className="bento-header__link">Archive →</Link>
               </div>
@@ -216,7 +222,7 @@ export default function Home() {
                       </div>
                     )}
                     <div className="bento-review-row__content">
-                      <div className="bento-review-row__stars">★★★★★</div>
+                      <div className="bento-review-row__stars">{renderStars(review.rating)}</div>
                       <h3 className="bento-review-row__title">{review.title}</h3>
                       <p className="bento-review-row__author">{review.author}</p>
                       <p className="bento-review-row__text">"{review.review.length > 80 ? review.review.substring(0, 80) + '...' : review.review}"</p>
