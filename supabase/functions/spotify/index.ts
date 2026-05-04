@@ -16,6 +16,7 @@ const TOP_ARTISTS_ENDPOINT = `https://api.spotify.com/v1/me/top/artists?limit=10
 const PLAYLISTS_ENDPOINT = `https://api.spotify.com/v1/me/playlists?limit=4`
 
 const getAccessToken = async () => {
+  console.log("Refreshing Spotify access token...")
   const basic = btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
 
   const response = await fetch(TOKEN_ENDPOINT, {
@@ -27,10 +28,15 @@ const getAccessToken = async () => {
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: SPOTIFY_REFRESH_TOKEN!,
-    }),
+    }).toString(),
   })
 
-  return response.json()
+  const data = await response.json()
+  if (data.error) {
+    console.error("Token refresh error:", data.error)
+    throw new Error(`Spotify Token Error: ${data.error_description || data.error}`)
+  }
+  return data
 }
 
 serve(async (req) => {
@@ -47,12 +53,18 @@ serve(async (req) => {
 
     // Metadata lookup for Admin
     if (id && type) {
+      console.log(`Fetching metadata for ${type}: ${id}`)
       const endpoint = `https://api.spotify.com/v1/${type}s/${id}`
       const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${access_token}` },
       })
       const item = await res.json()
-      if (item.error) throw new Error(item.error.message)
+      
+      if (item.error) {
+        console.error("Spotify API error:", item.error)
+        throw new Error(item.error.message)
+      }
+
       return new Response(
         JSON.stringify({
           title: item.name,
@@ -101,6 +113,7 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error("Edge Function Error:", error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

@@ -14,31 +14,44 @@ export default function MusicAdmin() {
     setStatus({ type: '', message: 'Fetching metadata from Spotify...' });
 
     try {
-      // We use the Edge Function to get metadata
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spotify?id=${spotifyId}&type=${type}`, {
         headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
       });
       
-      const meta = await res.json();
-      if (meta.error) throw new Error(meta.error);
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP Error ${res.status}`);
+      }
 
       const { error } = await supabase.from('featured_music').insert([{
         spotify_id: spotifyId,
         type,
-        title: meta.title,
-        artist: meta.artist,
-        cover_url: meta.cover_url
+        title: data.title,
+        artist: data.artist,
+        cover_url: data.cover_url
       }]);
 
       if (error) throw error;
-      setStatus({ type: 'success', message: `Featured "${meta.title}" successfully!` });
+      setStatus({ type: 'success', message: `Featured "${data.title}" successfully!` });
       setSpotifyId('');
     } catch (err) {
       console.error(err);
-      setStatus({ type: 'error', message: 'Failed to feature music. Make sure the Edge Function is deployed and the Spotify ID is correct.' });
+      setStatus({ type: 'error', message: `Error: ${err.message}` });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleIdChange = (val) => {
+    // Robust parsing for IDs, URIs, and URLs
+    let id = val.trim();
+    if (id.includes('spotify.com/')) {
+      id = id.split('/').pop().split('?')[0];
+    } else if (id.includes('spotify:')) {
+      id = id.split(':').pop();
+    }
+    setSpotifyId(id);
   };
 
   return (
@@ -49,7 +62,7 @@ export default function MusicAdmin() {
           <input 
             type="text" 
             value={spotifyId} 
-            onChange={(e) => setSpotifyId(e.target.value.split(':').pop())} 
+            onChange={(e) => handleIdChange(e.target.value)} 
             placeholder="e.g. 4aawyAB9vmqN3u97EE7Z9y"
             required 
           />
