@@ -11,6 +11,7 @@ export default function Collection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
   const [isSyncing, setIsSyncing] = useState(true);
+  const [adminId, setAdminId] = useState(null);
   const isInitialMount = useRef(true);
 
   // Load Catalog and Owned Books
@@ -41,6 +42,14 @@ export default function Collection() {
             fromIndex += pageSize;
           }
         }
+
+        // Get Shared Admin ID
+        const { data: adminSettings } = await supabase
+          .from('admin_settings')
+          .select('admin_user_id')
+          .single();
+        const aId = adminSettings?.admin_user_id;
+        setAdminId(aId);
 
         // 2. Group into genres
         const genresMap = new Map();
@@ -77,9 +86,14 @@ export default function Collection() {
         let ownedSet = new Set();
         
         if (user) {
+          // Authorized users always fetch the shared admin's books
+          const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com';
+          const fetchId = isAuth ? aId : user.id;
+
           const { data: userBooks, error: userError } = await supabase
             .from('user_books')
-            .select('book_id');
+            .select('book_id')
+            .eq('user_id', fetchId);
             
           if (userError) throw userError;
           
@@ -172,17 +186,20 @@ export default function Collection() {
       return next;
     });
 
-    if (!user) return; // shouldn't happen due to ProtectedRoute
+    if (!user) return;
+
+    const isAuth = user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com';
+    const targetUserId = isAuth ? adminId : user.id;
 
     try {
       if (isAdding) {
         await supabase.from('user_books').insert({
-          user_id: user.id,
+          user_id: targetUserId,
           book_id: bookId
         });
       } else {
         await supabase.from('user_books').delete()
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .eq('book_id', bookId);
       }
     } catch (err) {

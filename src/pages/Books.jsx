@@ -46,9 +46,9 @@ export default function Books() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
   const [selectedBook, setSelectedBook] = useState(null);
 
-  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.id === selectedBook?.user_id);
-  // We'll also need to track the owner of the library we're currently viewing
-  const [libraryOwnerId, setLibraryOwnerId] = useState(null);
+  const isAdmin = user && (user.email === 'theconison96@gmail.com' || user.email === 'your-second-email@example.com');
+  // Both accounts will now view and manage this shared ID
+  const [sharedAdminId, setSharedAdminId] = useState(null);
 
   // Persist view mode preference
   const handleViewChange = (mode) => {
@@ -68,12 +68,9 @@ export default function Books() {
           .select('admin_user_id')
           .single();
         if (adminErr || !adminSettings) throw new Error('Could not find admin settings.');
+        // Always show the master admin collection
         const adminId = adminSettings.admin_user_id;
-
-        // Determine whose library to show
-        // Priority: Logged in user > Admin
-        const displayUserId = user?.id || adminId;
-        setLibraryOwnerId(displayUserId);
+        setSharedAdminId(adminId);
 
         // Fetch user_books joined with editions → works, paginated
         let allRows = [];
@@ -123,7 +120,7 @@ export default function Books() {
                 translator
               )
             `)
-            .eq('user_id', displayUserId)
+            .eq('user_id', adminId)
             .range(from, from + pageSize - 1);
 
           if (fetchErr) throw fetchErr;
@@ -185,15 +182,14 @@ export default function Books() {
     loadData();
   }, [user]);
 
-  // ─── Save review (admin/owner only) ──────────────────────────────────────────────
+  // ─── Save review (shared admin only) ──────────────────────────────────────────────
   const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
-    const isOwner = user?.id === libraryOwnerId;
-    if (!isOwner) return;
+    if (!isAdmin) return;
     try {
       const { error } = await supabase
         .from('user_books')
         .update(updates)
-        .eq('user_id', user.id)
+        .eq('user_id', sharedAdminId)
         .eq('book_id', bookId);
       if (error) throw error;
 
@@ -264,9 +260,7 @@ export default function Books() {
       <div className="container">
         {/* Page Header */}
         <header className="page-header animate-fade-in-up">
-          <h1 className="page-header__title">
-            {user?.id === libraryOwnerId ? 'My Library' : "Connor's Library"}
-          </h1>
+          <h1 className="page-header__title">My Library</h1>
           <p className="page-header__subtitle">
             {allBooks.length > 0
               ? `${allBooks.length} books collected.${isAdmin ? ' Click any book to edit.' : ''}`
