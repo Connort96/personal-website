@@ -154,24 +154,24 @@ export default function Home() {
             <h1 className="hero__title">
               <span className="hero__title-line">CONNOR’S COLLECTIONS</span>
             </h1>
-            <p className="hero__subtitle">
-              An editorial anthology of literature, sound, and observations from the road. 
-              Exploring the texture of a life lived intentionally.
-              <span className="hero__signature">— Connor</span>
-            </p>
             <div className="hero__actions">
               {latestPost && (
-                <Link to={`/blog/${latestPost.slug}`} className="hero-compact-post">
+                <Link to={`/blog/${latestPost.slug}`} className="hero-large-post">
                   {latestPost.featured_image && (
-                    <div className="hero-compact-post__thumb">
+                    <div className="hero-large-post__thumb">
                       <img src={latestPost.featured_image} alt={latestPost.title} />
                     </div>
                   )}
-                  <div className="hero-compact-post__content">
-                    <span className="hero-compact-post__label">Latest Entry</span>
-                    <h3 className="hero-compact-post__title">{latestPost.title}</h3>
+                  <div className="hero-large-post__content">
+                    <span className="hero-large-post__label">Latest Journal Entry</span>
+                    <h3 className="hero-large-post__title">{latestPost.title}</h3>
+                    {latestPost.excerpt && (
+                      <p className="hero-large-post__excerpt">
+                        {latestPost.excerpt.substring(0, 100)}...
+                      </p>
+                    )}
+                    <span className="hero-large-post__link">Read Entry →</span>
                   </div>
-                  <span className="hero-compact-post__arrow">→</span>
                 </Link>
               )}
             </div>
@@ -185,27 +185,27 @@ export default function Home() {
           >
             <div className="hero__spotlight"></div>
             {currentlyReading && (
-              <div className="hero-reading-card">
-                <div className="hero-reading-card__header">
-                  <span className="hero-reading-card__badge">Currently Reading</span>
+              <div className="hero-reading-card-large">
+                <div className="hero-reading-card-large__header">
+                  <span className="hero-reading-card-large__badge">Currently Reading</span>
                 </div>
-                <div className="hero-reading-card__content">
+                <div className="hero-reading-card-large__content">
                   {currentlyReading.cover_url ? (
-                    <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card__cover" />
+                    <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card-large__cover" />
                   ) : (
-                    <div className="hero-reading-card__cover-placeholder">
+                    <div className="hero-reading-card-large__cover-placeholder">
                       {currentlyReading.title?.[0]}
                     </div>
                   )}
-                  <div className="hero-reading-card__info">
-                    <h3 className="hero-reading-card__title">{currentlyReading.title}</h3>
-                    <p className="hero-reading-card__author">{currentlyReading.author}</p>
-                    <Link to="/books" className="hero-reading-card__link">Library →</Link>
+                  <div className="hero-reading-card-large__info">
+                    <h3 className="hero-reading-card-large__title">{currentlyReading.title}</h3>
+                    <p className="hero-reading-card-large__author">{currentlyReading.author}</p>
+                    <Link to="/books" className="hero-reading-card-large__link">View Full Library →</Link>
                   </div>
                 </div>
-                <div className="hero-reading-card__progress">
+                <div className="hero-reading-card-large__progress">
                   <div 
-                    className="hero-reading-card__progress-bar" 
+                    className="hero-reading-card-large__progress-bar" 
                     style={{ width: `${currentlyReading.progress}%` }}
                   ></div>
                 </div>
