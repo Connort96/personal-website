@@ -22,12 +22,13 @@ export default function Home() {
         const adminId = adminSettings?.admin_user_id;
 
         if (adminId) {
-          // Fetch currently reading
+          // Fetch currently reading with progress
           const { data: readingData } = await supabase
             .from('user_books')
             .select(`
               book_id,
               status,
+              current_page,
               editions ( 
                 cover_url, 
                 works ( title, author ) 
@@ -35,7 +36,8 @@ export default function Home() {
               books (
                 title,
                 author,
-                cover_url
+                cover_url,
+                page_count
               )
             `)
             .eq('user_id', adminId)
@@ -44,11 +46,15 @@ export default function Home() {
 
           if (readingData && readingData.length > 0) {
             const item = readingData[0];
+            const pageCount = item.books?.page_count || 300; // Fallback
+            const progress = item.current_page > 0 ? (item.current_page / pageCount) * 100 : 0;
+            
             setCurrentlyReading({
               id: item.book_id,
               title: item.editions?.works?.title || item.books?.title || 'Unknown Title',
               author: item.editions?.works?.author || item.books?.author || 'Unknown Author',
               cover_url: item.editions?.cover_url || item.books?.cover_url,
+              progress: Math.min(100, progress)
             });
           }
 
@@ -71,7 +77,7 @@ export default function Home() {
               )
             `)
             .eq('user_id', adminId)
-            .not('rating', 'is', null) // Must have at least a rating
+            .not('rating', 'is', null)
             .order('owned_at', { ascending: false })
             .limit(3);
 
@@ -103,10 +109,10 @@ export default function Home() {
             })));
           }
 
-          // Fetch latest post
+          // Fetch latest post with thumbnail
           const { data: latestPostData } = await supabase
             .from('posts')
-            .select('id, title, slug, excerpt, published_at')
+            .select('id, title, slug, excerpt, published_at, featured_image')
             .order('published_at', { ascending: false })
             .limit(1);
             
@@ -135,6 +141,8 @@ export default function Home() {
       {/* Hero Section */}
       <section className="hero">
         <div className="hero__glow-bridge"></div>
+        <div className="hero__micro-tag hero__micro-tag--top-left">SO-UK // 2026</div>
+        
         <div className="hero__content container">
           <motion.div 
             className="hero__text"
@@ -149,10 +157,16 @@ export default function Home() {
             <p className="hero__subtitle">
               An editorial anthology of literature, sound, and observations from the road. 
               Exploring the texture of a life lived intentionally.
+              <span className="hero__signature">— Connor</span>
             </p>
             <div className="hero__actions">
               {latestPost && (
                 <Link to={`/blog/${latestPost.slug}`} className="hero-compact-post">
+                  {latestPost.featured_image && (
+                    <div className="hero-compact-post__thumb">
+                      <img src={latestPost.featured_image} alt={latestPost.title} />
+                    </div>
+                  )}
                   <div className="hero-compact-post__content">
                     <span className="hero-compact-post__label">Latest Entry</span>
                     <h3 className="hero-compact-post__title">{latestPost.title}</h3>
@@ -169,6 +183,7 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
+            <div className="hero__spotlight"></div>
             {currentlyReading && (
               <div className="hero-reading-card">
                 <div className="hero-reading-card__header">
@@ -188,15 +203,24 @@ export default function Home() {
                     <Link to="/books" className="hero-reading-card__link">Library →</Link>
                   </div>
                 </div>
+                <div className="hero-reading-card__progress">
+                  <div 
+                    className="hero-reading-card__progress-bar" 
+                    style={{ width: `${currentlyReading.progress}%` }}
+                  ></div>
+                </div>
               </div>
             )}
           </motion.div>
         </div>
+        
+        <div className="hero__scroll-guide"></div>
       </section>
 
       {/* Bento Grid */}
       <section className="bento-section">
         <div className="container">
+          <div className="bento-micro-label">VOL. 01 // COLLECTIONS</div>
           <div className="bento-grid">
             {/* Reviews Block */}
             <motion.div 
