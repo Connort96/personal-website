@@ -29,7 +29,8 @@ export default function Navbar() {
     <nav className={`navbar ${isOpen ? 'navbar--open' : ''}`} id="main-nav">
       <div className="navbar__inner container">
         <NavLink to="/" className="navbar__logo" id="nav-logo">
-          <img src="/logo.png" alt="Connor's Collection" className="navbar__logo-img" />
+          <span className="navbar__logo-dot"></span>
+          <span className="navbar__logo-text">Connor's Collection</span>
         </NavLink>
 
         <button 

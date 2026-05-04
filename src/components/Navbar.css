@@ -19,15 +19,24 @@
   height: 100%;
 }
 
-.navbar__logo-img {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
-  transition: transform var(--duration-normal) var(--ease-out);
+.navbar__logo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  box-shadow: 0 0 10px rgba(200, 168, 75, 0.4);
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
-.navbar__logo:hover .navbar__logo-img {
-  transform: scale(1.05);
+.navbar__logo-text {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-tertiary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .navbar__logo {
