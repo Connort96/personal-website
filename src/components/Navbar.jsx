@@ -39,12 +39,12 @@ export default function Navbar() {
     journal: [
       { name: 'Blog', to: '/blog' },
       { name: 'Now', to: '/now' },
+      { name: 'Travel', to: '/travel' },
     ],
     collections: [
       { name: 'Books', to: '/books' },
       { name: 'Cinema', to: '/films' },
       { name: 'Music', to: '/music' },
-      { name: 'Travel', to: '/travel' },
     ]
   };
 
