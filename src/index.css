@@ -185,6 +185,10 @@ body::before {
   flex-direction: column;
 }
 
+main {
+  flex: 1;
+}
+
 a {
   color: var(--accent-secondary);
   text-decoration: none;

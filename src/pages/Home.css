@@ -202,7 +202,8 @@
 
 /* ── Bento Section ── */
 .bento-section {
-  padding: var(--space-20) 0 var(--space-48); /* Substantially increased bottom padding */
+  padding: var(--space-20) 0 0; 
+  margin-bottom: var(--space-24); /* Using heavy margin-bottom instead of padding for footer separation */
 }
 
 .bento-grid {
