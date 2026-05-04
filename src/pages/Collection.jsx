@@ -42,14 +42,6 @@ export default function Collection() {
           }
         }
 
-        // Get Shared Admin ID
-        const { data: adminSettings } = await supabase
-          .from('admin_settings')
-          .select('admin_user_id')
-          .single();
-        const aId = adminSettings?.admin_user_id;
-        setAdminId(aId);
-
         // 2. Group into genres
         const genresMap = new Map();
         const stringToIdMap = {}; // For local storage migration
