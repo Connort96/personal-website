@@ -144,6 +144,10 @@ export default function Home() {
     return '★'.repeat(rating || 0) + '☆'.repeat(5 - (rating || 0));
   };
 
+  const nowPlaying = spotifyData?.currently_playing?.is_playing ? spotifyData.currently_playing.item : null;
+  const lastPlayed = !nowPlaying ? spotifyData?.recently_played?.items?.[0]?.track : null;
+  const activeTrack = nowPlaying || lastPlayed;
+
   return (
     <div className="home">
       <div className="home__noise-overlay"></div>
