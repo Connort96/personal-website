@@ -1,79 +1,115 @@
-import { useState } from 'react';
-import CollectionCard from '../components/CollectionCard';
-import { albums } from '../data/music';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import NowPlaying from '../components/NowPlaying';
+import TopArtists from '../components/TopArtists';
+import Image from '../components/Image';
 import './Music.css';
 
 export default function Music() {
-  const genres = ['All', ...new Set(albums.map(a => a.genre))];
-  const [activeGenre, setActiveGenre] = useState('All');
+  const [spotifyData, setSpotifyData] = useState(null);
+  const [featured, setFeatured] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
 
-  const filtered = activeGenre === 'All'
-    ? albums
-    : albums.filter(a => a.genre === activeGenre);
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Fetch Spotify data from Edge Function
+        const spotifyRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spotify`, {
+          headers: { 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
+        });
+        const spotifyJson = await spotifyRes.json();
+        setSpotifyData(spotifyJson);
+
+        // Fetch featured music from Supabase
+        const { data: featuredData, error } = await supabase
+          .from('featured_music')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setFeatured(featuredData || []);
+      } catch (err) {
+        console.error('Error loading music data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const openPlaylist = (item) => {
+    if (item.type === 'playlist') {
+      setSelectedPlaylist(item.spotify_id);
+    } else {
+      window.open(`https://open.spotify.com/album/${item.spotify_id}`, '_blank');
+    }
+  };
 
   return (
     <div className="music-page">
       <div className="container">
         <header className="page-header animate-fade-in-up">
-          <h1 className="page-header__title">Music Collection</h1>
+          <div className="page-header__now">
+            <NowPlaying />
+          </div>
+          <h1 className="page-header__title">Music</h1>
           <p className="page-header__subtitle">
-            Albums that shaped my listening. Each one has a story.
+            Curated rotations, top stats, and the soundtracks of my life.
           </p>
         </header>
 
-        <div className="music-filters animate-fade-in-up animate-stagger-2" id="music-filters">
-          {genres.map(genre => (
-            <button
-              key={genre}
-              className={`music-filter ${activeGenre === genre ? 'music-filter--active' : ''}`}
-              onClick={() => setActiveGenre(genre)}
-              id={`filter-${genre.toLowerCase().replace(/\s+/g, '-')}`}
-            >
-              {genre}
-              {genre !== 'All' && (
-                <span className="music-filter__count">
-                  {albums.filter(a => a.genre === genre).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {loading ? (
+          <div className="music-loading">Loading sounds...</div>
+        ) : (
+          <>
+            <TopArtists artists={spotifyData?.top_artists?.items} />
 
-        <div className="music-stats animate-fade-in-up animate-stagger-3">
-          <div className="music-stat">
-            <span className="music-stat__number">{filtered.length}</span>
-            <span className="music-stat__label">{filtered.length === 1 ? 'Album' : 'Albums'}</span>
-          </div>
-          <div className="music-stat">
-            <span className="music-stat__number">
-              {filtered.reduce((sum, a) => sum + (a.tracks?.length || 0), 0)}
-            </span>
-            <span className="music-stat__label">Tracks</span>
-          </div>
-          <div className="music-stat">
-            <span className="music-stat__number">
-              {new Set(filtered.map(a => a.artist)).size}
-            </span>
-            <span className="music-stat__label">{new Set(filtered.map(a => a.artist)).size === 1 ? 'Artist' : 'Artists'}</span>
-          </div>
-        </div>
-
-        <div className="music-grid" id="music-grid">
-          {filtered.map((album, i) => (
-            <CollectionCard
-              key={album.id}
-              title={album.title}
-              subtitle={album.artist}
-              year={album.year}
-              genre={album.genre}
-              rating={album.rating}
-              coverColor={album.coverColor}
-              notes={album.notes}
-              index={i}
-            />
-          ))}
-        </div>
+            <section className="music-featured animate-fade-in-up">
+              <h2 className="section-title">Featured Rotation</h2>
+              <div className="music-grid">
+                {featured.map((item, i) => (
+                  <div 
+                    key={item.id} 
+                    className="music-card" 
+                    onClick={() => openPlaylist(item)}
+                    style={{ animationDelay: `${i * 0.1}s` }}
+                  >
+                    <div className="music-card__cover-wrapper">
+                      <Image src={item.cover_url} alt={item.title} className="music-card__cover" />
+                      <div className="music-card__overlay">
+                        <span className="play-icon">▶</span>
+                      </div>
+                    </div>
+                    <div className="music-card__info">
+                      <h3 className="music-card__title">{item.title}</h3>
+                      <p className="music-card__artist">{item.artist}</p>
+                      <span className="music-card__type">{item.type}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
+
+      {/* Playlist Modal */}
+      {selectedPlaylist && (
+        <div className="playlist-modal" onClick={() => setSelectedPlaylist(null)}>
+          <div className="playlist-modal__content" onClick={e => e.stopPropagation()}>
+            <button className="playlist-modal__close" onClick={() => setSelectedPlaylist(null)}>&times;</button>
+            <iframe 
+              src={`https://open.spotify.com/embed/playlist/${selectedPlaylist}?utm_source=generator&theme=0`} 
+              width="100%" 
+              height="480" 
+              frameBorder="0" 
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

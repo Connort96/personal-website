@@ -1,0 +1,101 @@
+.now-playing {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  max-width: 320px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.now-playing:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+.now-playing__container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.now-playing__image {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.now-playing__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.now-playing__info {
+  min-width: 0;
+}
+
+.now-playing__status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.now-playing__title {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.now-playing__title:hover {
+  color: var(--accent-primary);
+}
+
+.now-playing__artist {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Equalizer */
+.now-playing__equalizer {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.eq-bar {
+  width: 3px;
+  background: var(--accent-primary);
+  border-radius: 1px;
+  animation: eq-bounce 1s ease-in-out infinite;
+}
+
+.bar-1 { animation-delay: 0s; height: 100%; }
+.bar-2 { animation-delay: 0.2s; height: 60%; }
+.bar-3 { animation-delay: 0.4s; height: 80%; }
+
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}

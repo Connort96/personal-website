@@ -6,6 +6,7 @@ import TravelAdmin from '../components/TravelAdmin';
 import NowAdmin from '../components/NowAdmin';
 import GearAdmin from '../components/GearAdmin';
 import FilmsAdmin from '../components/FilmsAdmin';
+import MusicAdmin from '../components/MusicAdmin';
 import './Admin.css';
 
 // ─── Dual-API lookup helper ───────────────────────────────────────────────────
@@ -352,7 +353,8 @@ export default function Admin() {
           ['travel', 'Travel'],
           ['now', 'Now'],
           ['gear', 'Gear'],
-          ['films', 'Films']
+          ['films', 'Films'],
+          ['music', 'Music']
         ].map(([key, label]) => (
           <button key={key} type="button"
             className={`admin-tab ${activeTab === key ? 'admin-tab--active' : ''}`}
@@ -566,6 +568,17 @@ export default function Admin() {
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Films</h3>
           </div>
           <FilmsAdmin />
+        </div>
+      )}
+
+      {/* ── Music Admin ── */}
+      {activeTab === 'music' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Music</h3>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>Feature albums and playlists from Spotify.</p>
+          </div>
+          <MusicAdmin />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import NowPlaying from '../components/NowPlaying';
 import './Home.css';
 
 export default function Home() {
@@ -197,14 +198,11 @@ export default function Home() {
                 <h2 className="bento-item__title">Latest Rotation</h2>
                 <Link to="/music" className="bento-item__link">Listen →</Link>
               </div>
-              <div className="bento-music__content">
-                <div className="bento-music__record">
-                  <div className="bento-music__record-center"></div>
-                </div>
-                <div className="bento-music__info">
-                  <h3 className="bento-music__track">Coming Soon</h3>
-                  <p className="bento-music__artist">Music Integration</p>
-                </div>
+              <div className="bento-music__content" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', justifyContent: 'center' }}>
+                <NowPlaying />
+                <p className="bento-music__text" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  A real-time look at my current sounds, synced via Spotify.
+                </p>
               </div>
             </div>
 
