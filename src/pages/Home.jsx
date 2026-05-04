@@ -100,7 +100,7 @@ export default function Home() {
           <div className="hero__text animate-fade-in-up">
             <p className="hero__greeting">Welcome to</p>
             <h1 className="hero__title">
-              <span className="hero__title-line">collected</span>
+              <span className="hero__title-line">Connor's Collection</span>
             </h1>
             <p className="hero__subtitle">
               A personal space for words, sounds, and stories.
