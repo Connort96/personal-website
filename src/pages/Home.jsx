@@ -1,18 +1,90 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { posts } from '../data/postLoader';
-import { albums } from '../data/music';
-import { books } from '../data/books';
+import { supabase } from '../lib/supabase';
 import './Home.css';
 
 export default function Home() {
-  const latestPosts = posts.slice(0, 3);
-  const featuredAlbums = albums.slice(0, 4);
-  const currentlyReading = books.filter(b => b.status === 'currently-reading');
+  const latestPost = posts.length > 0 ? posts[0] : null;
+  const [currentlyReading, setCurrentlyReading] = useState(null);
+  const [topReviews, setTopReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchHomeData() {
+      try {
+        const { data: adminSettings } = await supabase
+          .from('admin_settings')
+          .select('admin_user_id')
+          .single();
+        const adminId = adminSettings?.admin_user_id;
+
+        if (adminId) {
+          // Fetch currently reading
+          const { data: readingData } = await supabase
+            .from('user_books')
+            .select(`
+              id,
+              status,
+              editions ( cover_url, works ( title, author ) ),
+              books ( title, author, cover_url )
+            `)
+            .eq('user_id', adminId)
+            .eq('status', 'reading')
+            .limit(1);
+
+          if (readingData && readingData.length > 0) {
+            const item = readingData[0];
+            setCurrentlyReading({
+              id: item.id,
+              title: item.editions?.works?.title || item.books?.title,
+              author: item.editions?.works?.author || item.books?.author,
+              cover_url: item.editions?.cover_url || item.books?.cover_url,
+            });
+          }
+
+          // Fetch recent 5-star reviews
+          const { data: reviewsData } = await supabase
+            .from('user_books')
+            .select(`
+              id,
+              rating,
+              review,
+              editions ( cover_url, works ( title, author ) ),
+              books ( title, author, cover_url )
+            `)
+            .eq('user_id', adminId)
+            .eq('rating', 5)
+            .not('review', 'is', null)
+            .not('review', 'eq', '')
+            .order('owned_at', { ascending: false })
+            .limit(3);
+
+          if (reviewsData) {
+            setTopReviews(reviewsData.map(item => ({
+              id: item.id,
+              title: item.editions?.works?.title || item.books?.title,
+              author: item.editions?.works?.author || item.books?.author,
+              cover_url: item.editions?.cover_url || item.books?.cover_url,
+              review: item.review
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching home data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchHomeData();
+  }, []);
 
   return (
     <div className="home">
       {/* Hero */}
       <section className="hero" id="hero-section">
+        <div className="hero__noise"></div>
         <div className="hero__bg"></div>
         <div className="hero__content container">
           <div className="hero__text animate-fade-in-up">
@@ -26,118 +98,122 @@ export default function Home() {
               Blog posts, music I love, and books that shaped me.
             </p>
             <div className="hero__actions">
-              <Link to="/blog" className="hero__cta hero__cta--primary" id="hero-cta-blog">
-                Read the Blog
-              </Link>
-              <Link to="/music" className="hero__cta hero__cta--secondary" id="hero-cta-music">
-                Browse Music
-              </Link>
+              {latestPost && (
+                <div className="hero-latest-post">
+                  <span className="hero-latest-post__label">Latest Post</span>
+                  <Link to={`/blog/${latestPost.id}`} className="hero-latest-post__card">
+                    <time className="hero-latest-post__date">
+                      {new Date(latestPost.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </time>
+                    <h3 className="hero-latest-post__title">{latestPost.title}</h3>
+                    <p className="hero-latest-post__excerpt">
+                      {latestPost.excerpt ? latestPost.excerpt.split(' ').slice(0, 20).join(' ') + '...' : ''}
+                    </p>
+                    <span className="hero-latest-post__read">Read post →</span>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
+          
           <div className="hero__visual animate-fade-in-up animate-stagger-3">
-            <div className="hero__orb hero__orb--1"></div>
-            <div className="hero__orb hero__orb--2"></div>
-            <div className="hero__orb hero__orb--3"></div>
-          </div>
-        </div>
-      </section>
-
-      {/* Latest Posts */}
-      <section className="home-section" id="latest-posts">
-        <div className="container">
-          <div className="home-section__header">
-            <h2 className="home-section__title animate-fade-in-up">Latest Writing</h2>
-            <Link to="/blog" className="home-section__link animate-fade-in-up animate-stagger-1">
-              View all posts →
-            </Link>
-          </div>
-          <div className="home-posts">
-            {latestPosts.map((post, i) => (
-              <Link
-                to={`/blog/${post.id}`}
-                key={post.id}
-                className="home-post animate-fade-in-up"
-                style={{ animationDelay: `${i * 0.1}s` }}
-              >
-                <time className="home-post__date">
-                  {new Date(post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </time>
-                <h3 className="home-post__title">{post.title}</h3>
-                <p className="home-post__excerpt">{post.excerpt}</p>
-                <span className="home-post__read-time">{post.readTime}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Music Highlights */}
-      <section className="home-section home-section--alt" id="music-highlights">
-        <div className="container">
-          <div className="home-section__header">
-            <h2 className="home-section__title animate-fade-in-up">From the Collection</h2>
-            <Link to="/music" className="home-section__link animate-fade-in-up animate-stagger-1">
-              Full collection →
-            </Link>
-          </div>
-          <div className="home-albums">
-            {featuredAlbums.map((album, i) => (
-              <div
-                key={album.id}
-                className="home-album animate-fade-in-up"
-                style={{ animationDelay: `${i * 0.08}s` }}
-              >
-                <div
-                  className="home-album__cover"
-                  style={{ backgroundColor: album.coverColor }}
-                >
-                  <div className="home-album__cover-inner">
-                    <span className="home-album__initial">{album.artist[0]}</span>
+            {currentlyReading && (
+              <div className="hero-now-reading">
+                <div className="hero-now-reading__header">
+                  <span className="hero-now-reading__badge">📖 Currently Reading</span>
+                </div>
+                <div className="hero-now-reading__content">
+                  {currentlyReading.cover_url ? (
+                    <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-now-reading__cover" />
+                  ) : (
+                    <div className="hero-now-reading__cover hero-now-reading__cover--placeholder">
+                      {currentlyReading.title?.[0]}
+                    </div>
+                  )}
+                  <div className="hero-now-reading__info">
+                    <h3 className="hero-now-reading__title">{currentlyReading.title}</h3>
+                    <p className="hero-now-reading__author">{currentlyReading.author}</p>
+                    <Link to="/books" className="hero-now-reading__link">View Library →</Link>
                   </div>
                 </div>
-                <h3 className="home-album__title">{album.title}</h3>
-                <p className="home-album__artist">{album.artist}</p>
               </div>
-            ))}
+            )}
+            {!currentlyReading && !loading && (
+              <>
+                <div className="hero__orb hero__orb--1"></div>
+                <div className="hero__orb hero__orb--2"></div>
+                <div className="hero__orb hero__orb--3"></div>
+              </>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Currently Reading */}
-      {currentlyReading.length > 0 && (
-        <section className="home-section" id="currently-reading">
-          <div className="container">
-            <div className="home-section__header">
-              <h2 className="home-section__title animate-fade-in-up">Currently Reading</h2>
-              <Link to="/books" className="home-section__link animate-fade-in-up animate-stagger-1">
-                All books →
-              </Link>
+      {/* Bento Grid */}
+      <section className="bento-section" id="activity-grid">
+        <div className="container">
+          <div className="bento-grid">
+            {/* Reviews Block */}
+            <div className="bento-item bento-reviews animate-fade-in-up">
+              <div className="bento-item__header">
+                <h2 className="bento-item__title">Recent 5-Star Reads</h2>
+                <Link to="/books" className="bento-item__link">See all →</Link>
+              </div>
+              <div className="bento-reviews__list">
+                {topReviews.length > 0 ? topReviews.map(review => (
+                  <div key={review.id} className="bento-review-card">
+                    {review.cover_url ? (
+                      <img src={review.cover_url} alt={review.title} className="bento-review-card__cover" />
+                    ) : (
+                      <div className="bento-review-card__cover bento-review-card__cover--placeholder">
+                        {review.title?.[0]}
+                      </div>
+                    )}
+                    <div className="bento-review-card__content">
+                      <div className="bento-review-card__stars">★★★★★</div>
+                      <h3 className="bento-review-card__title">{review.title}</h3>
+                      <p className="bento-review-card__author">{review.author}</p>
+                      <p className="bento-review-card__text">"{review.review.length > 80 ? review.review.substring(0, 80) + '...' : review.review}"</p>
+                    </div>
+                  </div>
+                )) : (
+                  <p className="bento-empty">No reviews yet.</p>
+                )}
+              </div>
             </div>
-            <div className="home-reading">
-              {currentlyReading.map((book, i) => (
-                <div
-                  key={book.id}
-                  className="home-book animate-fade-in-up"
-                  style={{ animationDelay: `${i * 0.1}s` }}
-                >
-                  <div
-                    className="home-book__cover"
-                    style={{ backgroundColor: book.coverColor }}
-                  >
-                    <span className="home-book__cover-text">{book.title.split(':')[0]}</span>
-                  </div>
-                  <div className="home-book__info">
-                    <h3 className="home-book__title">{book.title}</h3>
-                    <p className="home-book__author">{book.author}</p>
-                    <p className="home-book__notes">{book.notes}</p>
-                    <span className="home-book__status">📖 Reading now</span>
-                  </div>
+
+            {/* Music Block */}
+            <div className="bento-item bento-music animate-fade-in-up animate-stagger-1">
+              <div className="bento-item__header">
+                <h2 className="bento-item__title">Latest Rotation</h2>
+                <Link to="/music" className="bento-item__link">Listen →</Link>
+              </div>
+              <div className="bento-music__content">
+                <div className="bento-music__record">
+                  <div className="bento-music__record-center"></div>
                 </div>
-              ))}
+                <div className="bento-music__info">
+                  <h3 className="bento-music__track">Coming Soon</h3>
+                  <p className="bento-music__artist">Music Integration</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Travel Block */}
+            <div className="bento-item bento-travel animate-fade-in-up animate-stagger-2">
+              <div className="bento-item__header">
+                <h2 className="bento-item__title">Recent Travels</h2>
+              </div>
+              <div className="bento-travel__content">
+                <div className="bento-travel__photo-placeholder">
+                  <span className="bento-travel__icon">✈️</span>
+                  <p>Travel gallery coming soon</p>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
     </div>
   );
 }
