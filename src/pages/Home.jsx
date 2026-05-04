@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { posts } from '../data/postLoader';
 import { supabase } from '../lib/supabase';
 import './Home.css';
 
 export default function Home() {
-  const latestPost = posts.length > 0 ? posts[0] : null;
+  const [latestPost, setLatestPost] = useState(null);
   const [currentlyReading, setCurrentlyReading] = useState(null);
   const [topReviews, setTopReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +68,16 @@ export default function Home() {
               review: item.review
             })));
           }
+          // Fetch latest post
+          const { data: latestPostData } = await supabase
+            .from('posts')
+            .select('id, title, slug, excerpt, published_at')
+            .order('published_at', { ascending: false })
+            .limit(1);
+            
+          if (latestPostData && latestPostData.length > 0) {
+            setLatestPost(latestPostData[0]);
+          }
         }
       } catch (err) {
         console.error('Error fetching home data:', err);
@@ -101,9 +110,9 @@ export default function Home() {
               {latestPost && (
                 <div className="hero-latest-post">
                   <span className="hero-latest-post__label">Latest Post</span>
-                  <Link to={`/blog/${latestPost.id}`} className="hero-latest-post__card">
+                  <Link to={`/blog/${latestPost.slug}`} className="hero-latest-post__card">
                     <time className="hero-latest-post__date">
-                      {new Date(latestPost.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(latestPost.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </time>
                     <h3 className="hero-latest-post__title">{latestPost.title}</h3>
                     <p className="hero-latest-post__excerpt">

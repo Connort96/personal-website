@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import BlogAdmin from '../components/BlogAdmin';
 import './Admin.css';
 
 // ─── Dual-API lookup helper ───────────────────────────────────────────────────
@@ -339,7 +340,7 @@ export default function Admin() {
 
       {/* Tab nav */}
       <div className="admin-tabs">
-        {[['single', 'Add Single Book'], ['batch', 'Batch CSV Import'], ['backfill', 'Backfill Metadata']].map(([key, label]) => (
+        {[['single', 'Add Single Book'], ['batch', 'Batch CSV Import'], ['backfill', 'Backfill Metadata'], ['blog', 'Blog Posts']].map(([key, label]) => (
           <button key={key} type="button"
             className={`admin-tab ${activeTab === key ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab(key)}
@@ -501,6 +502,17 @@ export default function Admin() {
               {backfillStatus}
             </p>
           )}
+        </div>
+      )}
+
+      {/* ── Blog Admin ── */}
+      {activeTab === 'blog' && (
+        <div className="admin-card">
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)' }}>Create New Post</h3>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>Write and publish directly to the website.</p>
+          </div>
+          <BlogAdmin />
         </div>
       )}
     </div>
