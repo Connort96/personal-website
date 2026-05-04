@@ -213,8 +213,6 @@ export default function Home() {
             )}
           </motion.div>
         </div>
-        
-        <div className="hero__scroll-guide"></div>
       </section>
 
       {/* Bento Grid */}
