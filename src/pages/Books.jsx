@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
 import SlideOverPanel from '../components/SlideOverPanel';
 import LibraryHero from '../components/LibraryHero';
@@ -21,19 +22,18 @@ const STATUS_EMOJIS = {
   read: '✓',
 };
 
-// Group "Read" books by the year they were added/finished
-function groupByYear(books) {
-  const groups = {};
-  for (const book of books) {
-    const year = book.owned_at
-      ? new Date(book.owned_at).getFullYear().toString()
-      : 'Unknown';
-    if (!groups[year]) groups[year] = [];
-    groups[year].push(book);
-  }
-  // Sort years descending
-  return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
-}
+// Virtualized Grid Components
+const GridList = ({ className, children, ...props }) => (
+  <div className={className} {...props} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-8)' }}>
+    {children}
+  </div>
+);
+
+const GridItem = ({ children, ...props }) => (
+  <div {...props} style={{ paddingBottom: 'var(--space-8)' }}>
+    {children}
+  </div>
+);
 
 export default function Books() {
   const { user } = useAuth();
@@ -43,12 +43,14 @@ export default function Books() {
 
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTag, setSelectedTag] = useState('all');
+  const [allTags, setAllTags] = useState([]);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
   const [selectedBook, setSelectedBook] = useState(null);
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
-  // Persist view mode preference
   const handleViewChange = (mode) => {
     setViewMode(mode);
     localStorage.setItem('library-view', mode);
@@ -60,16 +62,13 @@ export default function Books() {
       setLoading(true);
       setError(null);
       try {
-        // Get admin UUID
         const { data: adminSettings, error: adminErr } = await supabase
           .from('admin_settings')
           .select('admin_user_id')
           .single();
         if (adminErr || !adminSettings) throw new Error('Could not find admin settings.');
-        // Always show the master admin collection
         const adminId = adminSettings.admin_user_id;
 
-        // Fetch user_books joined with editions → works, paginated
         let allRows = [];
         let from = 0;
         const pageSize = 1000;
@@ -78,45 +77,9 @@ export default function Books() {
           const { data, error: fetchErr } = await supabase
             .from('user_books')
             .select(`
-              user_id,
-              book_id,
-              edition_id,
-              status,
-              rating,
-              review,
-              current_page,
-              owned_at,
-              editions (
-                id,
-                work_id,
-                cover_url,
-                genre_id,
-                genre_name,
-                color,
-                publisher,
-                page_count,
-                isbn,
-                publication_date,
-                translator,
-                works (
-                  id,
-                  title,
-                  author
-                )
-              ),
-              books (
-                id,
-                title,
-                author,
-                genre_name,
-                color,
-                cover_url,
-                publisher,
-                page_count,
-                isbn,
-                publication_date,
-                translator
-              )
+              user_id, book_id, edition_id, status, rating, review, current_page, owned_at,
+              editions ( id, work_id, cover_url, genre_id, genre_name, color, publisher, page_count, isbn, publication_date, translator, works ( id, title, author ) ),
+              books ( id, title, author, genre_name, color, cover_url, publisher, page_count, isbn, publication_date, translator )
             `)
             .eq('user_id', adminId)
             .range(from, from + pageSize - 1);
@@ -127,41 +90,30 @@ export default function Books() {
           from += pageSize;
         }
 
-        // Map rows — prefer editions/works data, fall back to legacy books table
         const mapped = allRows.map(row => {
           const edition = row.editions;
           const work = edition?.works;
           const legacy = row.books;
-
           return {
             id: work?.id || legacy?.id || row.book_id,
             bookId: row.book_id,
-            editionId: row.edition_id || row.book_id,
             title: work?.title || legacy?.title || '(Unknown)',
             author: work?.author || legacy?.author || '',
-            genre: edition?.genre_name || legacy?.genre_name || '',
+            tag: edition?.genre_name || legacy?.genre_name || 'Uncategorized',
             coverColor: edition?.color || legacy?.color,
             coverUrl: edition?.cover_url || legacy?.cover_url,
             status: row.status || 'unread',
             rating: row.rating || 0,
             review: row.review || '',
-            notes: row.review || '',
-            currentPage: row.current_page || 0,
             owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
-            user_id: row.user_id,
             editions: edition ? [edition] : [],
-            // New metadata fields
-            publisher: edition?.publisher || legacy?.publisher || null,
-            pageCount: edition?.page_count || legacy?.page_count || null,
-            isbn: edition?.isbn || legacy?.isbn || null,
-            publicationDate: edition?.publication_date || legacy?.publication_date || null,
-            translator: edition?.translator || legacy?.translator || null,
           };
         });
 
-        // Group by work: if multiple editions of same work, merge
         const workMap = new Map();
+        const tags = new Set();
         for (const book of mapped) {
+          if (book.tag) tags.add(book.tag);
           if (workMap.has(book.id)) {
             const existing = workMap.get(book.id);
             existing.editions = [...(existing.editions || []), ...(book.editions || [])];
@@ -170,6 +122,7 @@ export default function Books() {
           }
         }
 
+        setAllTags(Array.from(tags).sort());
         setAllBooks(Array.from(workMap.values()));
       } catch (err) {
         console.error('Error loading library:', err);
@@ -181,105 +134,87 @@ export default function Books() {
     loadData();
   }, [user]);
 
-  // ─── Save review (any authorized admin can edit their own entry) ──────────────────
   const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
     if (!isAdmin) return;
     try {
-      const { error } = await supabase
-        .from('user_books')
-        .update(updates)
-        .eq('user_id', user.id)
-        .eq('book_id', bookId);
+      const { error } = await supabase.from('user_books').update(updates).eq('user_id', user.id).eq('book_id', bookId);
       if (error) throw error;
-
       if (globalCoverUrl !== undefined) {
-        // Update editions table first, fall back to books
         await supabase.from('editions').update({ cover_url: globalCoverUrl }).eq('work_id', bookId);
         await supabase.from('books').update({ cover_url: globalCoverUrl }).eq('id', bookId);
       }
-
-      setAllBooks(prev => prev.map(b => b.id === bookId
-        ? { ...b, ...updates, notes: updates.review || b.notes, coverUrl: globalCoverUrl !== undefined ? globalCoverUrl : b.coverUrl }
-        : b
-      ));
+      setAllBooks(prev => prev.map(b => b.id === bookId ? { ...b, ...updates, coverUrl: globalCoverUrl !== undefined ? globalCoverUrl : b.coverUrl } : b));
     } catch (err) {
       console.error('Failed to save review:', err);
-      alert('Failed to save. Please try again.');
     }
   };
 
-  // ─── Derived state ─────────────────────────────────────────────────────────
-  const currentlyReading = allBooks.find(b => b.status === 'reading');
+  // ─── Derived state (Search & Filter) ───────────────────────────────────────
+  const filteredBooks = useMemo(() => {
+    return allBooks
+      .filter(b => activeTab === 'all' || b.status === activeTab)
+      .filter(b => selectedTag === 'all' || b.tag === selectedTag)
+      .filter(b => {
+        if (!searchTerm) return true;
+        const s = searchTerm.toLowerCase();
+        return b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s);
+      })
+      .sort((a, b) => {
+        if (sortBy === 'title') return a.title.localeCompare(b.title);
+        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+        return (b.owned_at || 0) - (a.owned_at || 0);
+      });
+  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag]);
 
-  const sortFn = (a, b) => {
-    if (sortBy === 'title') return a.title.localeCompare(b.title);
-    if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
-    return (b.owned_at || 0) - (a.owned_at || 0); // recent
-  };
+  const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
 
-  const tabBooks = useMemo(() => {
-    const base = activeTab === 'all' ? allBooks : allBooks.filter(b => b.status === activeTab);
-    return [...base].sort(sortFn);
-  }, [allBooks, activeTab, sortBy]);
-
-  const counts = {
-    all: allBooks.length,
-    unread: allBooks.filter(b => b.status === 'unread').length,
-    reading: allBooks.filter(b => b.status === 'reading').length,
-    read: allBooks.filter(b => b.status === 'read').length,
-  };
-
-  // For Read tab — group by year
-  const readGroups = useMemo(() => {
-    if (activeTab !== 'read') return null;
-    return groupByYear(tabBooks);
-  }, [tabBooks, activeTab]);
-
-  // ─── Render helpers ─────────────────────────────────────────────────────────
-  const renderCard = (book, i) => (
+  // ─── Render Components ───────────────────────────────────────────────────
+  const RowContent = useCallback((index, book) => (
     <CollectionCard
       key={book.id}
       title={book.title}
       subtitle={book.author}
-      genre={book.genre}
+      genre={book.tag}
       coverColor={book.coverColor}
       coverUrl={book.coverUrl}
-      notes={book.notes}
       rating={book.rating}
       status={book.status}
       editionCount={book.editions?.length || 1}
       viewMode={viewMode}
-      index={i}
+      index={index}
       onClick={() => setSelectedBook(book)}
     />
-  );
+  ), [viewMode]);
 
   return (
     <div className="books-page">
       <div className="container">
-        {/* Page Header */}
-        <header className="page-header animate-fade-in-up">
+        <header className="page-header">
           <h1 className="page-header__title">My Library</h1>
           <p className="page-header__subtitle">
-            {allBooks.length > 0
-              ? `${allBooks.length} books collected.${isAdmin ? ' Click any book to edit.' : ''}`
-              : 'Books I have collected and tracked.'}
+            {allBooks.length > 0 ? `${allBooks.length} books in the archive.` : 'Connecting to the scriptorium...'}
           </p>
         </header>
 
-        {/* Currently Reading Hero */}
-        {!loading && currentlyReading && (
-          <LibraryHero
-            book={currentlyReading}
-            isAdmin={isAdmin}
-            onClick={() => setSelectedBook(currentlyReading)}
-          />
+        {!loading && currentlyReading && !searchTerm && selectedTag === 'all' && (
+          <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => setSelectedBook(currentlyReading)} />
         )}
 
-        {/* Toolbar */}
-        {!loading && allBooks.length > 0 && (
-          <div className="books-toolbar animate-fade-in-up animate-stagger-2">
-            {/* Status tabs */}
+        {!loading && (
+          <div className="books-omni-search">
+            <input
+              type="text"
+              placeholder="Search by title or author..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="books-search-input"
+            />
+            <div className="search-icon">🔍</div>
+          </div>
+        )}
+
+        {!loading && (
+          <div className="books-toolbar">
             <div className="books-tabs">
               {Object.entries(STATUS_LABELS).map(([key, label]) => (
                 <button
@@ -289,92 +224,64 @@ export default function Books() {
                 >
                   {STATUS_EMOJIS[key] && <span className="books-tab__emoji">{STATUS_EMOJIS[key]}</span>}
                   {label}
-                  <span className="books-tab__count">{counts[key]}</span>
                 </button>
               ))}
             </div>
 
-            {/* Right controls */}
             <div className="books-controls">
-              <div className="books-sort">
-                <label htmlFor="sort-select">Sort:</label>
-                <select
-                  id="sort-select"
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                  className="books-sort-select"
-                >
-                  <option value="recent">Recently Added</option>
-                  <option value="rating">Highest Rated</option>
-                  <option value="title">Title A–Z</option>
+              <div className="books-filter-group">
+                <label>Collection:</label>
+                <select value={selectedTag} onChange={e => setSelectedTag(e.target.value)} className="books-select">
+                  <option value="all">All Tags</option>
+                  {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                 </select>
               </div>
+
+              <div className="books-filter-group">
+                <label>Sort:</label>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="books-select">
+                  <option value="recent">Recent</option>
+                  <option value="rating">Rating</option>
+                  <option value="title">A-Z</option>
+                </select>
+              </div>
+
               <ViewToggle view={viewMode} onChange={handleViewChange} />
             </div>
           </div>
         )}
 
-        {/* Loading */}
-        {loading && (
-          <div className="books-loading">
-            <div className="books-loading__spinner" />
-            <p>Loading library…</p>
-          </div>
-        )}
-
-        {/* Error */}
-        {!loading && error && (
-          <div className="books-empty">
-            <p>Could not load library: {error}</p>
-          </div>
-        )}
-
-        {/* Books — Read tab: grouped by year */}
-        {!loading && !error && readGroups && (
-          <div className={`books-list ${viewMode === 'list' ? 'books-list--list' : 'books-grid'}`}>
-            {readGroups.map(([year, books]) => (
-              <div key={year} className="books-year-group">
-                <div className="books-year-header">
-                  <span className="books-year-label">{year}</span>
-                  <span className="books-year-count">{books.length} books</span>
+        <div className="books-content" style={{ height: '70vh', minHeight: '600px' }}>
+          {loading ? (
+            <div className="books-loading">
+              <div className="books-loading__spinner" />
+              <p>Consulting the archives...</p>
+            </div>
+          ) : filteredBooks.length === 0 ? (
+            <div className="books-empty">
+              <p>No volumes match your inquiry.</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <VirtuosoGrid
+              data={filteredBooks}
+              totalCount={filteredBooks.length}
+              components={{ List: GridList, Item: GridItem }}
+              itemContent={(index, book) => RowContent(index, book)}
+            />
+          ) : (
+            <Virtuoso
+              data={filteredBooks}
+              totalCount={filteredBooks.length}
+              itemContent={(index, book) => (
+                <div style={{ marginBottom: 'var(--space-4)' }}>
+                  {RowContent(index, book)}
                 </div>
-                <div className={viewMode === 'list' ? 'books-list-inner' : 'books-grid-inner'}>
-                  {books.map((book, i) => renderCard(book, i))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Books — non-Read tabs: flat grid/list */}
-        {!loading && !error && !readGroups && (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${activeTab}-${viewMode}`}
-              className={viewMode === 'list' ? 'books-list-inner' : 'books-grid'}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              {tabBooks.map((book, i) => renderCard(book, i))}
-            </motion.div>
-          </AnimatePresence>
-        )}
-
-        {/* Empty state */}
-        {!loading && !error && tabBooks.length === 0 && (
-          <div className="books-empty animate-fade-in-up">
-            <p>
-              {activeTab === 'all'
-                ? 'This library is currently empty.'
-                : `No books marked as '${STATUS_LABELS[activeTab]}' yet.`}
-            </p>
-          </div>
-        )}
+              )}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Slide-Over Review Panel */}
       <SlideOverPanel
         book={selectedBook}
         isOpen={!!selectedBook}
