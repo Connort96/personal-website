@@ -112,7 +112,16 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     setLoading(true);
 
     try {
+      // 0. Fetch the Admin ID to ensure visibility in the library grid
+      const { data: adminSettings } = await supabase
+        .from('admin_settings')
+        .select('admin_user_id')
+        .single();
+      
+      const targetUserId = adminSettings?.admin_user_id || user.id;
+
       const genreMeta = genres.find(g => g.genre_id === selectedGenre) || { genre_name: 'Uncategorized', color: '#1a1a1a' };
+      const safeGenreId = selectedGenre === 'uncategorized' ? null : selectedGenre;
 
       // 1. Get or Create Work
       let workId;
@@ -133,7 +142,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         workId = newWork.id;
       }
 
-      // 2. Create Edition with selected genre
+      // 2. Create Edition
       const { data: newEdition } = await supabase
         .from('editions')
         .insert({
@@ -143,17 +152,17 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           cover_image_url: bookData.cover,
           format: bookData.format || 'Hardcover',
           page_count: bookData.pages,
-          genre_id: selectedGenre,
+          genre_id: safeGenreId,
           genre_name: genreMeta.genre_name,
           color: genreMeta.color,
           publication_date: bookData.full_date
         })
         .select().single();
 
-      // 3. Sync to legacy 'books' table for visibility in current library UI
+      // 3. Sync to legacy 'books' table
       const { data: genreBooks } = await supabase.from('books')
         .select('book_index')
-        .eq('genre_id', selectedGenre)
+        .eq('genre_name', genreMeta.genre_name)
         .order('book_index', { ascending: false })
         .limit(1);
       const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
@@ -164,7 +173,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         publisher: bookData.publisher,
         cover_url: bookData.cover,
         isbn: bookData.isbn,
-        genre_id: selectedGenre,
+        genre_id: safeGenreId,
         genre_name: genreMeta.genre_name,
         color: genreMeta.color,
         page_count: bookData.pages,
@@ -173,35 +182,36 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         note: bookData.description
       }).select().single();
 
-      // 4. Link to User Archive (using legacy book_id for dual support)
-      // Inherit existing review for this work if it exists
+      // 4. Link to User Archive (Ensuring it's marked as Owned)
       const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
       const wEdIds = (workEds || []).map(e => e.id);
       
       const { data: wReview } = await supabase
         .from('user_books')
         .select('rating, review, status')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .in('edition_id', wEdIds)
         .order('review', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      await supabase.from('user_books').insert({
-        user_id: user.id,
+      const { error: saveErr } = await supabase.from('user_books').insert({
+        user_id: targetUserId,
         edition_id: newEdition.id,
-        book_id: legacyBook.id,
+        book_id: legacyBook?.id,
         status: wReview?.status || 'unread',
         rating: wReview?.rating || 0,
         review: wReview?.review || '',
         owned_at: new Date().toISOString()
       });
 
+      if (saveErr) throw saveErr;
+
       if (onComplete) onComplete(bookData);
       onClose();
     } catch (err) {
       console.error("Save error:", err);
-      setError("Failed to save to archive.");
+      setError(`Failed to save to archive: ${err.message}`);
       setStatus('confirming');
     } finally {
       setLoading(false);
