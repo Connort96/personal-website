@@ -36,8 +36,8 @@ export default function Home() {
             
             supabase.from('user_books').select(`
               book_id,
-              editions ( cover_url, works ( title ) ),
-              books ( cover_url, title )
+              editions ( id, work_id, cover_url, works ( id, title ) ),
+              books ( id, cover_url, title )
             `).eq('user_id', adminId).order('owned_at', { ascending: false }).limit(10),
 
             supabase.from('posts').select('title, slug, excerpt, published_at').order('published_at', { ascending: false }).limit(1),
