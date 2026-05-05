@@ -194,65 +194,79 @@ export default function Collection() {
     });
   };
 
-  const toggleBook = async (workId, e) => {
+  const toggleBook = async (id, e) => {
     e.stopPropagation();
     if (!user) return;
     
-    const isAdding = !ownedBooks.has(workId);
+    const isAdding = !ownedBooks.has(id);
 
     setOwnedBooks(prev => {
       const next = new Set(prev);
-      if (isAdding) next.add(workId);
-      else next.delete(workId);
+      if (isAdding) next.add(id);
+      else next.delete(id);
       return next;
     });
 
     try {
       if (isAdding) {
-        // Find or create an edition for this work to link to user_books
+        // 1. Try to find an edition linked to this legacy book ID or work ID
         let editionId;
-        const { data: editions } = await supabase.from('editions').select('id').eq('work_id', workId).limit(1);
         
-        if (editions && editions.length > 0) {
-          editionId = editions[0].id;
+        // Check if there's an edition that specifically matches this book_id (legacy)
+        const { data: eds } = await supabase.from('editions').select('id').eq('id', id).maybeSingle();
+        
+        if (eds) {
+          editionId = eds.id;
         } else {
-          // Create a default edition if none exists (Safety fallback)
-          const book = libraryData.flatMap(g => g.books).find(b => b.id === workId);
-          const { data: newEd } = await supabase.from('editions').insert({
-            work_id: workId,
-            publisher: book?.publisher || 'Unknown Publisher',
-            format: 'Hardcover'
-          }).select().single();
-          editionId = newEd.id;
+          // Fallback: Check if there's an edition linked to this ID as a work_id
+          const { data: edsByWork } = await supabase.from('editions').select('id').eq('work_id', id).limit(1);
+          if (edsByWork && edsByWork.length > 0) {
+            editionId = edsByWork[0].id;
+          } else {
+            // Final Fallback: Create a default edition so the toggle works
+            const book = libraryData.flatMap(g => g.books).find(b => b.id === id);
+            const { data: newEd, error: edErr } = await supabase.from('editions').insert({
+              id: id, // Try to keep ID in sync
+              work_id: id,
+              publisher: book?.publisher || 'Unknown Publisher',
+              format: 'Hardcover'
+            }).select().single();
+            
+            if (edErr) {
+              // If ID conflict, just insert without ID
+              const { data: newEdRetry } = await supabase.from('editions').insert({
+                work_id: id,
+                publisher: book?.publisher || 'Unknown Publisher',
+                format: 'Hardcover'
+              }).select().single();
+              editionId = newEdRetry.id;
+            } else {
+              editionId = newEd.id;
+            }
+          }
         }
 
         await supabase.from('user_books').insert({ 
           user_id: user.id, 
           edition_id: editionId,
+          book_id: id, // Keep legacy book_id for dual-mode support
           status: 'unread',
           owned_at: new Date().toISOString()
         });
       } else {
-        // Find the user_book record for this work and delete it
-        const { data: ubData } = await supabase
-          .from('user_books')
-          .select('id, edition_id, editions!inner(work_id)')
+        // Delete from user_books
+        await supabase.from('user_books')
+          .delete()
           .eq('user_id', user.id)
-          .eq('editions.work_id', workId);
-        
-        if (ubData && ubData.length > 0) {
-          await supabase.from('user_books').delete().eq('id', ubData[0].id);
-        } else {
-          // Legacy fallback delete
-          await supabase.from('user_books').delete().eq('user_id', user.id).eq('book_id', workId);
-        }
+          .or(`book_id.eq.${id},edition_id.eq.${id}`);
       }
     } catch (err) {
       console.error("Error syncing book:", err);
+      // Rollback UI state on error
       setOwnedBooks(prev => {
         const next = new Set(prev);
-        if (isAdding) next.delete(workId);
-        else next.add(workId);
+        if (isAdding) next.delete(id);
+        else next.add(id);
         return next;
       });
     }
