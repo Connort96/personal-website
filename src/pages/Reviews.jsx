@@ -1,0 +1,173 @@
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import CollectionCard from '../components/CollectionCard';
+import SlideOverPanel from '../components/SlideOverPanel';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import './Books.css'; // Reusing books styles for consistency
+
+export default function Reviews() {
+  const { user } = useAuth();
+  const [allBooks, setAllBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedBook, setSelectedBook] = useState(null);
+
+  const isAdmin = user?.email === 'theconison96@gmail.com';
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: adminSettings } = await supabase
+          .from('admin_settings')
+          .select('admin_user_id')
+          .single();
+        
+        const adminId = adminSettings?.admin_user_id;
+        if (!adminId) throw new Error('Could not find admin settings.');
+
+        const { data, error: fetchErr } = await supabase
+          .from('user_books')
+          .select(`
+            user_id,
+            book_id,
+            edition_id,
+            status,
+            rating,
+            review,
+            owned_at,
+            editions (
+              id,
+              cover_url,
+              color,
+              genre_name,
+              works ( title, author )
+            ),
+            books (
+              id,
+              title,
+              author,
+              cover_url,
+              color,
+              genre_name
+            )
+          `)
+          .eq('user_id', adminId)
+          .not('rating', 'is', null)
+          .order('owned_at', { ascending: false });
+
+        if (fetchErr) throw fetchErr;
+
+        const mapped = data.map(row => {
+          const edition = row.editions;
+          const work = edition?.works;
+          const legacy = row.books;
+
+          return {
+            id: work?.id || legacy?.id || row.book_id,
+            title: work?.title || legacy?.title || '(Unknown)',
+            author: work?.author || legacy?.author || '',
+            genre: edition?.genre_name || legacy?.genre_name || '',
+            coverColor: edition?.color || legacy?.color,
+            coverUrl: edition?.cover_url || legacy?.cover_url,
+            status: row.status,
+            rating: row.rating || 0,
+            review: row.review || '',
+            notes: row.review || '',
+            owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
+          };
+        });
+
+        setAllBooks(mapped);
+      } catch (err) {
+        console.error('Error loading reviews:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
+    if (!isAdmin) return;
+    try {
+      const { error } = await supabase
+        .from('user_books')
+        .update(updates)
+        .eq('user_id', user.id)
+        .eq('book_id', bookId);
+      if (error) throw error;
+
+      setAllBooks(prev => prev.map(b => b.id === bookId
+        ? { ...b, ...updates, notes: updates.review || b.notes }
+        : b
+      ));
+    } catch (err) {
+      console.error('Failed to save review:', err);
+    }
+  };
+
+  return (
+    <div className="books-page reviews-page">
+      <div className="container">
+        <header className="page-header animate-fade-in-up">
+          <h1 className="page-header__title">Reading Log</h1>
+          <p className="page-header__subtitle">
+            Reflections and ratings on my journey through the archives.
+          </p>
+        </header>
+
+        {loading && (
+          <div className="books-loading">
+            <div className="books-loading__spinner" />
+            <p>Fetching the log…</p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="books-empty">
+            <p>Could not load the log: {error}</p>
+          </div>
+        )}
+
+        {!loading && !error && allBooks.length === 0 && (
+          <div className="books-empty">
+            <p>No reviews found yet. The log remains silent.</p>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="books-grid">
+            {allBooks.map((book, i) => (
+              <CollectionCard
+                key={book.id}
+                title={book.title}
+                subtitle={book.author}
+                genre={book.genre}
+                coverColor={book.coverColor}
+                coverUrl={book.coverUrl}
+                notes={book.notes}
+                rating={book.rating}
+                status={book.status}
+                viewMode="grid"
+                index={i}
+                onClick={() => setSelectedBook(book)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <SlideOverPanel
+        book={selectedBook}
+        isOpen={!!selectedBook}
+        onClose={() => setSelectedBook(null)}
+        onSave={handleSaveReview}
+        isAdmin={isAdmin}
+      />
+    </div>
+  );
+}

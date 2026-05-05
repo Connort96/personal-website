@@ -36,15 +36,12 @@ export default function Navbar() {
   };
 
   const navLinks = {
-    journal: [
+    notebook: [
       { name: 'Blog', to: '/blog' },
-      { name: 'Now', to: '/now' },
       { name: 'Travel', to: '/travel' },
-    ],
-    collections: [
-      { name: 'Books', to: '/books' },
-      { name: 'Cinema', to: '/films' },
       { name: 'Music', to: '/music' },
+      { name: 'Cinema', to: '/films' },
+      { name: 'Now', to: '/now' },
     ]
   };
 
@@ -53,7 +50,7 @@ export default function Navbar() {
       <div className="navbar__inner container">
         {/* Editorial Wordmark */}
         <NavLink to="/" className="navbar__logo" id="nav-logo">
-          CONNOR’S COLLECTIONS
+          THE LIBRARY
         </NavLink>
 
         <button 
@@ -68,77 +65,47 @@ export default function Navbar() {
 
         <div className={`navbar__menu ${isOpen ? 'navbar__menu--open' : ''}`}>
           <ul className="navbar__links">
-            {/* Journal Dropdown */}
-            <li 
-              className="navbar__item navbar__item--has-dropdown"
-              onMouseEnter={() => window.innerWidth > 768 && setActiveDropdown('journal')}
-              onMouseLeave={() => window.innerWidth > 768 && setActiveDropdown(null)}
-            >
-              <button 
-                className="navbar__link navbar__link--dropdown-trigger"
-                onClick={(e) => toggleDropdown('journal', e)}
-              >
-                Journal
-                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="navbar__dropdown-arrow">
-                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <AnimatePresence>
-                {activeDropdown === 'journal' && (
-                  <motion.div 
-                    className="navbar__dropdown"
-                    initial={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
-                    animate={window.innerWidth > 768 ? { opacity: 1, y: 0 } : { height: 'auto', opacity: 1 }}
-                    exit={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {navLinks.journal.map(link => (
-                      <NavLink key={link.to} to={link.to} className="navbar__dropdown-link">
-                        {link.name}
-                      </NavLink>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </li>
-
-            {/* Collections Dropdown */}
-            <li 
-              className="navbar__item navbar__item--has-dropdown"
-              onMouseEnter={() => window.innerWidth > 768 && setActiveDropdown('collections')}
-              onMouseLeave={() => window.innerWidth > 768 && setActiveDropdown(null)}
-            >
-              <button 
-                className="navbar__link navbar__link--dropdown-trigger"
-                onClick={(e) => toggleDropdown('collections', e)}
-              >
-                Collections
-                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="navbar__dropdown-arrow">
-                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <AnimatePresence>
-                {activeDropdown === 'collections' && (
-                  <motion.div 
-                    className="navbar__dropdown"
-                    initial={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
-                    animate={window.innerWidth > 768 ? { opacity: 1, y: 0 } : { height: 'auto', opacity: 1 }}
-                    exit={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {navLinks.collections.map(link => (
-                      <NavLink key={link.to} to={link.to} className="navbar__dropdown-link">
-                        {link.name}
-                      </NavLink>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </li>
-
             <li>
-              <NavLink to="/collection" className="navbar__link">Collection Checklist</NavLink>
+              <NavLink to="/books" className="navbar__link">The Shelf</NavLink>
             </li>
+            <li>
+              <NavLink to="/reviews" className="navbar__link">Reading Log</NavLink>
+            </li>
+
+            {/* Notebook Dropdown */}
+            <li 
+              className="navbar__item navbar__item--has-dropdown"
+              onMouseEnter={() => window.innerWidth > 768 && setActiveDropdown('notebook')}
+              onMouseLeave={() => window.innerWidth > 768 && setActiveDropdown(null)}
+            >
+              <button 
+                className="navbar__link navbar__link--dropdown-trigger"
+                onClick={(e) => toggleDropdown('notebook', e)}
+              >
+                Notebook
+                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="navbar__dropdown-arrow">
+                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <AnimatePresence>
+                {activeDropdown === 'notebook' && (
+                  <motion.div 
+                    className="navbar__dropdown"
+                    initial={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
+                    animate={window.innerWidth > 768 ? { opacity: 1, y: 0 } : { height: 'auto', opacity: 1 }}
+                    exit={window.innerWidth > 768 ? { opacity: 0, y: 10 } : { height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {navLinks.notebook.map(link => (
+                      <NavLink key={link.to} to={link.to} className="navbar__dropdown-link">
+                        {link.name}
+                      </NavLink>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </li>
+
             <li>
               <NavLink to="/about" className="navbar__link">About</NavLink>
             </li>

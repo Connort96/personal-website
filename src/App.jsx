@@ -8,6 +8,7 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import Music from './pages/Music';
 import Books from './pages/Books';
+import Reviews from './pages/Reviews';
 import Collection from './pages/Collection';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/blog/:id" element={<BlogPost />} />
             <Route path="/music" element={<Music />} />
             <Route path="/books" element={<Books />} />
+            <Route path="/reviews" element={<Reviews />} />
             <Route path="/travel" element={<Travel />} />
             <Route path="/now" element={<Now />} />
             <Route path="/about" element={<About />} />
