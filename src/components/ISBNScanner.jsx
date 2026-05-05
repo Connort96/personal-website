@@ -146,11 +146,32 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         })
         .select().single();
 
-      // 3. Link to User Archive
+      // 3. Sync to legacy 'books' table for visibility in current library UI
+      const { data: genreBooks } = await supabase.from('books')
+        .select('book_index')
+        .eq('genre_id', selectedGenre)
+        .order('book_index', { ascending: false })
+        .limit(1);
+      const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+
+      const { data: legacyBook } = await supabase.from('books').insert({
+        title: bookData.title,
+        author: bookData.author,
+        publisher: bookData.publisher,
+        cover_url: bookData.cover,
+        isbn: bookData.isbn,
+        genre_id: selectedGenre,
+        genre_name: genreMeta.genre_name,
+        color: genreMeta.color,
+        page_count: bookData.pages,
+        book_index: nextIndex
+      }).select().single();
+
+      // 4. Link to User Archive (using legacy book_id for dual support)
       await supabase.from('user_books').insert({
         user_id: user.id,
         edition_id: newEdition.id,
-        book_id: newEdition.id, // Keep ID in sync for dual-mode support
+        book_id: legacyBook.id,
         status: 'unread',
         owned_at: new Date().toISOString()
       });
