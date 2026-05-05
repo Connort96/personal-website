@@ -13,6 +13,23 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('scanning'); // scanning, confirming, saving
+  const [genres, setGenres] = useState([]);
+  const [selectedGenre, setSelectedGenre] = useState('uncategorized');
+
+  useEffect(() => {
+    async function loadGenres() {
+      const { data } = await supabase.from('books').select('genre_id, genre_name, color').order('genre_name');
+      if (data) {
+        const seen = new Set();
+        setGenres(data.filter(g => { 
+          if (seen.has(g.genre_id)) return false; 
+          seen.add(g.genre_id); 
+          return true; 
+        }));
+      }
+    }
+    loadGenres();
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -92,6 +109,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     setLoading(true);
 
     try {
+      const genreMeta = genres.find(g => g.genre_id === selectedGenre) || { genre_name: 'Uncategorized', color: '#1a1a1a' };
+
       // 1. Get or Create Work
       let workId;
       const { data: existingWork } = await supabase
@@ -111,7 +130,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         workId = newWork.id;
       }
 
-      // 2. Create Edition
+      // 2. Create Edition with selected genre
       const { data: newEdition } = await supabase
         .from('editions')
         .insert({
@@ -120,7 +139,10 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           publisher: bookData.publisher,
           cover_image_url: bookData.cover,
           format: 'Hardcover',
-          page_count: bookData.pages
+          page_count: bookData.pages,
+          genre_id: selectedGenre,
+          genre_name: genreMeta.genre_name,
+          color: genreMeta.color
         })
         .select().single();
 
@@ -128,6 +150,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       await supabase.from('user_books').insert({
         user_id: user.id,
         edition_id: newEdition.id,
+        book_id: newEdition.id, // Keep ID in sync for dual-mode support
         status: 'unread',
         owned_at: new Date().toISOString()
       });
@@ -196,7 +219,19 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                     <div className="book-info">
                       <h3>{bookData.title}</h3>
                       <p className="author">{bookData.author}</p>
-                      <p className="meta">{bookData.publisher} • {bookData.year}</p>
+                      
+                      <div className="scanner-genre-picker">
+                        <label>Select Category</label>
+                        <select 
+                          value={selectedGenre} 
+                          onChange={(e) => setSelectedGenre(e.target.value)}
+                        >
+                          <option value="uncategorized">Uncategorized</option>
+                          {genres.map(g => (
+                            <option key={g.genre_id} value={g.genre_id}>{g.genre_name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div className="confirmation-actions">
