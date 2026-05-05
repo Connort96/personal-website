@@ -143,6 +143,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-top: var(--space-1);
+  min-height: 3em; /* Always reserve space for 2 lines */
 }
 
 /* Format Badges */
