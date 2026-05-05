@@ -16,6 +16,18 @@ const StarRating = ({ rating }) => {
   );
 };
 
+// Helper to group by month/year
+function groupEntriesByMonth(entries) {
+  const groups = {};
+  entries.forEach(entry => {
+    const date = entry.raw_owned_at ? new Date(entry.raw_owned_at) : new Date();
+    const key = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(entry);
+  });
+  return Object.entries(groups);
+}
+
 export default function Reviews() {
   const { user } = useAuth();
   const [allBooks, setAllBooks] = useState([]);
@@ -73,6 +85,7 @@ export default function Reviews() {
             rating: row.rating || 0,
             review: row.review || '',
             notes: row.review || '',
+            raw_owned_at: row.owned_at,
             owned_at: row.owned_at ? new Date(row.owned_at).toLocaleDateString('en-US', { 
               month: 'long', 
               day: 'numeric', 
@@ -111,6 +124,8 @@ export default function Reviews() {
     }
   };
 
+  const groupedBooks = useMemo(() => groupEntriesByMonth(allBooks), [allBooks]);
+
   return (
     <div className="reviews-page">
       <div className={`container ${viewMode === 'list' ? 'container--narrow' : ''}`}>
@@ -145,57 +160,62 @@ export default function Reviews() {
 
         {!loading && !error && (
           <LayoutGroup>
-            <motion.div 
-              layout
-              className={`reviews-feed reviews-feed--${viewMode}`}
-            >
-              <AnimatePresence mode="popLayout">
-                {allBooks.map((book, i) => (
-                  <motion.div 
-                    layout
-                    key={book.id} 
-                    className={`journal-entry journal-entry--${viewMode}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    onClick={() => setSelectedBook(book)}
-                  >
-                    <motion.div layout className="journal-entry__cover-wrapper">
-                      {book.coverUrl ? (
-                        <img src={book.coverUrl} alt={book.title} className="journal-entry__cover" />
-                      ) : (
-                        <div className="journal-entry__cover-placeholder" style={{ backgroundColor: book.coverColor }}>
-                          <span>{book.title[0]}</span>
-                        </div>
-                      )}
-                    </motion.div>
+            <div className={`reviews-feed reviews-feed--${viewMode}`}>
+              {groupedBooks.map(([month, books]) => (
+                <div key={month} className="reviews-timeline-group">
+                  <div className="timeline-header">
+                    <span className="timeline-header__label">{month}</span>
+                    <div className="timeline-header__line" />
+                  </div>
+                  
+                  <div className={`reviews-grid-inner reviews-grid-inner--${viewMode}`}>
+                    <AnimatePresence mode="popLayout">
+                      {books.map((book) => (
+                        <motion.div 
+                          layout
+                          key={book.id} 
+                          className={`journal-entry journal-entry--${viewMode}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                          onClick={() => setSelectedBook(book)}
+                        >
+                          <motion.div layout className="journal-entry__cover-wrapper">
+                            {book.coverUrl ? (
+                              <img src={book.coverUrl} alt={book.title} className="journal-entry__cover" />
+                            ) : (
+                              <div className="journal-entry__cover-placeholder" style={{ backgroundColor: book.coverColor }}>
+                                <span>{book.title[0]}</span>
+                              </div>
+                            )}
+                          </motion.div>
 
-                    <motion.div layout className="journal-entry__content">
-                      <div className="journal-entry__header">
-                        {viewMode === 'list' && (
-                          <span className="journal-entry__date">Logged on {book.owned_at}</span>
-                        )}
-                        <StarRating rating={book.rating} />
-                      </div>
-                      
-                      <h2 className="journal-entry__title">{book.title}</h2>
-                      <p className="journal-entry__author">by {book.author}</p>
-                      
-                      {book.review && (
-                        <div className={`journal-entry__reflection ${viewMode === 'grid' ? 'line-clamp-3' : ''}`}>
-                          {book.review}
-                        </div>
-                      )}
+                          <motion.div layout className="journal-entry__content">
+                            <div className="journal-entry__header">
+                              <StarRating rating={book.rating} />
+                            </div>
+                            
+                            <h2 className="journal-entry__title">{book.title}</h2>
+                            <p className="journal-entry__author">by {book.author}</p>
+                            
+                            {book.review && (
+                              <div className={`journal-entry__reflection ${viewMode === 'grid' ? 'line-clamp-2' : ''}`}>
+                                {book.review}
+                              </div>
+                            )}
 
-                      <div className="journal-entry__footer">
-                        <span className="journal-entry__tag">{book.genre}</span>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+                            <div className="journal-entry__footer">
+                              <span className="journal-entry__tag">{book.genre}</span>
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              ))}
+            </div>
           </LayoutGroup>
         )}
 
