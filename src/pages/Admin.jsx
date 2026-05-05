@@ -8,8 +8,9 @@ import GearAdmin from '../components/GearAdmin';
 import FilmsAdmin from '../components/FilmsAdmin';
 import MusicAdmin from '../components/MusicAdmin';
 import { motion, AnimatePresence } from 'framer-motion';
-import ISBNScanner from '../components/ISBNScanner';
 import './Admin.css';
+
+const ISBNScanner = React.lazy(() => import('../components/ISBNScanner'));
 
 // ─── Dual-API lookup helper ───────────────────────────────────────────────────
 async function lookupBookMetadata(title, author) {
@@ -696,14 +697,16 @@ export default function Admin() {
         </div>
       )}
       {/* ISBN Scanner Modal */}
-      <ISBNScanner 
-        isOpen={isScannerOpen} 
-        onClose={() => setIsScannerOpen(false)}
-        onComplete={(book) => {
-          setSuccessMessage(`Successfully archived: ${book.title}`);
-          setTimeout(() => setSuccessMessage(''), 5000);
-        }}
-      />
+      <React.Suspense fallback={null}>
+        <ISBNScanner 
+          isOpen={isScannerOpen} 
+          onClose={() => setIsScannerOpen(false)}
+          onComplete={(book) => {
+            setSuccessMessage(`Successfully archived: ${book.title}`);
+            setTimeout(() => setSuccessMessage(''), 5000);
+          }}
+        />
+      </React.Suspense>
     </div>
   );
 }
