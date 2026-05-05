@@ -174,11 +174,26 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       }).select().single();
 
       // 4. Link to User Archive (using legacy book_id for dual support)
+      // Inherit existing review for this work if it exists
+      const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
+      const wEdIds = (workEds || []).map(e => e.id);
+      
+      const { data: wReview } = await supabase
+        .from('user_books')
+        .select('rating, review, status')
+        .eq('user_id', user.id)
+        .in('edition_id', wEdIds)
+        .order('review', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       await supabase.from('user_books').insert({
         user_id: user.id,
         edition_id: newEdition.id,
         book_id: legacyBook.id,
-        status: 'unread',
+        status: wReview?.status || 'unread',
+        rating: wReview?.rating || 0,
+        review: wReview?.review || '',
         owned_at: new Date().toISOString()
       });
 

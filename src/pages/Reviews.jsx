@@ -86,14 +86,17 @@ export default function Reviews() {
               title: work?.title || legacy?.title || '(Unknown)',
               author: work?.author || legacy?.author || '',
               genre: edition?.genre_name || legacy?.genre_name || '',
-              rating: row.rating || 0,
-              review: row.review || '',
+              rating: 0,
+              review: '',
               raw_owned_at: row.owned_at,
               editions: []
             });
           }
 
           const group = workGroups.get(workId);
+          if (row.review && !group.review) group.review = row.review;
+          if (row.rating && !group.rating) group.rating = row.rating;
+          
           if (edition) {
             group.editions.push(edition);
           } else if (legacy) {

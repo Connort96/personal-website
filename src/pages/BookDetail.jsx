@@ -88,15 +88,17 @@ export default function BookDetail() {
         return aPrio - bPrio;
       });
 
-      const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
+      // Find the "best" review/rating among all owned editions
+      const bestReview = ownedEditions.find(e => e.review)?.review || '';
+      const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
       const mainProgress = sortedEditions[0]; 
 
       setWork({
         ...workData,
         editions: sortedEditions,
         primaryEdition,
-        review: mainProgress.review || '',
-        rating: mainProgress.rating || 0,
+        review: bestReview,
+        rating: bestRating,
         ownedAt: mainProgress.owned_at,
         currentPage: mainProgress.current_page || 0,
         status: mainProgress.status || 'unread',
@@ -118,9 +120,13 @@ export default function BookDetail() {
   const handleSaveReview = async (workId, updates, globalCoverUrl) => {
     if (!isAdmin) return;
     try {
-      const firstEditionId = work.editions[0]?.id;
-      if (firstEditionId) {
-        await supabase.from('user_books').update(updates).eq('user_id', user.id).eq('edition_id', firstEditionId);
+      // Sync the review/rating across ALL editions of this work
+      const editionIds = work.editions.map(ed => ed.id);
+      if (editionIds.length > 0) {
+        await supabase.from('user_books')
+          .update(updates)
+          .eq('user_id', user.id)
+          .in('edition_id', editionIds);
       }
       
       if (globalCoverUrl !== undefined) {

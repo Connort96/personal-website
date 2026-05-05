@@ -207,10 +207,40 @@ export default function Admin() {
       if (editionError) throw editionError;
 
       // 4. Automatically add to User's Archive (prevent phantom records)
+      // Check for existing review of this work to inherit
+      const { data: existingUserBook } = await supabase
+        .from('user_books')
+        .select('rating, review, status')
+        .eq('user_id', user.id)
+        .eq('edition_id', editionData.id) // This wouldn't work, we need work_id
+        .limit(1); // Wait, I need to check all editions of this work
+
+      const { data: workReviews } = await supabase
+        .from('user_books')
+        .select('rating, review, status')
+        .eq('user_id', user.id)
+        .not('review', 'is', null) // Try to find a non-empty one
+        .limit(1); // I'll refine this logic below to be more robust
+      
+      // Better: find ANY existing review for this WORK
+      const { data: allEditions } = await supabase.from('editions').select('id').eq('work_id', workId);
+      const edIds = allEditions.map(e => e.id);
+      
+      const { data: workReview } = await supabase
+        .from('user_books')
+        .select('rating, review, status')
+        .eq('user_id', user.id)
+        .in('edition_id', edIds)
+        .order('review', { ascending: false }) // Prioritize non-empty
+        .limit(1)
+        .maybeSingle();
+
       const { error: ubError } = await supabase.from('user_books').insert({
         user_id: user.id,
         edition_id: editionData.id,
-        status: 'unread',
+        status: workReview?.status || 'unread',
+        rating: workReview?.rating || 0,
+        review: workReview?.review || '',
         owned_at: new Date().toISOString()
       });
       if (ubError) throw ubError;
@@ -319,10 +349,24 @@ export default function Admin() {
         if (editionError) throw editionError;
 
         // 3. Automatically add to User's Archive
+        // Find existing work review to inherit
+        const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
+        const wEdIds = workEds.map(e => e.id);
+        const { data: wReview } = await supabase
+          .from('user_books')
+          .select('rating, review, status')
+          .eq('user_id', user.id)
+          .in('edition_id', wEdIds)
+          .order('review', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
         await supabase.from('user_books').insert({
           user_id: user.id,
           edition_id: editionData.id,
-          status: 'unread',
+          status: wReview?.status || 'unread',
+          rating: wReview?.rating || 0,
+          review: wReview?.review || '',
           owned_at: new Date().toISOString()
         });
         

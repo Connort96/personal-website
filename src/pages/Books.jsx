@@ -110,8 +110,8 @@ export default function Books() {
               author: work.author,
               tag: edition?.genre_name || 'Uncategorized',
               status: row.status || 'unread',
-              rating: row.rating || 0,
-              review: row.review || '',
+              rating: 0,
+              review: '',
               owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
               editions: []
             });
@@ -122,8 +122,14 @@ export default function Books() {
             group.editions.push({
               ...edition,
               status: row.status,
-              owned_at: row.owned_at
+              owned_at: row.owned_at,
+              rating: row.rating,
+              review: row.review
             });
+            
+            // Shared Review/Rating Logic: Use the best one found among editions
+            if (row.review && !group.review) group.review = row.review;
+            if (row.rating && !group.rating) group.rating = row.rating;
           }
         });
 
