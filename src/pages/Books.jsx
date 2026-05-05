@@ -120,10 +120,10 @@ export default function Books() {
           const work = edition?.works;
           if (!work) return;
 
-          // Use a normalized Title + Author key, but only if we have a title to prevent merging "unknown" books
+          // Only merge if we have a valid title, otherwise treat as unique
           const dedupKey = work.title 
             ? `${work.title.toLowerCase().trim()}--${work.author?.toLowerCase().trim() || 'unknown'}`
-            : `unique-${row.id}`;
+            : `unique-${row.edition_id}`;
           
           if (edition?.genre_name) tags.add(edition.genre_name);
 

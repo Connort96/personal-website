@@ -69,7 +69,7 @@ export default function Home() {
               // Only merge if we have a valid title, otherwise treat as unique
               const key = title 
                 ? `${title.toLowerCase().trim()}--${author?.toLowerCase().trim() || 'unknown'}`
-                : `unique-${item.id}`;
+                : `unique-${item.edition_id}`;
                 
               const currentCover = item.editions?.cover_url || item.books?.cover_url;
               const currentId = item.editions?.work_id || item.book_id;
