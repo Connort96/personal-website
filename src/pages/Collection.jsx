@@ -70,7 +70,36 @@ export default function Collection() {
         }
 
         const genresMap = new Map();
+        const seenEditions = new Map(); // Key: title|author|isbn or title|author|publisher
+
         catalogData.forEach(b => {
+          // Create a unique key for deduplication
+          const isbnKey = b.isbn ? `isbn:${b.isbn}` : `pub:${b.publisher}`;
+          const uniqueKey = `${b.title}|${b.author}|${isbnKey}`.toLowerCase();
+
+          if (seenEditions.has(uniqueKey)) {
+            // Already have this edition, but we might need to track multiple IDs for 'owned' check
+            const existing = seenEditions.get(uniqueKey);
+            existing.ids.add(b.id);
+            return;
+          }
+
+          const editionEntry = {
+            id: b.id,
+            ids: new Set([b.id]),
+            t: b.title,
+            a: b.author,
+            publisher: b.publisher,
+            pages: b.page_count,
+            genre_id: b.genre_id,
+            genre_name: b.genre_name,
+            color: b.color,
+            badge: b.badge,
+            badgeLabel: b.badge_label
+          };
+
+          seenEditions.set(uniqueKey, editionEntry);
+
           if (!genresMap.has(b.genre_id)) {
             genresMap.set(b.genre_id, {
               id: b.genre_id,
@@ -81,13 +110,7 @@ export default function Collection() {
               books: []
             });
           }
-          genresMap.get(b.genre_id).books.push({
-            id: b.id, // Legacy ID matches Work ID in our migration
-            t: b.title,
-            a: b.author,
-            publisher: b.publisher,
-            pages: b.page_count
-          });
+          genresMap.get(b.genre_id).books.push(editionEntry);
         });
         
         setLibraryData(Array.from(genresMap.values()));
@@ -98,6 +121,7 @@ export default function Collection() {
           const { data: userBooks, error: userError } = await supabase
             .from('user_books')
             .select(`
+              book_id,
               edition_id,
               editions (work_id)
             `)
@@ -107,11 +131,25 @@ export default function Collection() {
           if (userBooks) {
             userBooks.forEach(row => {
               if (row.editions?.work_id) ownedWorkSet.add(row.editions.work_id);
-              else if (row.book_id) ownedWorkSet.add(row.book_id); // Fallback for legacy rows
+              // Important: Also track the legacy book_id for the checklist mapping
+              if (row.book_id) ownedWorkSet.add(row.book_id);
             });
           }
         }
-        setOwnedBooks(ownedWorkSet);
+
+        // Map owned status to our grouped editions
+        const ownedGroupIds = new Set();
+        seenEditions.forEach(ed => {
+          // If ANY of the IDs in this group are owned, the whole group is checked
+          for (const id of ed.ids) {
+            if (ownedWorkSet.has(id)) {
+              ownedGroupIds.add(ed.id);
+              break;
+            }
+          }
+        });
+
+        setOwnedBooks(ownedGroupIds);
       } catch (err) {
         console.error("Error loading collection:", err);
       } finally {
