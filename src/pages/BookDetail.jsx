@@ -133,7 +133,7 @@ export default function BookDetail() {
 
       let sagaInfo = null;
       if (seriesLink && seriesLink.series) {
-        // Fetch sibling works in the same series
+        // Fetch sibling works in the same series with ownership status
         const { data: siblingWorks } = await supabase
           .from('series_works')
           .select(`
@@ -148,14 +148,27 @@ export default function BookDetail() {
           .eq('series_id', seriesLink.series.id)
           .order('sequence_order', { ascending: true });
 
+        // Check which ones the user owns
+        const { data: ownedWorks } = await supabase
+          .from('user_books')
+          .select('editions!inner(work_id)')
+          .eq('user_id', viewerId);
+        
+        const ownedWorkIds = new Set(ownedWorks?.map(ow => ow.editions?.work_id));
+
+        const siblingsWithStatus = siblingWorks.map(sw => ({
+          ...sw,
+          isOwned: ownedWorkIds.has(sw.work_id)
+        }));
+
         // Find Next/Previous
-        const currentIndex = siblingWorks.findIndex(sw => sw.work_id === numericId);
+        const currentIndex = siblingsWithStatus.findIndex(sw => sw.work_id === numericId);
         sagaInfo = {
           ...seriesLink.series,
           sequence: seriesLink.sequence_order,
-          siblings: siblingWorks,
-          previous: siblingWorks[currentIndex - 1],
-          next: siblingWorks[currentIndex + 1]
+          siblings: siblingsWithStatus,
+          previous: siblingsWithStatus[currentIndex - 1],
+          next: siblingsWithStatus[currentIndex + 1]
         };
       }
 
@@ -331,32 +344,40 @@ export default function BookDetail() {
             
             {work.saga && (
               <section className="book-detail-saga-nav">
-                <h3 className="saga-nav-title">The Saga</h3>
-                <div className="saga-nav-grid">
-                  {work.saga.previous && (
-                    <Link to={`/book/${work.saga.previous.work_id}`} className="saga-nav-card saga-nav-card--prev">
-                      <div className="saga-nav-hint">← Previous</div>
-                      <div className="saga-nav-item-title">{work.saga.previous.works.title}</div>
-                    </Link>
-                  )}
-                  {work.saga.next && (
-                    <Link to={`/book/${work.saga.next.work_id}`} className="saga-nav-card saga-nav-card--next">
-                      <div className="saga-nav-hint">Next →</div>
-                      <div className="saga-nav-item-title">{work.saga.next.works.title}</div>
-                    </Link>
-                  )}
+                <div className="saga-nav-header">
+                  <h3 className="saga-nav-title">The Saga: {work.saga.name}</h3>
+                  <div className="saga-nav-progress-text">
+                    {work.saga.siblings.filter(s => s.isOwned).length} of {work.saga.siblings.length} volumes collected
+                  </div>
                 </div>
-                <div className="saga-progress-track">
-                   <div className="saga-progress-label">Series Completion</div>
-                   <div className="saga-progress-bar">
-                     {work.saga.siblings.map((s, i) => (
-                       <div 
-                         key={s.work_id} 
-                         className={`saga-progress-dot \${s.work_id === work.id ? 'active' : ''}`}
-                         title={s.works.title}
-                       />
-                     ))}
-                   </div>
+
+                <div className="saga-roadmap">
+                  {work.saga.siblings.map((s, i) => (
+                    <div 
+                      key={s.work_id} 
+                      className={`saga-roadmap-item ${s.work_id === work.id ? 'active' : ''} ${!s.isOwned ? 'missing' : ''}`}
+                    >
+                      <div className="saga-roadmap-dot-track">
+                        <div className="saga-roadmap-dot" />
+                        {i < work.saga.siblings.length - 1 && <div className="saga-roadmap-line" />}
+                      </div>
+                      
+                      <div className="saga-roadmap-content">
+                        <div className="saga-roadmap-meta">
+                          Vol {s.sequence_order} • {!s.isOwned ? 'Missing from Archive' : 'In Collection'}
+                        </div>
+                        {s.isOwned ? (
+                          <Link to={`/book/${s.work_id}`} className="saga-roadmap-title">
+                            {s.works.title}
+                          </Link>
+                        ) : (
+                          <div className="saga-roadmap-title saga-roadmap-title--missing">
+                            {s.works.title}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
