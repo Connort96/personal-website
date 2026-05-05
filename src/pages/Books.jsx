@@ -205,6 +205,7 @@ export default function Books() {
       rating={book.rating}
       status={book.status}
       formats={book.formats}
+      notes={book.review}
       viewMode={viewMode}
       index={index}
       onClick={() => navigate(`/book/${book.id}`)}

@@ -61,20 +61,24 @@ export default function CollectionCard({
             <h3 className="collection-card__title">{title}</h3>
             <p className="collection-card__subtitle">{subtitle}</p>
           </div>
+          
+          {notes && <p className="collection-card__notes collection-card__notes--list">{notes}</p>}
+          
           <div className="collection-card__list-bottom">
             {genres && genres.length > 0 && (
               <div className="collection-card__genres">
                 {genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)}
               </div>
             )}
-            {stars && <span className="collection-card__rating">{stars}</span>}
-            {status && status !== 'unread' && (
-              <span className="collection-card__status-inline">
-                {status === 'reading' ? '📖 Reading' : '✓ Read'}
-              </span>
-            )}
+            <div className="collection-card__rating-row">
+              {stars && <span className="collection-card__rating">{stars}</span>}
+              {status && status !== 'unread' && (
+                <span className="collection-card__status-inline">
+                  {status === 'reading' ? '📖 Reading' : '✓ Read'}
+                </span>
+              )}
+            </div>
           </div>
-          {notes && <p className="collection-card__notes collection-card__notes--list">{notes}</p>}
         </div>
       </article>
     );
@@ -109,17 +113,20 @@ export default function CollectionCard({
       <div className="collection-card__info">
         <h3 className="collection-card__title">{title}</h3>
         <p className="collection-card__subtitle">{subtitle}</p>
+        
+        {notes && <p className="collection-card__notes">{notes}</p>}
+        
         <div className="collection-card__meta">
           {genres && genres.length > 0 && (
             <div className="collection-card__genres">
               {genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)}
             </div>
           )}
-          {stars && <span className="collection-card__rating" aria-label={`${rating} out of 5 stars`}>{stars}</span>}
+          <div className="collection-card__rating-row">
+            {stars && <span className="collection-card__rating" aria-label={`${rating} out of 5 stars`}>{stars}</span>}
+          </div>
         </div>
-        {notes && <p className="collection-card__notes">{notes}</p>}
       </div>
     </article>
   );
 }
-
