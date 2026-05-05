@@ -7,6 +7,8 @@ import NowAdmin from '../components/NowAdmin';
 import GearAdmin from '../components/GearAdmin';
 import FilmsAdmin from '../components/FilmsAdmin';
 import MusicAdmin from '../components/MusicAdmin';
+import { motion, AnimatePresence } from 'framer-motion';
+import ISBNScanner from '../components/ISBNScanner';
 import './Admin.css';
 
 // ─── Dual-API lookup helper ───────────────────────────────────────────────────
@@ -96,6 +98,8 @@ export default function Admin() {
   const [lookupSource, setLookupSource] = useState('');
 
   // Batch import
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [csvText, setCsvText] = useState('');
   const [batchRows, setBatchRows] = useState([]);
   const [batchStatus, setBatchStatus] = useState('');
@@ -107,7 +111,9 @@ export default function Admin() {
 
   // ── Auth setup ──
   useEffect(() => {
-    if (user?.email === 'theconison96@gmail.com') setIsAdmin(true);
+    if (user?.email === 'theconison96@gmail.com' || user?.id === 'd01d61f6-334c-4d90-8bce-4b691eebf514') {
+      setIsAdmin(true);
+    }
     async function loadGenres() {
       const { data, error } = await supabase.from('books').select('genre_id, genre_name, color, badge, badge_label').order('genre_name');
       if (!error && data) {
@@ -419,9 +425,36 @@ export default function Admin() {
 
   return (
     <div className="admin-page container container--narrow animate-fade-in">
+      <div className="admin-identity-badge">
+        Logged in as: {user?.email}
+      </div>
+
+      <div className="admin-global-actions" style={{ display: 'block !important' }}>
+        <button 
+          className="admin-action-card scanner-btn"
+          onClick={() => setIsScannerOpen(true)}
+          style={{ width: '100%', maxWidth: '300px', margin: '0 auto' }}
+        >
+          <div className="action-icon">📷</div>
+          <div className="action-label">Start ISBN Scanner</div>
+          <div className="action-desc">Tap to digitize books</div>
+        </button>
+      </div>
+
       <header className="page-header">
         <h1 className="page-header__title">Admin Dashboard</h1>
         <p className="page-header__subtitle">Manage the global book catalog.</p>
+        
+        {successMessage && (
+          <motion.div 
+            className="admin-success-toast"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            {successMessage}
+          </motion.div>
+        )}
       </header>
 
       {/* Tab nav */}
@@ -662,6 +695,15 @@ export default function Admin() {
           <MusicAdmin />
         </div>
       )}
+      {/* ISBN Scanner Modal */}
+      <ISBNScanner 
+        isOpen={isScannerOpen} 
+        onClose={() => setIsScannerOpen(false)}
+        onComplete={(book) => {
+          setSuccessMessage(`Successfully archived: ${book.title}`);
+          setTimeout(() => setSuccessMessage(''), 5000);
+        }}
+      />
     </div>
   );
 }
