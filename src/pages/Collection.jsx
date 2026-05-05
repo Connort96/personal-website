@@ -200,6 +200,7 @@ export default function Collection() {
     
     const isAdding = !ownedBooks.has(id);
 
+    // Optimistic UI update
     setOwnedBooks(prev => {
       const next = new Set(prev);
       if (isAdding) next.add(id);
@@ -209,52 +210,61 @@ export default function Collection() {
 
     try {
       if (isAdding) {
-        // 1. Try to find an edition linked to this legacy book ID or work ID
+        // 1. Get the correct Work ID and existing Edition ID for this catalog entry
+        // We look in 'editions' first because that's our source of truth
         let editionId;
-        
-        // Check if there's an edition that specifically matches this book_id (legacy)
-        const { data: eds } = await supabase.from('editions').select('id').eq('id', id).maybeSingle();
-        
-        if (eds) {
-          editionId = eds.id;
+        let workId;
+
+        const { data: edMatch } = await supabase
+          .from('editions')
+          .select('id, work_id')
+          .or(`id.eq.${id},isbn.eq.${id}`)
+          .maybeSingle();
+
+        if (edMatch) {
+          editionId = edMatch.id;
+          workId = edMatch.work_id;
         } else {
-          // Fallback: Check if there's an edition linked to this ID as a work_id
-          const { data: edsByWork } = await supabase.from('editions').select('id').eq('work_id', id).limit(1);
-          if (edsByWork && edsByWork.length > 0) {
-            editionId = edsByWork[0].id;
+          // If no edition found, find the book in the legacy catalog to get its metadata
+          const book = libraryData.flatMap(g => g.books).find(b => b.id === id);
+          
+          // Check if this book title/author already has a Work entry
+          const { data: workMatch } = await supabase
+            .from('works')
+            .select('id')
+            .ilike('title', book?.t || '')
+            .ilike('author', book?.a || '')
+            .maybeSingle();
+          
+          if (workMatch) {
+            workId = workMatch.id;
           } else {
-            // Final Fallback: Create a default edition so the toggle works
-            const book = libraryData.flatMap(g => g.books).find(b => b.id === id);
-            const { data: newEd, error: edErr } = await supabase.from('editions').insert({
-              id: id, // Try to keep ID in sync
-              work_id: id,
-              publisher: book?.publisher || 'Unknown Publisher',
-              format: 'Hardcover'
-            }).select().single();
-            
-            if (edErr) {
-              // If ID conflict, just insert without ID
-              const { data: newEdRetry } = await supabase.from('editions').insert({
-                work_id: id,
-                publisher: book?.publisher || 'Unknown Publisher',
-                format: 'Hardcover'
-              }).select().single();
-              editionId = newEdRetry.id;
-            } else {
-              editionId = newEd.id;
-            }
+            // Create a new Work if it's truly unique
+            const { data: newWork } = await supabase
+              .from('works')
+              .insert({ title: book?.t, author: book?.a })
+              .select().single();
+            workId = newWork.id;
           }
+
+          // Create the edition
+          const { data: newEd } = await supabase.from('editions').insert({
+            work_id: workId,
+            publisher: book?.publisher || 'Unknown Publisher',
+            format: 'Hardcover'
+          }).select().single();
+          editionId = newEd.id;
         }
 
         await supabase.from('user_books').insert({ 
           user_id: user.id, 
           edition_id: editionId,
-          book_id: id, // Keep legacy book_id for dual-mode support
+          book_id: id,
           status: 'unread',
           owned_at: new Date().toISOString()
         });
       } else {
-        // Delete from user_books
+        // Delete from user_books using all possible ID links to be safe
         await supabase.from('user_books')
           .delete()
           .eq('user_id', user.id)
@@ -262,7 +272,7 @@ export default function Collection() {
       }
     } catch (err) {
       console.error("Error syncing book:", err);
-      // Rollback UI state on error
+      // Rollback UI
       setOwnedBooks(prev => {
         const next = new Set(prev);
         if (isAdding) next.delete(id);
