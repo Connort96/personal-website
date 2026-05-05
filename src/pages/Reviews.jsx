@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import SlideOverPanel from '../components/SlideOverPanel';
 import ViewToggle from '../components/ViewToggle';
@@ -33,7 +34,6 @@ export default function Reviews() {
   const [allBooks, setAllBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedBook, setSelectedBook] = useState(null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('reviews-view') || 'list');
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
@@ -42,6 +42,8 @@ export default function Reviews() {
     setViewMode(mode);
     localStorage.setItem('reviews-view', mode);
   };
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function loadData() {
@@ -60,7 +62,10 @@ export default function Reviews() {
           .from('user_books')
           .select(`
             user_id, book_id, edition_id, status, rating, review, owned_at,
-            editions ( id, cover_url, color, genre_name, works ( title, author ) ),
+            editions ( 
+              id, work_id, cover_url, cover_image_url, color, genre_name, 
+              works ( id, title, author ) 
+            ),
             books ( id, title, author, cover_url, color, genre_name )
           `)
           .eq('user_id', adminId)
@@ -69,24 +74,51 @@ export default function Reviews() {
 
         if (fetchErr) throw fetchErr;
 
-        const mapped = data.map(row => {
+        // Group by Work ID to avoid duplicates in the feed
+        const workGroups = new Map();
+
+        data.forEach(row => {
           const edition = row.editions;
           const work = edition?.works;
           const legacy = row.books;
+          const workId = work?.id || legacy?.id || row.book_id;
+
+          if (!workGroups.has(workId)) {
+            workGroups.set(workId, {
+              id: workId,
+              title: work?.title || legacy?.title || '(Unknown)',
+              author: work?.author || legacy?.author || '',
+              genre: edition?.genre_name || legacy?.genre_name || '',
+              rating: row.rating || 0,
+              review: row.review || '',
+              raw_owned_at: row.owned_at,
+              editions: []
+            });
+          }
+
+          const group = workGroups.get(workId);
+          if (edition) {
+            group.editions.push(edition);
+          } else if (legacy) {
+            group.editions.push(legacy);
+          }
+        });
+
+        const mapped = Array.from(workGroups.values()).map(group => {
+          // Choose best cover
+          const sorted = [...group.editions].sort((a, b) => {
+            const aArt = a.cover_image_url || a.cover_url;
+            const bArt = b.cover_image_url || b.cover_url;
+            if (!!aArt !== !!bArt) return aArt ? -1 : 1;
+            return 0;
+          });
+          const primary = sorted[0] || {};
 
           return {
-            id: work?.id || legacy?.id || row.book_id,
-            title: work?.title || legacy?.title || '(Unknown)',
-            author: work?.author || legacy?.author || '',
-            genre: edition?.genre_name || legacy?.genre_name || '',
-            coverColor: edition?.color || legacy?.color,
-            coverUrl: edition?.cover_url || legacy?.cover_url,
-            status: row.status,
-            rating: row.rating || 0,
-            review: row.review || '',
-            notes: row.review || '',
-            raw_owned_at: row.owned_at,
-            owned_at: row.owned_at ? new Date(row.owned_at).toLocaleDateString('en-US', { 
+            ...group,
+            coverUrl: primary.cover_image_url || primary.cover_url,
+            coverColor: primary.color,
+            owned_at: group.raw_owned_at ? new Date(group.raw_owned_at).toLocaleDateString('en-US', { 
               month: 'long', 
               day: 'numeric', 
               year: 'numeric' 
@@ -179,7 +211,7 @@ export default function Reviews() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                          onClick={() => setSelectedBook(book)}
+                          onClick={() => navigate(`/book/${book.id}`)}
                         >
                           <motion.div layout className="journal-entry__cover-wrapper">
                             {book.coverUrl ? (
@@ -226,13 +258,7 @@ export default function Reviews() {
         )}
       </div>
 
-      <SlideOverPanel
-        book={selectedBook}
-        isOpen={!!selectedBook}
-        onClose={() => setSelectedBook(null)}
-        onSave={handleSaveReview}
-        isAdmin={isAdmin}
-      />
+      </div>
     </div>
   );
 }
