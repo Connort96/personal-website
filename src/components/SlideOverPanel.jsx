@@ -53,13 +53,8 @@ export default function SlideOverPanel({ book, isOpen, onClose, onSave, isAdmin 
 }
 
 function SlideOverContent({ book, onClose, onSave, isAdmin }) {
-  const [status, setStatus] = useState(book.status || 'unread');
-  const [rating, setRating] = useState(book.rating || 0);
-  const [review, setReview] = useState(book.review || '');
-  const [coverUrl, setCoverUrl] = useState(book.coverUrl || '');
-  const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
-  const [saving, setSaving] = useState(false);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [editingEditionId, setEditingEditionId] = useState(null);
+  const [editionEdits, setEditionEdits] = useState({});
 
   useEffect(() => {
     setStatus(book.status || 'unread');
@@ -67,16 +62,33 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setReview(book.review || '');
     setCoverUrl(book.coverUrl || '');
     setCurrentPage(book.currentPage || 0);
+    setEditingEditionId(null);
+    setEditionEdits({});
   }, [book]);
+
+  const fetchISBNImage = async (editionId, isbn) => {
+    if (!isbn) return;
+    const cleanIsbn = isbn.replace(/[^0-9X]/gi, '');
+    const url = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-M.jpg`;
+    
+    // Test if image exists (Open Library returns a small placeholder if not found)
+    // For now, we'll just set it.
+    handleEditionChange(editionId, 'cover_image_url', url);
+  };
+
+  const handleEditionChange = (id, field, value) => {
+    setEditionEdits(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [field]: value }
+    }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    // The user wants reviews tied to the WORK. 
-    // We will update the current edition's user_book record, 
-    // and potentially others if the logic requires syncing.
-    // For now, we update the primary record passed from Books.jsx.
+    
+    // 1. Save global review/rating
     await onSave(
-      book.id, // work_id
+      book.id,
       { 
         status, 
         rating: rating || null, 
@@ -85,11 +97,18 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
       }, 
       coverUrl.trim() || null
     );
+
+    // 2. Save individual edition edits
+    for (const [id, updates] of Object.entries(editionEdits)) {
+      await supabase.from('editions').update(updates).eq('id', id);
+    }
+
     setSaving(false);
     onClose();
   };
 
   const editions = book.editions || [];
+  const progressPct = book.pageCount ? ((currentPage / book.pageCount) * 100).toFixed(2) : 0;
 
   return (
     <div className="slideover-inner">
@@ -101,151 +120,168 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
           </svg>
         </button>
 
-        <div className="slideover-cover-row">
-          {book.coverUrl ? (
-            <img src={book.coverUrl} alt={book.title} className="slideover-cover-img" />
-          ) : (
-            <div className="slideover-cover-placeholder" style={{ backgroundColor: book.coverColor || 'var(--bg-tertiary)' }}>
-              <span>{book.title[0]}</span>
-            </div>
-          )}
-          <div className="slideover-meta">
-            <h2 className="slideover-title">{book.title}</h2>
-            <p className="slideover-author">by {book.author}</p>
-            {book.translator && <p className="slideover-translator">Translated by {book.translator}</p>}
-            {book.genre && <span className="slideover-genre">{book.genre}</span>}
-            <div className="slideover-format-pills">
-              {book.formats?.map(f => (
-                <span key={f} className="slideover-format-pill">{f}</span>
-              ))}
-            </div>
-          </div>
-        </div>
+        <h1 className="slideover-parent-title">{book.title}</h1>
+        <p className="slideover-author">by {book.author}</p>
       </div>
 
       <div className="slideover-body">
-        {/* Admin/User sync info */}
-        <div className="slideover-sync-badge">
-          Journaling and reviews apply to all {editions.length} editions of this work.
-        </div>
-
-        {/* Status & Progress */}
-        {isAdmin && (
-          <div className="slideover-section">
-            <h3 className="slideover-section-label">Reading Status</h3>
-            <select
-              className="slideover-select"
-              value={status}
-              onChange={e => setStatus(e.target.value)}
-            >
-              {Object.entries(statusLabels).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-            
-            {status === 'reading' && (
-              <div style={{ marginTop: 'var(--space-4)' }}>
-                <h3 className="slideover-section-label">Reading Progress</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                  <input
-                    type="number"
-                    className="slideover-input"
-                    style={{ width: '80px' }}
-                    value={currentPage}
-                    onChange={e => setCurrentPage(e.target.value)}
-                    min="0"
-                    max={book.pageCount || 9999}
-                  />
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                    of {book.pageCount || '???'} pages
-                  </span>
-                </div>
-              </div>
-            )}
+        {/* Progress Stat */}
+        {status === 'reading' && (
+          <div className="slideover-progress-stat">
+            <div className="stat-row">
+              <span className="stat-label">Reading Progress</span>
+              <span className="stat-value">{progressPct}% Complete</span>
+            </div>
+            <div className="stat-bar">
+              <div className="stat-bar-fill" style={{ width: `${progressPct}%` }} />
+            </div>
           </div>
         )}
 
-        {/* Rating & Review */}
-        <div className="slideover-section">
-          <h3 className="slideover-section-label">The Archive Reflection</h3>
-          {isAdmin ? (
-            <>
-              <div className="slideover-star-input">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button
-                    key={star}
-                    type="button"
-                    className={`slideover-star ${star <= (hoverRating || rating) ? 'active' : ''}`}
-                    onClick={() => setRating(star === rating ? 0 : star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                  >
-                    ★
-                  </button>
-                ))}
-              </div>
-              <textarea
-                className="slideover-textarea"
-                rows={5}
-                value={review}
-                onChange={e => setReview(e.target.value)}
-                placeholder="Write your thoughts on this story..."
-              />
-            </>
-          ) : (
-            <div className="slideover-public-review">
-              <div className="slideover-stars-display">
-                {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
-              </div>
-              <p className="slideover-review-text">{review || "No reflection logged yet."}</p>
+        {/* Global Review Section */}
+        {isAdmin && (
+          <div className="slideover-section">
+            <h3 className="slideover-section-label">Archive Reflection</h3>
+            <div className="slideover-star-input">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  className={`slideover-star ${star <= (hoverRating || rating) ? 'active' : ''}`}
+                  onClick={() => setRating(star === rating ? 0 : star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                >
+                  ★
+                </button>
+              ))}
             </div>
-          )}
-        </div>
+            <textarea
+              className="slideover-textarea"
+              rows={4}
+              value={review}
+              onChange={e => setReview(e.target.value)}
+              placeholder="Your long-form thoughts on this story..."
+            />
+          </div>
+        )}
 
         {/* Editions in Archive */}
         <div className="slideover-section">
           <h3 className="slideover-section-label">Editions in Archive</h3>
           <div className="slideover-editions-list">
-            {editions.map((ed, i) => (
-              <div key={ed.id || i} className="slideover-edition-item">
-                <div className="slideover-edition-art">
-                  {ed.cover_url ? (
-                    <img src={ed.cover_url} alt={ed.format} />
-                  ) : (
-                    <div className="slideover-edition-placeholder" style={{ backgroundColor: ed.color || 'var(--bg-tertiary)' }}>
-                      {ed.format?.[0] || 'E'}
+            {editions.map((ed) => {
+              const edits = editionEdits[ed.id] || {};
+              const isEditing = editingEditionId === ed.id;
+              const displayCover = edits.cover_image_url || ed.cover_image_url || ed.cover_url;
+
+              return (
+                <div key={ed.id} className={`edition-card ${isEditing ? 'editing' : ''}`}>
+                  <div className="edition-card-main">
+                    <div className="edition-card-art">
+                      {displayCover ? (
+                        <img src={displayCover} alt={ed.format} />
+                      ) : (
+                        <div className="edition-art-placeholder">{ed.format?.[0]}</div>
+                      )}
                     </div>
+                    
+                    <div className="edition-card-content">
+                      <div className="edition-card-top">
+                        <span className="edition-publisher">{edits.publisher || ed.publisher || 'Publisher Unknown'}</span>
+                        <button 
+                          className="edition-edit-trigger"
+                          onClick={() => setEditingEditionId(isEditing ? null : ed.id)}
+                        >
+                          {isEditing ? 'Close' : 'Edit'}
+                        </button>
+                      </div>
+                      
+                      <div className="edition-card-meta">
+                        <span className="edition-format-tag">{edits.format || ed.format}</span>
+                        <span className="edition-mono">{edits.publication_year || ed.publication_year || 'Year?'}</span>
+                        <span className="edition-mono">{edits.isbn || ed.isbn || 'No ISBN'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <motion.div 
+                      className="edition-edit-form"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                    >
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Publisher</label>
+                          <input 
+                            type="text" 
+                            value={edits.publisher || ed.publisher || ''} 
+                            onChange={e => handleEditionChange(ed.id, 'publisher', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Format</label>
+                          <select 
+                            value={edits.format || ed.format || ''} 
+                            onChange={e => handleEditionChange(ed.id, 'format', e.target.value)}
+                          >
+                            <option value="Hardcover">Hardcover</option>
+                            <option value="Paperback">Paperback</option>
+                            <option value="Audiobook">Audiobook</option>
+                            <option value="Digital">Digital</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>ISBN</label>
+                          <div className="isbn-input-wrapper">
+                            <input 
+                              type="text" 
+                              value={edits.isbn || ed.isbn || ''} 
+                              onChange={e => handleEditionChange(ed.id, 'isbn', e.target.value)}
+                            />
+                            <button 
+                              className="isbn-fetch-btn"
+                              onClick={() => fetchISBNImage(ed.id, edits.isbn || ed.isbn)}
+                            >
+                              Fetch Art
+                            </button>
+                          </div>
+                        </div>
+                        <div className="form-group">
+                          <label>Year</label>
+                          <input 
+                            type="text" 
+                            value={edits.publication_year || ed.publication_year || ''} 
+                            onChange={e => handleEditionChange(ed.id, 'publication_year', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Specific Cover Image URL</label>
+                        <input 
+                          type="text" 
+                          value={edits.cover_image_url || ed.cover_image_url || ''} 
+                          onChange={e => handleEditionChange(ed.id, 'cover_image_url', e.target.value)}
+                        />
+                      </div>
+                    </motion.div>
                   )}
                 </div>
-                <div className="slideover-edition-info">
-                  <span className="slideover-edition-format">{ed.format}</span>
-                  <span className="slideover-edition-publisher">{ed.publisher || 'Unknown Publisher'}</span>
-                  {ed.isbn && <span className="slideover-edition-isbn">ISBN: {ed.isbn}</span>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Cover Control */}
-        {isAdmin && (
-          <div className="slideover-section">
-            <h3 className="slideover-section-label">Display Cover URL</h3>
-            <input
-              type="url"
-              className="slideover-input"
-              value={coverUrl}
-              onChange={e => setCoverUrl(e.target.value)}
-              placeholder="Primary cover URL for the library grid..."
-            />
-          </div>
-        )}
-
-        {/* Actions */}
+        {/* Global Controls */}
         {isAdmin && (
           <div className="slideover-actions">
             <button className="slideover-btn-save" onClick={handleSave} disabled={saving}>
-              {saving ? 'Syncing to Archive...' : 'Sync Review'}
+              {saving ? 'Syncing Archive...' : 'Save All Changes'}
             </button>
           </div>
         )}

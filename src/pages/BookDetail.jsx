@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import SlideOverPanel from '../components/SlideOverPanel';
 import './BookDetail.css';
 
 const FormatIcon = ({ format }) => {
@@ -24,67 +26,91 @@ const FormatIcon = ({ format }) => {
 
 export default function BookDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [work, setWork] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const isAdmin = user?.email === 'theconison96@gmail.com';
+
+  const loadBookData = async () => {
+    setLoading(true);
+    try {
+      const { data: workData, error: workErr } = await supabase
+        .from('works')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (workErr) throw workErr;
+
+      const { data: editionsData, error: edErr } = await supabase
+        .from('editions')
+        .select('*')
+        .eq('work_id', id);
+      if (edErr) throw edErr;
+
+      const { data: userBooksData } = await supabase
+        .from('user_books')
+        .select('*')
+        .eq('edition_id', editionsData[0]?.id)
+        .limit(1)
+        .single();
+
+      const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
+      const sortedEditions = [...editionsData].sort((a, b) => {
+        const aPrio = formatPriority[a.format] || 5;
+        const bPrio = formatPriority[b.format] || 5;
+        return aPrio - bPrio;
+      });
+
+      const primaryEdition = sortedEditions.find(e => e.cover_url) || sortedEditions[0];
+
+      setWork({
+        ...workData,
+        editions: sortedEditions,
+        primaryEdition,
+        review: userBooksData?.review || '',
+        rating: userBooksData?.rating || 0,
+        ownedAt: userBooksData?.owned_at,
+        currentPage: userBooksData?.current_page || 0,
+        status: userBooksData?.status || 'unread',
+        pageCount: primaryEdition?.page_count || 0,
+        coverUrl: primaryEdition?.cover_url || ''
+      });
+    } catch (err) {
+      console.error('Error loading book detail:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadBookData() {
-      setLoading(true);
-      try {
-        // Fetch Work data
-        const { data: workData, error: workErr } = await supabase
-          .from('works')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (workErr) throw workErr;
-
-        // Fetch all Editions for this Work
-        const { data: editionsData, error: edErr } = await supabase
-          .from('editions')
-          .select('*')
-          .eq('work_id', id);
-
-        if (edErr) throw edErr;
-
-        // Fetch User Review/Rating (from user_books)
-        const { data: userBooksData, error: ubErr } = await supabase
-          .from('user_books')
-          .select('*')
-          .eq('edition_id', editionsData[0]?.id) // We sync reviews, so any owned edition works
-          .limit(1)
-          .single();
-
-        // Sort editions: Physical first
-        const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
-        const sortedEditions = [...editionsData].sort((a, b) => {
-          const aPrio = formatPriority[a.format] || 5;
-          const bPrio = formatPriority[b.format] || 5;
-          return aPrio - bPrio;
-        });
-
-        const primaryEdition = sortedEditions.find(e => e.cover_url) || sortedEditions[0];
-
-        setWork({
-          ...workData,
-          editions: sortedEditions,
-          primaryEdition,
-          review: userBooksData?.review || '',
-          rating: userBooksData?.rating || 0,
-          ownedAt: userBooksData?.owned_at
-        });
-      } catch (err) {
-        console.error('Error loading book detail:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadBookData();
   }, [id]);
+
+  const handleSaveReview = async (workId, updates, globalCoverUrl) => {
+    if (!isAdmin) return;
+    try {
+      // Update all editions linked to this work in user_books
+      // Actually, we usually update just one or use a trigger. 
+      // For now, update the first one found.
+      const firstEditionId = work.editions[0]?.id;
+      if (firstEditionId) {
+        await supabase.from('user_books').update(updates).eq('user_id', user.id).eq('edition_id', firstEditionId);
+      }
+      
+      if (globalCoverUrl !== undefined) {
+        await supabase.from('editions').update({ cover_url: globalCoverUrl }).eq('work_id', workId);
+      }
+      
+      // Reload data to reflect changes
+      await loadBookData();
+    } catch (err) {
+      console.error('Failed to save review:', err);
+    }
+  };
 
   if (loading) return (
     <div className="book-detail-loading">
@@ -103,12 +129,20 @@ export default function BookDetail() {
   return (
     <div className="book-detail-page">
       <div className="container">
-        <Link to="/books" className="book-detail-back">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Back to Library
-        </Link>
+        <div className="book-detail-nav-row">
+          <Link to="/books" className="book-detail-back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Library
+          </Link>
+
+          {isAdmin && (
+            <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
+              Edit Archive
+            </button>
+          )}
+        </div>
 
         <div className="book-detail-grid">
           {/* Left: Sticky Art */}
@@ -191,6 +225,14 @@ export default function BookDetail() {
           </div>
         </div>
       </div>
+
+      <SlideOverPanel
+        book={work}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        onSave={handleSaveReview}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

@@ -5,6 +5,13 @@
   min-height: 100vh;
 }
 
+.book-detail-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-12);
+}
+
 .book-detail-back {
   display: flex;
   align-items: center;
@@ -15,9 +22,28 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   text-decoration: none;
-  margin-bottom: var(--space-12);
   transition: color 0.3s ease;
   width: fit-content;
+}
+
+.book-detail-edit-btn {
+  background: rgba(200, 168, 75, 0.05);
+  border: 1px solid rgba(200, 168, 75, 0.2);
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.book-detail-edit-btn:hover {
+  background: rgba(200, 168, 75, 0.15);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 15px rgba(200, 168, 75, 0.1);
 }
 
 .book-detail-back:hover {

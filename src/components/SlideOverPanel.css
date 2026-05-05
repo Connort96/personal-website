@@ -239,105 +239,232 @@
   transform: scale(1.15);
 }
 
-/* Sync Badge */
-.slideover-sync-badge {
-  background: rgba(200, 168, 75, 0.05);
-  border: 1px solid rgba(200, 168, 75, 0.2);
-  color: var(--accent-secondary);
+/* ── Parent Header ──────────────────────────────────────── */
+.slideover-parent-title {
+  font-family: 'Playfair Display', serif;
+  font-size: var(--text-4xl);
+  line-height: 1.1;
+  color: var(--text-primary);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.slideover-author {
+  font-family: 'Crimson Pro', serif;
+  font-size: var(--text-lg);
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+/* ── Progress Stat ───────────────────────────────────────── */
+.slideover-progress-stat {
+  margin-bottom: var(--space-8);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: var(--space-2);
+}
+
+.stat-label {
   font-family: var(--font-mono);
   font-size: 10px;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  text-align: center;
-  margin-bottom: var(--space-4);
-  letter-spacing: 0.02em;
-}
-
-/* Format Pills */
-.slideover-format-pills {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-
-.slideover-format-pill {
-  font-size: 9px;
-  font-family: var(--font-mono);
   text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-primary);
+}
+
+.stat-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
   background: var(--accent-primary);
-  color: var(--bg-primary);
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 700;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Editions List */
-.slideover-editions-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.slideover-edition-item {
-  display: flex;
-  gap: var(--space-4);
-  align-items: center;
-  padding: var(--space-3);
+/* ── Edition Bento Cards ─────────────────────────────────── */
+.edition-card {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.slideover-edition-art {
-  width: 50px;
-  height: 75px;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  transition: border-color 0.3s ease;
 }
 
-.slideover-edition-art img {
+.edition-card.editing {
+  border-color: var(--accent-primary);
+}
+
+.edition-card-main {
+  display: flex;
+  padding: var(--space-4);
+  gap: var(--space-5);
+}
+
+.edition-card-art {
+  width: 70px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  background: var(--bg-tertiary);
+}
+
+.edition-card-art img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.slideover-edition-placeholder {
+.edition-art-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: var(--text-xl);
+  color: var(--text-muted);
 }
 
-.slideover-edition-info {
+.edition-card-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  min-width: 0;
 }
 
-.slideover-edition-format {
+.edition-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-2);
+}
+
+.edition-publisher {
   font-family: var(--font-serif);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.slideover-edition-publisher {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
+.edition-edit-trigger {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
 }
 
-.slideover-edition-isbn {
+.edition-edit-trigger:hover {
+  background: rgba(200, 168, 75, 0.1);
+}
+
+.edition-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.edition-format-tag {
+  font-size: 10px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.edition-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ── Edition Edit Form ──────────────────────────────────── */
+.edition-edit-form {
+  padding: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: var(--space-4);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
   font-family: var(--font-mono);
   font-size: 9px;
+  text-transform: uppercase;
   color: var(--text-muted);
-  margin-top: 2px;
+  letter-spacing: 0.05em;
+}
+
+.form-group input, 
+.form-group select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.isbn-input-wrapper {
+  display: flex;
+  gap: 4px;
+}
+
+.isbn-fetch-btn {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.isbn-fetch-btn:hover {
+  opacity: 0.9;
 }
 
 /* Actions */

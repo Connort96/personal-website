@@ -183,7 +183,7 @@ export default function Collection() {
     const owned = ownedBooks.size;
     // Show 1 decimal place (e.g. 0.5%)
     const pct = total === 0 ? 0 : (owned / total) * 100;
-    return { total, owned, pct: pct.toFixed(1) };
+    return { total, owned, pct: pct.toFixed(2) };
   }, [ownedBooks, libraryData]);
 
   const lowerSearch = searchQuery.toLowerCase();
