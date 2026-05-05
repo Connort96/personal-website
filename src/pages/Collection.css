@@ -115,6 +115,51 @@
   font-weight: 700;
 }
 
+.collection-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-bottom: var(--space-12);
+}
+
+.collection-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sort-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-right: var(--space-2);
+}
+
+.sort-btn {
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sort-btn:hover {
+  border-color: var(--accent-secondary);
+}
+
+.sort-btn.active {
+  background: rgba(200, 168, 75, 0.1);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 /* ── Library / Genres ────────────────────────────────────── */
 .collection-library {
   display: flex;

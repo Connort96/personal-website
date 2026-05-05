@@ -43,6 +43,7 @@ export default function Collection() {
   const [openGenres, setOpenGenres] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
+  const [categorySort, setCategorySort] = useState('alphabetical'); // 'alphabetical' | 'count'
   const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
 
@@ -149,6 +150,13 @@ export default function Collection() {
           }
         });
 
+        // Final sorting of books within each genre (A-Z)
+        const finalGenres = Array.from(genresMap.values()).map(g => ({
+          ...g,
+          books: g.books.sort((a, b) => a.t.localeCompare(b.t))
+        }));
+
+        setLibraryData(finalGenres);
         setOwnedBooks(ownedGroupIds);
       } catch (err) {
         console.error("Error loading collection:", err);
@@ -254,10 +262,19 @@ export default function Collection() {
     let total = 0;
     libraryData.forEach(genre => total += genre.books.length);
     const owned = ownedBooks.size;
-    // Show 1 decimal place (e.g. 0.5%)
     const pct = total === 0 ? 0 : (owned / total) * 100;
     return { total, owned, pct: pct.toFixed(2) };
   }, [ownedBooks, libraryData]);
+
+  const sortedLibrary = useMemo(() => {
+    return [...libraryData].sort((a, b) => {
+      if (categorySort === 'alphabetical') {
+        return a.name.localeCompare(b.name);
+      } else {
+        return b.books.length - a.books.length;
+      }
+    });
+  }, [libraryData, categorySort]);
 
   const lowerSearch = searchQuery.toLowerCase();
 
@@ -294,21 +311,35 @@ export default function Collection() {
           onChange={(e) => setSearchQuery(e.target.value)}
         />
         
-        <div className="collection-filters">
-          {['all', 'missing', 'owned'].map(f => (
+        <div className="collection-controls-row">
+          <div className="collection-filters">
+            {['all', 'missing', 'owned'].map(f => (
+              <button 
+                key={f}
+                className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
+                onClick={() => setActiveFilter(f)}
+              >
+                {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
+              </button>
+            ))}
+          </div>
+
+          <div className="collection-sort-controls">
+            <span className="sort-label">Sort categories:</span>
             <button 
-              key={f}
-              className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
-              onClick={() => setActiveFilter(f)}
-            >
-              {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
-            </button>
-          ))}
+              className={`sort-btn ${categorySort === 'alphabetical' ? 'active' : ''}`}
+              onClick={() => setCategorySort('alphabetical')}
+            >A-Z</button>
+            <button 
+              className={`sort-btn ${categorySort === 'count' ? 'active' : ''}`}
+              onClick={() => setCategorySort('count')}
+            >Size</button>
+          </div>
         </div>
       </div>
 
       <div className="collection-library">
-        {libraryData.map(genre => {
+        {sortedLibrary.map(genre => {
           const visibleBooks = genre.books.map((book) => {
             const isOwned = ownedBooks.has(book.id);
             if (searchQuery) {
