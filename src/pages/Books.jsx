@@ -185,7 +185,8 @@ export default function Books() {
             isbn: primary.isbn,
             publicationDate: primary.publication_date,
             translator: primary.translator,
-            owned_at: latestOwnedAt || work.owned_at
+            owned_at: latestOwnedAt || work.owned_at,
+            editions: work.editions
           };
         });
 
@@ -231,6 +232,7 @@ export default function Books() {
       status={book.status}
       formats={book.formats}
       notes={book.review}
+      editionCount={book.editions?.length || 1}
       viewMode={viewMode}
       index={index}
       onClick={() => navigate(`/book/${book.id}`)}

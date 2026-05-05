@@ -30,7 +30,8 @@ const FormatBadge = ({ formats }) => {
 
 export default function CollectionCard({
   title, subtitle, year, genres, rating, coverColor, coverUrl,
-  notes, onClick, index = 0, status, formats, viewMode = 'grid'
+  notes, onClick, index = 0, status, formats, viewMode = 'grid',
+  editionCount = 1
 }) {
   const stars = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : null;
   const delay = Math.min(index * 0.04, 0.4);
@@ -55,6 +56,11 @@ export default function CollectionCard({
         >
           {!coverUrl && <div className="collection-card__cover-pattern" />}
           <FormatBadge formats={formats} />
+          {editionCount > 1 && (
+            <div className="collection-card__edition-badge collection-card__edition-badge--list" title={`${editionCount} editions owned`}>
+              {editionCount}
+            </div>
+          )}
         </div>
         <div className="collection-card__list-info">
           <div className="collection-card__list-top">
@@ -110,6 +116,11 @@ export default function CollectionCard({
         {status && status !== 'unread' && (
           <div className="collection-card__status-badge">
             {status === 'reading' ? '📖' : '✓'}
+          </div>
+        )}
+        {editionCount > 1 && (
+          <div className="collection-card__edition-badge" title={`${editionCount} editions owned`}>
+            {editionCount}
           </div>
         )}
         <FormatBadge formats={formats} />
