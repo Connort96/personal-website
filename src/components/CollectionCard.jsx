@@ -62,27 +62,25 @@ export default function CollectionCard({
             <p className="collection-card__subtitle">{subtitle}</p>
           </div>
           
-          <div className="collection-card__bottom-block">
-            <p className="collection-card__notes collection-card__notes--list">
-              {notes || ""}
-            </p>
-            
-            <div className="collection-card__list-bottom">
-              <div className="collection-card__genres">
-                {genres && genres.length > 0 ? (
-                  genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)
-                ) : (
-                  <span className="collection-card__genre" style={{ opacity: 0 }}>Empty</span>
-                )}
-              </div>
-              <div className="collection-card__rating-row">
-                {stars && <span className="collection-card__rating">{stars}</span>}
-                {status && status !== 'unread' && (
-                  <span className="collection-card__status-inline">
-                    {status === 'reading' ? '📖 Reading' : '✓ Read'}
-                  </span>
-                )}
-              </div>
+          <p className="collection-card__notes collection-card__notes--list">
+            {notes || ""}
+          </p>
+          
+          <div className="collection-card__list-bottom">
+            <div className="collection-card__genres">
+              {genres && genres.length > 0 ? (
+                genres.map(g => <span key={g} className="collection-card__genre" title={g}>{g}</span>)
+              ) : (
+                <span className="collection-card__genre" style={{ opacity: 0 }}>Empty</span>
+              )}
+            </div>
+            <div className="collection-card__rating-row">
+              {stars && <span className="collection-card__rating">{stars}</span>}
+              {status && status !== 'unread' && (
+                <span className="collection-card__status-inline">
+                  {status === 'reading' ? '📖 Reading' : '✓ Read'}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -120,22 +118,20 @@ export default function CollectionCard({
         <h3 className="collection-card__title">{title}</h3>
         <p className="collection-card__subtitle">{subtitle}</p>
         
-        <div className="collection-card__bottom-block">
-          <p className="collection-card__notes">
-            {notes || ""}
-          </p>
-          
-          <div className="collection-card__meta">
-            <div className="collection-card__genres">
-              {genres && genres.length > 0 ? (
-                genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)
-              ) : (
-                <span className="collection-card__genre" style={{ opacity: 0 }}>Empty</span>
-              )}
-            </div>
-            <div className="collection-card__rating-row">
-              {stars && <span className="collection-card__rating" aria-label={`${rating} out of 5 stars`}>{stars}</span>}
-            </div>
+        <p className="collection-card__notes">
+          {notes || ""}
+        </p>
+        
+        <div className="collection-card__meta">
+          <div className="collection-card__genres">
+            {genres && genres.length > 0 ? (
+              genres.map(g => <span key={g} className="collection-card__genre" title={g}>{g}</span>)
+            ) : (
+              <span className="collection-card__genre" style={{ opacity: 0 }}>Empty</span>
+            )}
+          </div>
+          <div className="collection-card__rating-row">
+            {stars && <span className="collection-card__rating" aria-label={`${rating} out of 5 stars`}>{stars}</span>}
           </div>
         </div>
       </div>
