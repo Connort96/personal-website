@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
@@ -47,8 +48,7 @@ export default function Books() {
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState([]);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
-  const [selectedBook, setSelectedBook] = useState(null);
-
+  const navigate = useNavigate();
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
   const handleViewChange = (mode) => {
@@ -238,7 +238,7 @@ export default function Books() {
       editionCount={book.editions?.length || 1}
       viewMode={viewMode}
       index={index}
-      onClick={() => setSelectedBook(book)}
+      onClick={() => navigate(`/book/${book.id}`)}
     />
   ), [viewMode]);
 
@@ -253,7 +253,7 @@ export default function Books() {
         </header>
 
         {!loading && currentlyReading && !searchTerm && selectedTag === 'all' && (
-          <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => setSelectedBook(currentlyReading)} />
+          <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => navigate(`/book/${currentlyReading.id}`)} />
         )}
 
         {!loading && (
@@ -337,14 +337,6 @@ export default function Books() {
           )}
         </div>
       </div>
-
-      <SlideOverPanel
-        book={selectedBook}
-        isOpen={!!selectedBook}
-        onClose={() => setSelectedBook(null)}
-        onSave={handleSaveReview}
-        isAdmin={isAdmin}
-      />
     </div>
   );
 }
