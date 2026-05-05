@@ -37,35 +37,17 @@ export default function BookDetail() {
   const loadBookData = async () => {
     setLoading(true);
     try {
-      // 1. Try to find the Work/Book (checking both relational and legacy systems)
-      let { data: workData, error: workErr } = await supabase
+      const numericId = parseInt(id);
+      
+      // 1. Fetch Work Metadata
+      const { data: workData, error: workErr } = await supabase
         .from('works')
         .select('*')
-        .eq('id', id)
-        .maybeSingle();
+        .eq('id', numericId)
+        .single();
+      if (workErr) throw workErr;
 
-      if (!workData) {
-        const { data: legacyData } = await supabase
-          .from('books')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        
-        if (legacyData) {
-          workData = { ...legacyData };
-          workErr = null;
-        } else if (workErr) {
-          throw workErr;
-        }
-      }
-
-      if (!workData) {
-        setWork(null);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Fetch ownership and editions (Check for both Relational and Legacy links)
+      // 2. Fetch User Archive & Editions for this Work
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
         .select(`
@@ -76,9 +58,8 @@ export default function BookDetail() {
       
       if (ubErr) throw ubErr;
 
-      const numericId = parseInt(id);
       const ownedEditions = userBooksData
-        .filter(ub => (ub.editions?.work_id === numericId) || (ub.book_id === numericId))
+        .filter(ub => ub.editions?.work_id === numericId)
         .map(ub => ({
           ...ub.editions,
           user_book_id: ub.id,
@@ -91,7 +72,7 @@ export default function BookDetail() {
 
       if (ownedEditions.length === 0) {
         // Fallback for admins or if book was just added to works but not yet to user_books
-        const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', id);
+        const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
         setWork({ 
           ...workData, 
           editions: allEditions || [], 
@@ -108,8 +89,8 @@ export default function BookDetail() {
         return aPrio - bPrio;
       });
 
-      const primaryEdition = sortedEditions.find(e => e.cover_url) || sortedEditions[0];
-      const mainProgress = sortedEditions[0]; // Use most recent or highest priority for main display
+      const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
+      const mainProgress = sortedEditions[0]; 
 
       setWork({
         ...workData,
@@ -132,15 +113,12 @@ export default function BookDetail() {
   };
 
   useEffect(() => {
-    loadBookData();
-  }, [id]);
+    if (user) loadBookData();
+  }, [id, user]);
 
   const handleSaveReview = async (workId, updates, globalCoverUrl) => {
     if (!isAdmin) return;
     try {
-      // Update all editions linked to this work in user_books
-      // Actually, we usually update just one or use a trigger. 
-      // For now, update the first one found.
       const firstEditionId = work.editions[0]?.id;
       if (firstEditionId) {
         await supabase.from('user_books').update(updates).eq('user_id', user.id).eq('edition_id', firstEditionId);
@@ -150,7 +128,6 @@ export default function BookDetail() {
         await supabase.from('editions').update({ cover_url: globalCoverUrl }).eq('work_id', workId);
       }
       
-      // Reload data to reflect changes
       await loadBookData();
     } catch (err) {
       console.error('Failed to save review:', err);
@@ -190,7 +167,6 @@ export default function BookDetail() {
         </div>
 
         <div className="book-detail-grid">
-          {/* Left: Sticky Art */}
           <div className="book-detail-art-column">
             <div className="sticky-art-wrapper">
               <motion.div 
@@ -199,8 +175,8 @@ export default function BookDetail() {
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               >
-                { (work.primaryEdition?.cover_image_url || work.primaryEdition?.cover_url) ? (
-                  <img src={work.primaryEdition.cover_image_url || work.primaryEdition.cover_url} alt={work.title} />
+                { work.coverUrl ? (
+                  <img src={work.coverUrl} alt={work.title} />
                 ) : (
                   <div className="cover-placeholder" style={{ backgroundColor: work.primaryEdition?.color || 'var(--bg-tertiary)' }}>
                     <span>{work.title[0]}</span>
@@ -211,73 +187,120 @@ export default function BookDetail() {
             </div>
           </div>
 
-          {/* Right: Editorial Content */}
           <div className="book-detail-content-column">
             <header className="book-detail-header">
               <h1 className="book-detail-title">{work.title}</h1>
               <p className="book-detail-author">by {work.author}</p>
               
               <div className="book-detail-meta">
-                <div className="book-detail-stars">
-                  {'★'.repeat(work.rating)}{'☆'.repeat(5 - work.rating)}
-                </div>
-                {work.ownedAt && (
-                  <span className="book-detail-date">
-                    Logged on {new Date(work.ownedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </span>
+                {work.rating > 0 && (
+                  <div className="book-detail-stars">
+                    {'★'.repeat(work.rating)}{'☆'.repeat(5 - work.rating)}
+                  </div>
                 )}
+                <span className={`status-badge status-${work.status}`}>
+                  {work.status === 'reading' ? 'Currently Reading' : work.status === 'read' ? 'Completed' : 'To Read'}
+                </span>
               </div>
             </header>
 
-            <div className="book-detail-review-section">
-              <div className="book-detail-review-body">
-                {work.review ? (
-                  work.review.split('\n\n').map((para, i) => (
-                    <p key={i}>{para}</p>
-                  ))
-                ) : (
-                  <p className="no-review">No reflection has been logged for this work yet.</p>
-                )}
+            <div className="book-detail-specs">
+              {work.pageCount > 0 && (
+                <div className="spec-item">
+                  <span className="spec-label">Pages</span>
+                  <span className="spec-value">{work.pageCount}</span>
+                </div>
+              )}
+              {work.primaryEdition?.publisher && (
+                <div className="spec-item">
+                  <span className="spec-label">Publisher</span>
+                  <span className="spec-value">{work.primaryEdition.publisher}</span>
+                </div>
+              )}
+              <div className="spec-item">
+                <span className="spec-label">Format</span>
+                <div className="spec-value format-value">
+                  <FormatIcon format={work.primaryFormat} />
+                  {work.primaryFormat || 'Hardcover'}
+                </div>
               </div>
             </div>
 
-            <section className="book-detail-holdings">
-              <h3 className="holdings-title">Editions in Archive</h3>
-              <div className="holdings-grid">
-                {work.editions.map((ed, i) => (
-                  <div key={ed.id || i} className="holding-card">
-                    <div className="holding-art">
-                      {(ed.cover_image_url || ed.cover_url) ? (
-                        <img src={ed.cover_image_url || ed.cover_url} alt={ed.format} />
-                      ) : (
-                        <div className="holding-placeholder" style={{ backgroundColor: ed.color || 'var(--bg-tertiary)' }}>
-                          {ed.format?.[0]}
-                        </div>
-                      )}
-                    </div>
-                    <div className="holding-info">
-                      <div className="holding-format-row">
-                        <FormatIcon format={ed.format} />
-                        <span className="holding-format">{ed.format}</span>
-                      </div>
-                      <span className="holding-publisher">{ed.publisher || 'Unknown Publisher'}</span>
-                      {ed.isbn && <span className="holding-isbn">ISBN: {ed.isbn}</span>}
-                    </div>
-                  </div>
-                ))}
+            <div className="book-detail-editorial">
+              <div className="editorial-section">
+                <h3 className="section-title">The Reading Experience</h3>
+                <div className="editorial-body">
+                  {work.review ? (
+                    <p>{work.review}</p>
+                  ) : (
+                    <p className="empty-editorial">No editorial review has been added to this volume yet.</p>
+                  )}
+                </div>
               </div>
-            </section>
+
+              {work.editions?.length > 1 && (
+                <div className="editorial-section">
+                  <h3 className="section-title">Other Editions in Collection</h3>
+                  <div className="editions-list">
+                    {work.editions.slice(1).map(ed => (
+                      <div key={ed.id} className="edition-item">
+                        <FormatIcon format={ed.format} />
+                        <span>{ed.format} - {ed.publisher || 'Unknown'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <SlideOverPanel
-        book={work}
-        isOpen={isEditOpen}
+      <SlideOverPanel 
+        isOpen={isEditOpen} 
         onClose={() => setIsEditOpen(false)}
-        onSave={handleSaveReview}
-        isAdmin={isAdmin}
-      />
+        title="Edit Archive Entry"
+      >
+        <div className="edit-form">
+          <div className="form-group">
+            <label>Rating</label>
+            <div className="star-input">
+              {[1, 2, 3, 4, 5].map(s => (
+                <button 
+                  key={s} 
+                  onClick={() => handleSaveReview(work.id, { rating: s })}
+                  className={work.rating >= s ? 'active' : ''}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Review / Notes</label>
+            <textarea 
+              value={work.review} 
+              onChange={(e) => setWork({ ...work, review: e.target.value })}
+              onBlur={() => handleSaveReview(work.id, { review: work.review })}
+              placeholder="How was the journey?"
+            />
+          </div>
+          <div className="form-group">
+            <label>Cover Image URL</label>
+            <input 
+              type="text" 
+              value={work.primaryEdition?.cover_url || ''} 
+              onChange={(e) => {
+                const newEditions = [...work.editions];
+                newEditions[0].cover_url = e.target.value;
+                setWork({ ...work, editions: newEditions });
+              }}
+              onBlur={() => handleSaveReview(work.id, undefined, work.primaryEdition?.cover_url)}
+              placeholder="Paste image URL here"
+            />
+          </div>
+        </div>
+      </SlideOverPanel>
     </div>
   );
 }

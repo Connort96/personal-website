@@ -1,61 +1,18 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
-import CollectionCard from '../components/CollectionCard';
-import LibraryHero from '../components/LibraryHero';
-import ViewToggle from '../components/ViewToggle';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import CollectionCard from '../components/CollectionCard';
 import './Books.css';
 
-const STATUS_LABELS = {
-  all: 'All',
-  unread: 'Unread',
-  reading: 'Currently Reading',
-  read: 'Read',
-};
-
-const STATUS_EMOJIS = {
-  unread: '📚',
-  reading: '📖',
-  read: '✓',
-};
-
-// Virtualized Grid Components
-const GridList = ({ className, children, ...props }) => (
-  <div className={className} {...props} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-8)' }}>
-    {children}
-  </div>
-);
-
-const GridItem = ({ children, ...props }) => (
-  <div {...props} style={{ paddingBottom: 'var(--space-8)' }}>
-    {children}
-  </div>
-);
-
 export default function Books() {
-  const { user } = useAuth();
-  const [allBooks, setAllBooks] = useState([]);
+  const navigate = useNavigate();
+  const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [activeTab, setActiveTab] = useState('all');
-  const [sortBy, setSortBy] = useState('recent');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTag, setSelectedTag] = useState('all');
+  const [activeTag, setActiveTag] = useState('All');
   const [allTags, setAllTags] = useState([]);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
-  const navigate = useNavigate();
-  const isAdmin = user?.email === 'theconison96@gmail.com';
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleViewChange = (mode) => {
-    setViewMode(mode);
-    localStorage.setItem('library-view', mode);
-  };
-
-  // ─── Data Loading ─────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadData() {
       setLoading(true);
@@ -78,11 +35,10 @@ export default function Books() {
             .select(`
               user_id, book_id, edition_id, status, rating, review, current_page, owned_at,
               editions ( 
-                id, work_id, cover_url, genre_id, genre_name, color, publisher, 
+                id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format,
                 works ( id, title, author ) 
-              ),
-              books ( id, title, author, genre_name, color, cover_url, publisher, page_count, isbn, publication_date, translator )
+              )
             `)
             .eq('user_id', adminId)
             .range(from, from + pageSize - 1);
@@ -93,25 +49,23 @@ export default function Books() {
           from += pageSize;
         }
 
-        // 1. Group all user_books by Work ID
         const workGroups = new Map();
         const tags = new Set();
 
         allRows.forEach(row => {
           const edition = row.editions;
           const work = edition?.works;
-          const legacy = row.books;
-          const workId = work?.id || legacy?.id || row.book_id;
+          if (!work) return; // Should not happen after migration
 
+          const workId = work.id;
           if (edition?.genre_name) tags.add(edition.genre_name);
-          else if (legacy?.genre_name) tags.add(legacy.genre_name);
 
           if (!workGroups.has(workId)) {
             workGroups.set(workId, {
               id: workId,
-              title: work?.title || legacy?.title || '(Unknown)',
-              author: work?.author || legacy?.author || '',
-              tag: edition?.genre_name || legacy?.genre_name || 'Uncategorized',
+              title: work.title,
+              author: work.author,
+              tag: edition?.genre_name || 'Uncategorized',
               status: row.status || 'unread',
               rating: row.rating || 0,
               review: row.review || '',
@@ -127,30 +81,15 @@ export default function Books() {
               status: row.status,
               owned_at: row.owned_at
             });
-          } else if (legacy) {
-            // Legacy fallback
-            group.editions.push({
-              ...legacy,
-              format: 'Hardcover',
-              status: row.status,
-              owned_at: row.owned_at
-            });
           }
         });
 
-        // 2. Final mapping: Choose primary cover and aggregate formats
         const mapped = Array.from(workGroups.values()).map(work => {
-          // Priority 1: Has a cover
-          // Priority 2: Format (Hardcover > Paperback > Audiobook > Digital)
-          const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
-          
+          const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
           const sortedEditions = [...work.editions].sort((a, b) => {
-            // First, prioritize those with covers
-            const aHasCover = !!a.cover_url;
-            const bHasCover = !!b.cover_url;
+            const aHasCover = !!(a.cover_url || a.cover_image_url);
+            const bHasCover = !!(b.cover_url || b.cover_image_url);
             if (aHasCover !== bHasCover) return aHasCover ? -1 : 1;
-
-            // Second, apply format priority
             const aPrio = formatPriority[a.format] || 5;
             const bPrio = formatPriority[b.format] || 5;
             return aPrio - bPrio;
@@ -158,13 +97,11 @@ export default function Books() {
 
           const primary = sortedEditions[0] || {};
           const formats = Array.from(new Set(work.editions.map(e => e.format).filter(Boolean)));
-          
-          // Get the most recent acquisition date for sorting
           const latestOwnedAt = Math.max(...work.editions.map(e => e.owned_at ? new Date(e.owned_at).getTime() : 0));
 
           return {
             ...work,
-            coverUrl: primary.cover_url,
+            coverUrl: primary.cover_url || primary.cover_image_url,
             coverColor: primary.color,
             formats: formats,
             primaryFormat: primary.format,
@@ -178,7 +115,7 @@ export default function Books() {
         });
 
         setAllTags(Array.from(tags).sort());
-        setAllBooks(mapped);
+        setBooks(mapped.sort((a, b) => b.owned_at - a.owned_at));
       } catch (err) {
         console.error('Error loading library:', err);
         setError(err.message);
@@ -187,139 +124,87 @@ export default function Books() {
       }
     }
     loadData();
-  }, [user]);
+  }, []);
 
-  // ─── Derived state (Search & Filter) ───────────────────────────────────────
-  const filteredBooks = useMemo(() => {
-    return allBooks
-      .filter(b => activeTab === 'all' || b.status === activeTab)
-      .filter(b => selectedTag === 'all' || b.tag === selectedTag)
-      .filter(b => {
-        if (!searchTerm) return true;
-        const s = searchTerm.toLowerCase();
-        return b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s);
-      })
-      .sort((a, b) => {
-        if (sortBy === 'title') return a.title.localeCompare(b.title);
-        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
-        return (b.owned_at || 0) - (a.owned_at || 0);
-      });
-  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag]);
+  const filteredBooks = books.filter(book => {
+    const matchesTag = activeTag === 'All' || book.tag === activeTag;
+    const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         book.author.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTag && matchesSearch;
+  });
 
-  const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
+  if (loading) return (
+    <div className="books-loading">
+      <div className="spinner" />
+      <p>Consulting the archives...</p>
+    </div>
+  );
 
-  // ─── Render Components ───────────────────────────────────────────────────
-  const RowContent = useCallback((index, book) => (
-    <CollectionCard
-      key={book.id}
-      title={book.title}
-      subtitle={book.author}
-      genre={book.tag}
-      coverColor={book.coverColor}
-      coverUrl={book.coverUrl}
-      rating={book.rating}
-      status={book.status}
-      editionCount={book.editions?.length || 1}
-      viewMode={viewMode}
-      index={index}
-      onClick={() => navigate(`/book/${book.id}`)}
-    />
-  ), [viewMode]);
+  if (error) return (
+    <div className="books-error">
+      <p>Error loading library: {error}</p>
+    </div>
+  );
 
   return (
     <div className="books-page">
       <div className="container">
-        <header className="page-header">
-          <h1 className="page-header__title">My Library</h1>
-          <p className="page-header__subtitle">
-            {allBooks.length > 0 ? `${allBooks.length} books in the archive.` : 'Connecting to the scriptorium...'}
-          </p>
+        <header className="books-header">
+          <div className="header-content">
+            <h1>The Personal Library</h1>
+            <p className="library-count">{books.length} volumes in collection</p>
+          </div>
+          
+          <div className="library-controls">
+            <div className="search-box">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input 
+                type="text" 
+                placeholder="Search collection..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
         </header>
 
-        {!loading && currentlyReading && !searchTerm && selectedTag === 'all' && (
-          <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => navigate(`/book/${currentlyReading.id}`)} />
-        )}
-
-        {!loading && (
-          <div className="books-omni-search">
-            <input
-              type="text"
-              placeholder="Search by title or author..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="books-search-input"
-            />
-            <div className="search-icon">🔍</div>
+        <div className="tag-filter-container">
+          <div className="tag-scroll">
+            <button 
+              className={`tag-btn ${activeTag === 'All' ? 'active' : ''}`}
+              onClick={() => setActiveTag('All')}
+            >
+              All
+            </button>
+            {allTags.map(tag => (
+              <button 
+                key={tag}
+                className={`tag-btn ${activeTag === tag ? 'active' : ''}`}
+                onClick={() => setActiveTag(tag)}
+              >
+                {tag}
+              </button>
+            ))}
           </div>
-        )}
-
-        {!loading && (
-          <div className="books-toolbar">
-            <div className="books-tabs">
-              {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                <button
-                  key={key}
-                  className={`books-tab ${activeTab === key ? 'books-tab--active' : ''}`}
-                  onClick={() => setActiveTab(key)}
-                >
-                  {STATUS_EMOJIS[key] && <span className="books-tab__emoji">{STATUS_EMOJIS[key]}</span>}
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="books-controls">
-              <div className="books-filter-group">
-                <label>Collection:</label>
-                <select value={selectedTag} onChange={e => setSelectedTag(e.target.value)} className="books-select">
-                  <option value="all">All Tags</option>
-                  {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                </select>
-              </div>
-
-              <div className="books-filter-group">
-                <label>Sort:</label>
-                <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="books-select">
-                  <option value="recent">Recent</option>
-                  <option value="rating">Rating</option>
-                  <option value="title">A-Z</option>
-                </select>
-              </div>
-
-              <ViewToggle view={viewMode} onChange={handleViewChange} />
-            </div>
-          </div>
-        )}
-
-        <div className="books-content" style={{ height: '70vh', minHeight: '600px' }}>
-          {loading ? (
-            <div className="books-loading">
-              <div className="books-loading__spinner" />
-              <p>Consulting the archives...</p>
-            </div>
-          ) : filteredBooks.length === 0 ? (
-            <div className="books-empty">
-              <p>No volumes match your inquiry.</p>
-            </div>
-          ) : viewMode === 'grid' ? (
-            <VirtuosoGrid
-              data={filteredBooks}
-              totalCount={filteredBooks.length}
-              components={{ List: GridList, Item: GridItem }}
-              itemContent={(index, book) => RowContent(index, book)}
-            />
-          ) : (
-            <Virtuoso
-              data={filteredBooks}
-              totalCount={filteredBooks.length}
-              itemContent={(index, book) => (
-                <div style={{ marginBottom: 'var(--space-4)' }}>
-                  {RowContent(index, book)}
-                </div>
-              )}
-            />
-          )}
         </div>
+
+        <div className="books-grid">
+          {filteredBooks.map(book => (
+            <CollectionCard 
+              key={book.id} 
+              book={book} 
+              onClick={() => navigate(`/book/${book.id}`)}
+            />
+          ))}
+        </div>
+
+        {filteredBooks.length === 0 && (
+          <div className="empty-search">
+            <p>No volumes match your criteria.</p>
+          </div>
+        )}
       </div>
     </div>
   );
