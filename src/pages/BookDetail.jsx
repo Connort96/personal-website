@@ -37,14 +37,35 @@ export default function BookDetail() {
   const loadBookData = async () => {
     setLoading(true);
     try {
-      const { data: workData, error: workErr } = await supabase
+      // 1. Try to find the Work/Book (checking both relational and legacy systems)
+      let { data: workData, error: workErr } = await supabase
         .from('works')
         .select('*')
         .eq('id', id)
-        .single();
-      if (workErr) throw workErr;
+        .maybeSingle();
 
-      // Fetch ONLY editions that are present in the user's archive for this work
+      if (!workData) {
+        const { data: legacyData } = await supabase
+          .from('books')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        
+        if (legacyData) {
+          workData = { ...legacyData };
+          workErr = null;
+        } else if (workErr) {
+          throw workErr;
+        }
+      }
+
+      if (!workData) {
+        setWork(null);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch ownership and editions (Check for both Relational and Legacy links)
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
         .select(`
@@ -55,9 +76,9 @@ export default function BookDetail() {
       
       if (ubErr) throw ubErr;
 
-      // Filter editions that belong to THIS work
+      const numericId = parseInt(id);
       const ownedEditions = userBooksData
-        .filter(ub => ub.editions?.work_id === parseInt(id))
+        .filter(ub => (ub.editions?.work_id === numericId) || (ub.book_id === numericId))
         .map(ub => ({
           ...ub.editions,
           user_book_id: ub.id,
