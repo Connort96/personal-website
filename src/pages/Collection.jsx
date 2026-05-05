@@ -210,25 +210,22 @@ export default function Collection() {
 
     try {
       if (isAdding) {
-        // 1. Get the correct Work ID and existing Edition ID for this catalog entry
-        // We look in 'editions' first because that's our source of truth
+        // 1. Get the correct Work ID and existing Edition ID
         let editionId;
         let workId;
 
         const { data: edMatch } = await supabase
           .from('editions')
           .select('id, work_id')
-          .or(`id.eq.${id},isbn.eq.${id}`)
+          .eq('id', id)
           .maybeSingle();
 
         if (edMatch) {
           editionId = edMatch.id;
           workId = edMatch.work_id;
         } else {
-          // If no edition found, find the book in the legacy catalog to get its metadata
           const book = libraryData.flatMap(g => g.books).find(b => b.id === id);
           
-          // Check if this book title/author already has a Work entry
           const { data: workMatch } = await supabase
             .from('works')
             .select('id')
@@ -239,7 +236,6 @@ export default function Collection() {
           if (workMatch) {
             workId = workMatch.id;
           } else {
-            // Create a new Work if it's truly unique
             const { data: newWork } = await supabase
               .from('works')
               .insert({ title: book?.t, author: book?.a })
@@ -247,7 +243,6 @@ export default function Collection() {
             workId = newWork.id;
           }
 
-          // Create the edition
           const { data: newEd } = await supabase.from('editions').insert({
             work_id: workId,
             publisher: book?.publisher || 'Unknown Publisher',
@@ -256,29 +251,34 @@ export default function Collection() {
           editionId = newEd.id;
         }
 
-        await supabase.from('user_books').insert({ 
+        // Use UPSERT to avoid duplicate key errors
+        await supabase.from('user_books').upsert({ 
           user_id: user.id, 
-          edition_id: editionId,
           book_id: id,
+          edition_id: editionId,
           status: 'unread',
           owned_at: new Date().toISOString()
-        });
+        }, { onConflict: 'user_id, book_id' });
       } else {
-        // Delete from user_books using all possible ID links to be safe
         await supabase.from('user_books')
           .delete()
-          .eq('user_id', user.id)
-          .or(`book_id.eq.${id},edition_id.eq.${id}`);
+          .match({ user_id: user.id, book_id: id });
+          
+        // Cleanup by edition_id too just in case
+        await supabase.from('user_books')
+          .delete()
+          .match({ user_id: user.id, edition_id: id });
       }
     } catch (err) {
       console.error("Error syncing book:", err);
-      // Rollback UI
-      setOwnedBooks(prev => {
-        const next = new Set(prev);
-        if (isAdding) next.delete(id);
-        else next.add(id);
-        return next;
-      });
+      // Only rollback on delete failure to keep UI responsive
+      if (!isAdding) {
+        setOwnedBooks(prev => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+      }
     }
   };
 
