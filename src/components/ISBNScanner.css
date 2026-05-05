@@ -1,0 +1,234 @@
+.isbn-scanner-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(18, 16, 14, 0.98);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.scanner-container {
+  width: 100%;
+  max-width: 500px;
+  background: #1a1a1a;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.scanner-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.scanner-header h2 {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.scanner-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.scanner-viewport {
+  position: relative;
+  aspect-ratio: 4/5;
+  background: #000;
+  overflow: hidden;
+}
+
+.scanner-reader {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.scanner-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* ── Custom UI Overlay ─────────────────────────────────── */
+.scanner-ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.scanner-target {
+  width: 260px;
+  height: 260px;
+  border: 2px solid var(--accent-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6);
+  position: relative;
+  overflow: hidden;
+}
+
+.scanner-laser {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  box-shadow: 0 0 15px var(--accent-primary);
+  animation: sweep 2s infinite ease-in-out;
+}
+
+@keyframes sweep {
+  0%, 100% { top: 0%; }
+  50% { top: 100%; }
+}
+
+.scanner-hint {
+  margin-top: var(--space-8);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  letter-spacing: 0.1em;
+}
+
+/* ── Confirmation Card ─────────────────────────────────── */
+.scanner-confirmation-card {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #1a1a1a;
+  padding: var(--space-6);
+  border-top: 1px solid var(--border-medium);
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+  pointer-events: all;
+}
+
+.book-preview {
+  display: flex;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.book-preview img {
+  width: 80px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.book-info h3 {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  margin: 0 0 4px 0;
+  color: #fff;
+}
+
+.book-info .author {
+  color: var(--accent-secondary);
+  font-size: var(--text-sm);
+  margin: 0 0 8px 0;
+}
+
+.book-info .meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.scanner-btn-add {
+  flex: 2;
+  background: var(--accent-primary);
+  color: #12100e;
+  border: none;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scanner-btn-cancel {
+  flex: 1;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+/* ── Status Overlays ────────────────────────────────────── */
+.scanner-loading, .scanner-saving-overlay {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(200, 168, 75, 0.2);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.scanner-error {
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.scanner-error p {
+  color: #ff4d4d;
+  margin-bottom: var(--space-4);
+}
+
+.scanner-btn-retry {
+  background: var(--border-medium);
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
