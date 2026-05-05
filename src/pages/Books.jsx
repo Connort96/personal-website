@@ -25,13 +25,13 @@ const STATUS_EMOJIS = {
 
 // Virtualized Grid Components
 const GridList = ({ className, children, style, ...props }) => (
-  <div 
-    className={className} 
-    {...props} 
-    style={{ 
-      ...style, 
-      display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+  <div
+    className={className}
+    {...props}
+    style={{
+      ...style,
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
       gap: 'var(--space-8)',
       paddingBottom: 'var(--space-20)'
     }}
@@ -120,12 +120,14 @@ export default function Books() {
           const work = edition?.works;
           if (!work) return;
 
-          const workId = work.id;
+          // Use a normalized Title + Author key to catch works that might have different internal IDs
+          const dedupKey = `${work.title?.toLowerCase().trim()}--${work.author?.toLowerCase().trim()}`;
+          
           if (edition?.genre_name) tags.add(edition.genre_name);
 
-          if (!workGroups.has(workId)) {
-            workGroups.set(workId, {
-              id: workId,
+          if (!workGroups.has(dedupKey)) {
+            workGroups.set(dedupKey, {
+              id: work.id, // Keep the first found ID for navigation
               title: work.title,
               author: work.author,
               genres: new Set(),
@@ -137,7 +139,7 @@ export default function Books() {
             });
           }
 
-          const group = workGroups.get(workId);
+          const group = workGroups.get(dedupKey);
           if (edition) {
             if (edition.genre_name) group.genres.add(edition.genre_name);
             group.editions.push({
@@ -147,7 +149,7 @@ export default function Books() {
               rating: row.rating,
               review: row.review
             });
-            
+
             // Shared Review/Rating Logic: Use the best one found among editions
             if (row.review && !group.review) group.review = row.review;
             if (row.rating && !group.rating) group.rating = row.rating;
@@ -357,9 +359,9 @@ export default function Books() {
           </motion.button>
         )}
 
-        <ISBNScanner 
-          isOpen={isScannerOpen} 
-          onClose={() => setIsScannerOpen(false)} 
+        <ISBNScanner
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
           onComplete={() => {
             // Refresh library data after a successful scan
             window.location.reload();
