@@ -257,17 +257,24 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-12);
-  align-items: start;
+  align-items: stretch;
+}
+
+/* Common sizing for all footnote items */
+.footnote-editorial, .footnote-travel, .footnote-spotify {
+  min-height: 320px;
+  height: 100%;
 }
 
 /* 1. Journal (Editorial) */
 .footnote-editorial {
   display: flex;
   flex-direction: column;
-  padding: var(--space-4) 0 var(--space-4) var(--space-8);
+  padding: var(--space-6) 0 var(--space-6) var(--space-8);
   border-left: 2px solid var(--accent-primary);
   text-decoration: none;
   transition: transform 0.3s var(--ease-out);
+  background: transparent;
 }
 
 .footnote-editorial:hover {
@@ -280,27 +287,27 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .footnote-editorial__title {
   font-family: var(--font-serif);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   color: var(--text-primary);
   line-height: 1.2;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .footnote-editorial__excerpt {
   font-family: 'Crimson Pro', serif;
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   font-style: italic;
   color: var(--text-secondary);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3; /* Increased slightly for bigger cards */
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-8);
   line-height: 1.6;
 }
 
@@ -310,18 +317,18 @@
   color: var(--accent-primary);
   text-transform: uppercase;
   font-weight: 700;
+  margin-top: auto;
 }
 
 /* 2. Travel Log (Photographic) */
 .footnote-travel {
   position: relative;
-  height: 280px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: var(--space-8);
+  padding: var(--space-10);
   text-decoration: none;
   background: var(--bg-card);
   box-shadow: var(--shadow-lg);
@@ -356,44 +363,52 @@
   color: var(--accent-primary);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
   display: block;
 }
 
 .footnote-travel__title {
   font-family: var(--font-serif);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   color: #fff;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .footnote-travel__location {
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--text-base);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* 3. Spotify Rotation (Widget) */
+.footnote-spotify {
+  display: flex;
+  flex-direction: column;
+}
+
 .footnote-spotify__player {
   background: #12100e;
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
-  padding: var(--space-6);
+  padding: var(--space-10);
   position: relative;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,0.5), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .footnote-spotify__header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 .footnote-spotify__label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--accent-secondary);
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -402,8 +417,8 @@
 .footnote-spotify__eq {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
-  height: 10px;
+  gap: 3px;
+  height: 12px;
 }
 
 .footnote-spotify__eq span {
@@ -426,20 +441,35 @@
   border: none;
   padding: 0;
   box-shadow: none;
+  margin-top: var(--space-4);
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
 .footnote-spotify__player .now-playing__container {
-  gap: var(--space-5);
+  gap: var(--space-8);
+  width: 100%;
 }
 
 .footnote-spotify__player .now-playing__image {
-  width: 70px;
-  height: 70px;
+  width: 90px;
+  height: 90px;
   border-radius: var(--radius-md);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.6);
 }
 
 .footnote-spotify__player .now-playing__status {
-  display: none; /* Hide internal status, use our header */
+  display: none;
+}
+
+.footnote-spotify__player .now-playing__title {
+  font-size: var(--text-lg);
+  margin-bottom: 6px;
+}
+
+.footnote-spotify__player .now-playing__artist {
+  font-size: var(--text-sm);
 }
 
 .footnote-spotify__progress-bar {
@@ -447,10 +477,10 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 2px;
+  height: 3px;
   background: var(--accent-primary);
   opacity: 0.6;
-  box-shadow: 0 0 10px var(--accent-primary);
+  box-shadow: 0 0 15px var(--accent-primary);
 }
 
 /* Responsive */
@@ -468,6 +498,9 @@
   .footnotes-grid {
     grid-template-columns: 1fr;
     gap: var(--space-16);
+  }
+  .footnote-editorial, .footnote-travel, .footnote-spotify {
+    min-height: 280px;
   }
 }
 

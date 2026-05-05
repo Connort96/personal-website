@@ -42,7 +42,7 @@ export default function Home() {
 
             supabase.from('posts').select('title, slug, excerpt, published_at').order('published_at', { ascending: false }).limit(1),
             
-            supabase.from('trips').select('title, location, cover_image_url').order('start_date', { ascending: false }).limit(1)
+            supabase.from('trips').select('title, location, cover_image_url, trip_photos ( url )').order('start_date', { ascending: false }).limit(1)
           ]);
 
           if (readingData?.[0]) {
@@ -67,7 +67,12 @@ export default function Home() {
           }
 
           if (latestPostData?.[0]) setLatestPost(latestPostData[0]);
-          if (travelData?.[0]) setLatestTrip(travelData[0]);
+          
+          if (travelData?.[0]) {
+            const trip = travelData[0];
+            const cover = trip.cover_image_url || (trip.trip_photos && trip.trip_photos.length > 0 ? trip.trip_photos[0].url : null);
+            setLatestTrip({ ...trip, cover_image_url: cover });
+          }
         }
       } catch (err) {
         console.error('Error fetching home data:', err);
