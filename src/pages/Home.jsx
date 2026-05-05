@@ -51,7 +51,7 @@ export default function Home() {
             const currentPage = item.current_page || 0;
             const progress = totalPages > 0 ? (currentPage / totalPages) * 100 : 0;
             setCurrentlyReading({
-              id: item.book_id,
+              id: item.editions?.work_id || item.book_id,
               title: item.editions?.works?.title || item.books?.title || 'Unknown Title',
               author: item.editions?.works?.author || item.books?.author || 'Unknown Author',
               cover_url: item.editions?.cover_url || item.books?.cover_url,
@@ -139,7 +139,7 @@ export default function Home() {
                     <div className="hero-reading-card__progress-track">
                        <div className="hero-reading-card__progress-fill" style={{ width: `${currentlyReading.progress}%` }}></div>
                     </div>
-                    <Link to="/books" className="hero-reading-card__edit-hint">Update progress →</Link>
+                    <Link to={`/book/${currentlyReading.id}`} className="hero-reading-card__edit-hint">Update progress →</Link>
                   </div>
                 </div>
               </motion.div>

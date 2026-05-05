@@ -37,15 +37,33 @@ export default function BookDetail() {
   const loadBookData = async () => {
     setLoading(true);
     try {
-      const numericId = parseInt(id);
+      // 1. Fetch Work Metadata with Fallbacks
+      let workData = null;
+      let numericId = parseInt(id);
+
+      const { data: directWork } = await supabase.from('works').select('*').eq('id', numericId).maybeSingle();
       
-      // 1. Fetch Work Metadata
-      const { data: workData, error: workErr } = await supabase
-        .from('works')
-        .select('*')
-        .eq('id', numericId)
-        .single();
-      if (workErr) throw workErr;
+      if (directWork) {
+        workData = directWork;
+      } else {
+        // Fallback 1: Check if ID is an Edition ID
+        const { data: editionMatch } = await supabase.from('editions').select('work_id').eq('id', numericId).maybeSingle();
+        if (editionMatch) {
+          const { data: workFromEd } = await supabase.from('works').select('*').eq('id', editionMatch.work_id).maybeSingle();
+          workData = workFromEd;
+          numericId = workData?.id; // Re-sync to work ID
+        } else {
+          // Fallback 2: Check if ID is a legacy Book ID
+          const { data: legacyBook } = await supabase.from('books').select('title, author').eq('id', numericId).maybeSingle();
+          if (legacyBook) {
+            const { data: workFromLegacy } = await supabase.from('works').select('*').ilike('title', legacyBook.title).ilike('author', legacyBook.author).maybeSingle();
+            workData = workFromLegacy;
+            numericId = workData?.id;
+          }
+        }
+      }
+
+      if (!workData) throw new Error('Work not found');
 
       // 2. Fetch User Archive & Editions for this Work
       const { data: userBooksData, error: ubErr } = await supabase
