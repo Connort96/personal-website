@@ -57,7 +57,15 @@ export default function Books() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState([]);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('library-view');
+    if (saved) return saved;
+    // Default to list on mobile (< 768px)
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768 ? 'list' : 'grid';
+    }
+    return 'grid';
+  });
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const navigate = useNavigate();
 

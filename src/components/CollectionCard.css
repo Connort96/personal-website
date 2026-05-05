@@ -201,8 +201,8 @@
 }
 
 .collection-card__cover--list {
-  width: 64px;
-  height: 90px;
+  width: 80px;
+  height: 112px;
   aspect-ratio: unset;
   flex-shrink: 0;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
@@ -211,11 +211,13 @@
 
 .collection-card__list-info {
   flex: 1;
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
+  height: 100%;
+  justify-content: center;
 }
 
 .collection-card__list-top {
@@ -226,9 +228,12 @@
 
 .collection-card__list-bottom {
   display: flex;
+  flex-direction: row !important; /* Override the column default */
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  margin-top: auto;
 }
 
 .collection-card__status-inline {
