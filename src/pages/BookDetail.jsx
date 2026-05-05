@@ -112,6 +112,8 @@ export default function BookDetail() {
       // Find the "best" review/rating among all owned editions
       const bestReview = ownedEditions.find(e => e.review)?.review || '';
       const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
+      const allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
+      
       const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
       const mainProgress = sortedEditions[0]; 
 
@@ -121,6 +123,7 @@ export default function BookDetail() {
         primaryEdition,
         review: bestReview,
         rating: bestRating,
+        genres: allGenres,
         ownedAt: mainProgress.owned_at,
         currentPage: mainProgress.current_page || 0,
         status: mainProgress.status || 'unread',
@@ -223,6 +226,13 @@ export default function BookDetail() {
                 <div className="book-detail-stars">
                   {'★'.repeat(work.rating)}{'☆'.repeat(5 - work.rating)}
                 </div>
+                {work.genres && work.genres.length > 0 && (
+                  <div className="book-detail-genres">
+                    {work.genres.map(g => (
+                      <span key={g} className="book-detail-genre-tag">{g}</span>
+                    ))}
+                  </div>
+                )}
                 {work.ownedAt && (
                   <span className="book-detail-date">
                     Logged on {new Date(work.ownedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}

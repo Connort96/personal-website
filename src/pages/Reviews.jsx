@@ -85,7 +85,7 @@ export default function Reviews() {
               id: workId,
               title: work?.title || legacy?.title || '(Unknown)',
               author: work?.author || legacy?.author || '',
-              genre: edition?.genre_name || legacy?.genre_name || '',
+              genres: new Set(),
               rating: 0,
               review: '',
               raw_owned_at: row.owned_at,
@@ -94,6 +94,9 @@ export default function Reviews() {
           }
 
           const group = workGroups.get(workId);
+          if (edition?.genre_name) group.genres.add(edition.genre_name);
+          if (legacy?.genre_name) group.genres.add(legacy.genre_name);
+          
           if (row.review && !group.review) group.review = row.review;
           if (row.rating && !group.rating) group.rating = row.rating;
           
@@ -219,7 +222,10 @@ export default function Reviews() {
                             )}
 
                             <div className="journal-entry__footer">
-                              <span className="journal-entry__tag">{book.genre}</span>
+                              {Array.from(book.genres).map(g => (
+                                <span key={g} className="journal-entry__tag">{g}</span>
+                              ))}
+                              {book.genres.size === 0 && <span className="journal-entry__tag">Uncategorized</span>}
                             </div>
                           </motion.div>
                         </motion.div>

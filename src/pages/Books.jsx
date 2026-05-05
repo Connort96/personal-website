@@ -108,7 +108,7 @@ export default function Books() {
               id: workId,
               title: work.title,
               author: work.author,
-              tag: edition?.genre_name || 'Uncategorized',
+              genres: new Set(),
               status: row.status || 'unread',
               rating: 0,
               review: '',
@@ -119,6 +119,7 @@ export default function Books() {
 
           const group = workGroups.get(workId);
           if (edition) {
+            if (edition.genre_name) group.genres.add(edition.genre_name);
             group.editions.push({
               ...edition,
               status: row.status,
@@ -178,7 +179,7 @@ export default function Books() {
   const filteredBooks = useMemo(() => {
     return allBooks
       .filter(b => activeTab === 'all' || b.status === activeTab)
-      .filter(b => selectedTag === 'all' || b.tag === selectedTag)
+      .filter(b => selectedTag === 'all' || b.genres.has(selectedTag))
       .filter(b => {
         if (!searchTerm) return true;
         const s = searchTerm.toLowerCase();
@@ -198,7 +199,7 @@ export default function Books() {
       key={book.id}
       title={book.title}
       subtitle={book.author}
-      genre={book.tag}
+      genres={Array.from(book.genres)}
       coverColor={book.coverColor}
       coverUrl={book.coverUrl}
       rating={book.rating}

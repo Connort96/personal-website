@@ -203,3 +203,31 @@
     gap: var(--space-4) !important;
   }
 }
+
+.book-card-tags, .collection-card__genres, .book-detail-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.book-card-tag, .collection-card__genre, .book-detail-genre-tag {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+
+.book-detail-genres {
+  margin: 12px 0;
+}
+
+.book-detail-genre-tag {
+  font-size: 11px;
+  padding: 4px 12px;
+}

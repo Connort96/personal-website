@@ -29,7 +29,7 @@ const FormatBadge = ({ formats }) => {
 };
 
 export default function CollectionCard({
-  title, subtitle, year, genre, rating, coverColor, coverUrl,
+  title, subtitle, year, genres, rating, coverColor, coverUrl,
   notes, onClick, index = 0, status, formats, viewMode = 'grid'
 }) {
   const stars = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : null;
@@ -62,7 +62,11 @@ export default function CollectionCard({
             <p className="collection-card__subtitle">{subtitle}</p>
           </div>
           <div className="collection-card__list-bottom">
-            {genre && <span className="collection-card__genre">{genre}</span>}
+            {genres && genres.length > 0 && (
+              <div className="collection-card__genres">
+                {genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)}
+              </div>
+            )}
             {stars && <span className="collection-card__rating">{stars}</span>}
             {status && status !== 'unread' && (
               <span className="collection-card__status-inline">
@@ -106,7 +110,11 @@ export default function CollectionCard({
         <h3 className="collection-card__title">{title}</h3>
         <p className="collection-card__subtitle">{subtitle}</p>
         <div className="collection-card__meta">
-          {genre && <span className="collection-card__genre">{genre}</span>}
+          {genres && genres.length > 0 && (
+            <div className="collection-card__genres">
+              {genres.map(g => <span key={g} className="collection-card__genre">{g}</span>)}
+            </div>
+          )}
           {stars && <span className="collection-card__rating" aria-label={`${rating} out of 5 stars`}>{stars}</span>}
         </div>
         {notes && <p className="collection-card__notes">{notes}</p>}
