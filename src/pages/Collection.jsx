@@ -264,34 +264,52 @@ export default function Collection() {
           }
         }
 
-        // 3. AUTO-SAGA SCOUT: When ticking a book, discover its saga
-        console.log("[Checklist Scout] Scanning for saga info...");
+        // 3. AUTO-SAGA & METADATA SCOUT: When ticking a book, discover its saga and rich metadata
+        console.log("[Checklist Scout] Scanning for saga and archival metadata...");
         try {
           const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(book?.t || '')}&author=${encodeURIComponent(book?.a || '')}`);
           const searchData = await searchRes.json();
           const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(book?.t?.toLowerCase()));
 
-          if (firstDoc?.series_name?.[0]) {
-            const seriesName = firstDoc.series_name[0];
-            const sequence = parseInt(firstDoc.series_position?.[0] || 1);
-            
-            console.log(`  > Found Saga: ${seriesName} (Vol ${sequence})`);
-
-            let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
-            let sId;
-            if (existingS) {
-              sId = existingS.id;
-            } else {
-              const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
-              sId = newS.id;
+          if (firstDoc) {
+            // Update Work description if missing
+            if (firstDoc.first_sentence || firstDoc.description) {
+              await supabase.from('works').update({ 
+                description: firstDoc.first_sentence?.[0] || firstDoc.description 
+              }).eq('id', workId);
             }
 
-            await supabase.from('series_works').upsert({
-              series_id: sId,
-              work_id: workId,
-              sequence_order: sequence
-            }, { onConflict: 'series_id, work_id' });
-            console.log("  > Saga mapped successfully.");
+            if (firstDoc.series_name?.[0]) {
+              const seriesName = firstDoc.series_name[0];
+              const sequence = parseInt(firstDoc.series_position?.[0] || 1);
+              
+              console.log(`  > Found Saga: ${seriesName} (Vol ${sequence})`);
+
+              let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
+              let sId;
+              if (existingS) {
+                sId = existingS.id;
+              } else {
+                const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
+                sId = newS.id;
+              }
+
+              await supabase.from('series_works').upsert({
+                series_id: sId,
+                work_id: workId,
+                sequence_order: sequence
+              }, { onConflict: 'series_id, work_id' });
+              console.log("  > Saga mapped successfully.");
+            }
+
+            // Update Edition with more info (Pages, Publisher)
+            const updates = {};
+            if (firstDoc.number_of_pages_median) updates.page_count = firstDoc.number_of_pages_median;
+            if (firstDoc.publisher?.[0]) updates.publisher = firstDoc.publisher[0];
+            
+            if (Object.keys(updates).length > 0) {
+              await supabase.from('editions').update(updates).eq('id', editionId);
+            }
           }
         } catch (sErr) {
           console.error("Saga Scout failed:", sErr);
