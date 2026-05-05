@@ -68,8 +68,16 @@ export default function Navbar() {
             <li>
               <NavLink to="/books" className="navbar__link">The Shelf</NavLink>
             </li>
-            <li>
-              <NavLink to="/reviews" className="navbar__link">Reading Log</NavLink>
+            <li className="navbar__item">
+              <NavLink to="/reviews" className={({ isActive }) => `navbar__link ${isActive ? 'active' : ''}`}>
+                Reading Log
+              </NavLink>
+            </li>
+
+            <li className="navbar__item">
+              <NavLink to="/collection" className={({ isActive }) => `navbar__link ${isActive ? 'active' : ''}`}>
+                Checklist
+              </NavLink>
             </li>
 
             {/* Notebook Dropdown */}
