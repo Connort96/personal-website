@@ -100,7 +100,7 @@ export default function BookDetail() {
         currentPage: mainProgress.current_page || 0,
         status: mainProgress.status || 'unread',
         pageCount: primaryEdition?.page_count || 0,
-        coverUrl: primaryEdition?.cover_url || ''
+        coverUrl: primaryEdition?.cover_image_url || primaryEdition?.cover_url || ''
       });
     } catch (err) {
       console.error('Error loading book detail:', err);
@@ -178,8 +178,8 @@ export default function BookDetail() {
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               >
-                {work.primaryEdition?.cover_url ? (
-                  <img src={work.primaryEdition.cover_url} alt={work.title} />
+                { (work.primaryEdition?.cover_image_url || work.primaryEdition?.cover_url) ? (
+                  <img src={work.primaryEdition.cover_image_url || work.primaryEdition.cover_url} alt={work.title} />
                 ) : (
                   <div className="cover-placeholder" style={{ backgroundColor: work.primaryEdition?.color || 'var(--bg-tertiary)' }}>
                     <span>{work.title[0]}</span>
@@ -226,8 +226,8 @@ export default function BookDetail() {
                 {work.editions.map((ed, i) => (
                   <div key={ed.id || i} className="holding-card">
                     <div className="holding-art">
-                      {ed.cover_url ? (
-                        <img src={ed.cover_url} alt={ed.format} />
+                      {(ed.cover_image_url || ed.cover_url) ? (
+                        <img src={ed.cover_image_url || ed.cover_url} alt={ed.format} />
                       ) : (
                         <div className="holding-placeholder" style={{ backgroundColor: ed.color || 'var(--bg-tertiary)' }}>
                           {ed.format?.[0]}
