@@ -53,6 +53,13 @@ export default function SlideOverPanel({ book, isOpen, onClose, onSave, isAdmin 
 }
 
 function SlideOverContent({ book, onClose, onSave, isAdmin }) {
+  const [status, setStatus] = useState('unread');
+  const [rating, setRating] = useState(0);
+  const [review, setReview] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
   const [editingEditionId, setEditingEditionId] = useState(null);
   const [editionEdits, setEditionEdits] = useState({});
 
