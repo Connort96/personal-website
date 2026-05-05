@@ -190,10 +190,11 @@
 /* ===== LIST VIEW ===== */
 .collection-card--list {
   flex-direction: row;
-  align-items: center;
+  align-items: stretch; /* Stretch children to fill height */
   border-radius: var(--radius-lg);
   padding: 0;
   gap: 0;
+  min-height: 120px; /* Consistent height for the list item */
 }
 
 .collection-card--list:hover {
@@ -201,8 +202,8 @@
 }
 
 .collection-card__cover--list {
-  width: 84px; /* Slightly wider for better presence */
-  height: 112px;
+  width: 90px; /* Slightly wider for the taller row */
+  height: auto; /* Fill height via stretch */
   aspect-ratio: unset;
   flex-shrink: 0;
   border-radius: 0; /* Flush left */
