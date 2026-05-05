@@ -1,84 +1,60 @@
-import { useState, useEffect, useMemo, useCallback, forwardRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
+import CollectionCard from '../components/CollectionCard';
+import LibraryHero from '../components/LibraryHero';
+import ViewToggle from '../components/ViewToggle';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import CollectionCard from '../components/CollectionCard';
 import './Books.css';
 
-// ─── Constants ─────────────────────────────────────────────────────────────
 const STATUS_LABELS = {
   all: 'All',
-  reading: 'Reading',
+  unread: 'Unread',
+  reading: 'Currently Reading',
   read: 'Read',
-  wishlist: 'Wishlist'
 };
 
 const STATUS_EMOJIS = {
+  unread: '📚',
   reading: '📖',
-  read: '✅',
-  wishlist: '⏳'
+  read: '✓',
 };
 
-// ─── Sub-Components ────────────────────────────────────────────────────────
-const LibraryHero = ({ book, onClick }) => (
-  <motion.div 
-    className="library-hero"
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    onClick={onClick}
-  >
-    <div className="hero-badge">Currently Reading</div>
-    <div className="hero-content">
-      <div className="hero-info">
-        <h2 className="hero-title">{book.title}</h2>
-        <p className="hero-author">by {book.author}</p>
-        <div className="hero-meta">
-          <span className="hero-tag">{book.tag}</span>
-          <span className="hero-date">Started {new Date(book.owned_at).toLocaleDateString()}</span>
-        </div>
-      </div>
-      <div className="hero-art">
-        {book.coverUrl ? (
-          <img src={book.coverUrl} alt={book.title} />
-        ) : (
-          <div className="hero-placeholder" style={{ backgroundColor: book.coverColor }}>{book.title[0]}</div>
-        )}
-      </div>
-    </div>
-  </motion.div>
-);
-
-const ViewToggle = ({ view, onChange }) => (
-  <div className="view-toggle">
-    <button className={view === 'grid' ? 'active' : ''} onClick={() => onChange('grid')}>Grid</button>
-    <button className={view === 'list' ? 'active' : ''} onClick={() => onChange('list')}>List</button>
+// Virtualized Grid Components
+const GridList = ({ className, children, ...props }) => (
+  <div className={className} {...props} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-8)' }}>
+    {children}
   </div>
 );
 
-const GridList = forwardRef(({ children, ...props }, ref) => (
-  <div {...props} ref={ref} className="virtuoso-grid-list" />
-));
-
 const GridItem = ({ children, ...props }) => (
-  <div {...props} className="virtuoso-grid-item">{children}</div>
+  <div {...props} style={{ paddingBottom: 'var(--space-8)' }}>
+    {children}
+  </div>
 );
 
 export default function Books() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [allBooks, setAllBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState([]);
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
+  const navigate = useNavigate();
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
+
+  const handleViewChange = (newMode) => {
+    setViewMode(newMode);
+    localStorage.setItem('library-view', newMode);
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -221,7 +197,7 @@ export default function Books() {
       coverUrl={book.coverUrl}
       rating={book.rating}
       status={book.status}
-      editionCount={book.editions?.length || 1}
+      formats={book.formats}
       viewMode={viewMode}
       index={index}
       onClick={() => navigate(`/book/${book.id}`)}
@@ -239,7 +215,7 @@ export default function Books() {
         </header>
 
         {!loading && currentlyReading && !searchTerm && selectedTag === 'all' && (
-          <LibraryHero book={currentlyReading} onClick={() => navigate(`/book/${currentlyReading.id}`)} />
+          <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => navigate(`/book/${currentlyReading.id}`)} />
         )}
 
         {!loading && (
@@ -288,7 +264,7 @@ export default function Books() {
                 </select>
               </div>
 
-              <ViewToggle view={viewMode} onChange={setViewMode} />
+              <ViewToggle view={viewMode} onChange={handleViewChange} />
             </div>
           </div>
         )}
