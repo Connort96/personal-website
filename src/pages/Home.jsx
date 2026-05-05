@@ -40,9 +40,9 @@ export default function Home() {
               books ( cover_url, title )
             `).eq('user_id', adminId).order('owned_at', { ascending: false }).limit(10),
 
-            supabase.from('posts').select('title, slug').order('published_at', { ascending: false }).limit(1),
+            supabase.from('posts').select('title, slug, excerpt, published_at').order('published_at', { ascending: false }).limit(1),
             
-            supabase.from('trips').select('title, location').order('start_date', { ascending: false }).limit(1)
+            supabase.from('trips').select('title, location, cover_image_url').order('start_date', { ascending: false }).limit(1)
           ]);
 
           if (readingData?.[0]) {
@@ -171,28 +171,47 @@ export default function Home() {
           </div>
           
           <div className="footnotes-grid">
-            {/* Blog Card */}
-            <motion.div whileHover={{ y: -5 }}>
-              <Link to={latestPost ? `/blog/${latestPost.slug}` : '/blog'} className="footnote-card">
-                <span className="footnote-card__label">Latest Journal</span>
-                <h3 className="footnote-card__title">{latestPost?.title || "Drafting new entries..."}</h3>
-                <div className="footnote-card__meta">Read Dispatch →</div>
+            {/* Journal (Editorial Style) */}
+            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+              <Link to={latestPost ? `/blog/${latestPost.slug}` : '/blog'} className="footnote-editorial">
+                <span className="footnote-editorial__date">
+                  {latestPost?.published_at ? new Date(latestPost.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                </span>
+                <h3 className="footnote-editorial__title">{latestPost?.title || "Drafting new entries..."}</h3>
+                <p className="footnote-editorial__excerpt">
+                  {latestPost?.excerpt || "A quiet space for reflections and notes from the scriptorium."}
+                </p>
+                <span className="footnote-editorial__link">Read Dispatch →</span>
               </Link>
             </motion.div>
 
-            {/* Travel Card */}
-            <motion.div whileHover={{ y: -5 }}>
-              <Link to="/travel" className="footnote-card">
-                <span className="footnote-card__label">Recent Travel</span>
-                <h3 className="footnote-card__title">{latestTrip ? `${latestTrip.title} (${latestTrip.location})` : "Scouting new horizons..."}</h3>
-                <div className="footnote-card__meta">View Journey →</div>
+            {/* Travel Log (Photographic Style) */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+              <Link to="/travel" className="footnote-travel">
+                {latestTrip?.cover_image_url && (
+                  <div className="footnote-travel__bg" style={{ backgroundImage: `url(${latestTrip.cover_image_url})` }}></div>
+                )}
+                <div className="footnote-travel__overlay"></div>
+                <div className="footnote-travel__content">
+                  <span className="footnote-travel__label">Recent Dispatch</span>
+                  <h3 className="footnote-travel__title">{latestTrip?.title || "Scouting new horizons..."}</h3>
+                  <p className="footnote-travel__location">{latestTrip?.location || "Unknown Territory"}</p>
+                </div>
               </Link>
             </motion.div>
 
-            {/* Spotify Card */}
-            <motion.div whileHover={{ y: -5 }} className="footnote-card footnote-card--spotify">
-              <span className="footnote-card__label">Latest Rotation</span>
-              <NowPlaying />
+            {/* Spotify Rotation (Widget Style) */}
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="footnote-spotify">
+              <div className="footnote-spotify__player">
+                <div className="footnote-spotify__header">
+                  <div className="footnote-spotify__eq">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <span className="footnote-spotify__label">Latest Rotation</span>
+                </div>
+                <NowPlaying />
+                <div className="footnote-spotify__progress-bar"></div>
+              </div>
             </motion.div>
           </div>
         </div>
