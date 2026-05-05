@@ -429,7 +429,7 @@ export default function Admin() {
         Logged in as: {user?.email}
       </div>
 
-      <div className="admin-global-actions" style={{ display: 'block !important' }}>
+      <div className="admin-global-actions">
         <button 
           className="admin-action-card scanner-btn"
           onClick={() => setIsScannerOpen(true)}
