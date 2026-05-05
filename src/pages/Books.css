@@ -204,3 +204,51 @@
   }
 }
 
+/* ── Floating Action Button (FAB) ───────────────────────── */
+.books-fab {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-primary); /* Gold */
+  color: #12100e; /* Dark Ink */
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(200, 168, 75, 0.3);
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.books-fab svg {
+  margin-bottom: -2px;
+}
+
+.books-fab__label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.books-fab:hover {
+  background: var(--accent-secondary);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 640px) {
+  .books-fab {
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 56px;
+    height: 56px;
+  }
+}

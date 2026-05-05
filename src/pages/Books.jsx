@@ -5,6 +5,7 @@ import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
 import LibraryHero from '../components/LibraryHero';
 import ViewToggle from '../components/ViewToggle';
+import ISBNScanner from '../components/ISBNScanner';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import './Books.css';
@@ -47,6 +48,7 @@ export default function Books() {
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState([]);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('library-view') || 'grid');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const navigate = useNavigate();
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
@@ -309,6 +311,42 @@ export default function Books() {
             />
           )}
         </div>
+
+        {/* Floating Action Button for Scanner */}
+        {isAdmin && (
+          <motion.button
+            className="books-fab"
+            whileHover={{ scale: 1.05, boxShadow: '0 10px 25px rgba(200, 168, 75, 0.4)' }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsScannerOpen(true)}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            aria-label="Scan ISBN Barcode"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 5v14" />
+              <path d="M21 5v14" />
+              <path d="M7 5v14" />
+              <path d="M12 5v14" />
+              <path d="M17 5v14" />
+              <path d="M3 5h2" />
+              <path d="M3 19h2" />
+              <path d="M19 5h2" />
+              <path d="M19 19h2" />
+            </svg>
+            <span className="books-fab__label">Scan</span>
+          </motion.button>
+        )}
+
+        <ISBNScanner 
+          isOpen={isScannerOpen} 
+          onClose={() => setIsScannerOpen(false)} 
+          onComplete={() => {
+            // Refresh library data after a successful scan
+            window.location.reload();
+          }}
+        />
       </div>
     </div>
   );
