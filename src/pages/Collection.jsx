@@ -1,7 +1,39 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import './Collection.css';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import './Collection.css';
+
+// Minimal Circular Progress Component
+const ProgressRing = ({ pct, size = 18, stroke = 2 }) => {
+  const radius = (size - stroke) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (pct / 100) * circumference;
+
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle
+        stroke="rgba(200, 168, 75, 0.1)"
+        strokeWidth={stroke}
+        fill="transparent"
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+      />
+      <circle
+        stroke="var(--accent-primary)"
+        strokeWidth={stroke}
+        strokeDasharray={`${circumference} ${circumference}`}
+        style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 0.5s ease' }}
+        strokeLinecap="round"
+        fill="transparent"
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+      />
+    </svg>
+  );
+};
 
 export default function Collection() {
   const { user } = useAuth();
@@ -18,7 +50,6 @@ export default function Collection() {
     async function loadData() {
       setIsSyncing(true);
       try {
-        // 1. Fetch entire catalog (handling the 1,000 row limit via pagination)
         let booksData = [];
         let hasMore = true;
         let fromIndex = 0;
@@ -32,9 +63,7 @@ export default function Collection() {
             .range(fromIndex, fromIndex + pageSize - 1);
             
           if (catalogError) throw catalogError;
-          
           booksData = [...booksData, ...pageData];
-          
           if (pageData.length < pageSize) {
             hasMore = false;
           } else {
@@ -42,10 +71,7 @@ export default function Collection() {
           }
         }
 
-        // 2. Group into genres
         const genresMap = new Map();
-        const stringToIdMap = {}; // For local storage migration
-
         booksData.forEach(b => {
           if (!genresMap.has(b.genre_id)) {
             genresMap.set(b.genre_id, {
@@ -66,58 +92,27 @@ export default function Collection() {
             pages: b.page_count || null,
             isbn: b.isbn || null,
           });
-          
-          stringToIdMap[`${b.genre_id}_${b.book_index}`] = b.id;
         });
         
-        const dynamicLibraryData = Array.from(genresMap.values());
-        setLibraryData(dynamicLibraryData);
+        setLibraryData(Array.from(genresMap.values()));
 
-        // 3. Load owned books (Supabase or LocalStorage)
         let ownedSet = new Set();
-        
         if (user) {
           const { data: userBooks, error: userError } = await supabase
             .from('user_books')
             .select('book_id')
             .eq('user_id', user.id);
-            
           if (userError) throw userError;
-          
           if (userBooks && userBooks.length > 0) {
             userBooks.forEach(row => ownedSet.add(row.book_id));
-          } else {
-            // Migration: User just logged in but has no cloud data. Try local storage.
-            const localOwned = localStorage.getItem('libraryOwned');
-            if (localOwned) {
-              const parsedLocal = JSON.parse(localOwned);
-              parsedLocal.forEach(item => {
-                if (typeof item === 'string' && stringToIdMap[item]) {
-                  ownedSet.add(stringToIdMap[item]);
-                } else if (typeof item === 'number') {
-                  ownedSet.add(item);
-                }
-              });
-            }
           }
         } else {
-          // Unauthenticated: Load from local storage
           const localOwned = localStorage.getItem('libraryOwned');
           if (localOwned) {
-            const parsedLocal = JSON.parse(localOwned);
-            parsedLocal.forEach(item => {
-              // Convert legacy string format to integer ID
-              if (typeof item === 'string' && stringToIdMap[item]) {
-                ownedSet.add(stringToIdMap[item]);
-              } else if (typeof item === 'number') {
-                ownedSet.add(item);
-              }
-            });
+            JSON.parse(localOwned).forEach(id => ownedSet.add(id));
           }
         }
-        
         setOwnedBooks(ownedSet);
-        
       } catch (err) {
         console.error("Error loading collection:", err);
       } finally {
@@ -127,18 +122,14 @@ export default function Collection() {
     loadData();
   }, [user]);
 
-  // Persist ownedBooks to localStorage (for unauthenticated users and migration)
   useEffect(() => {
     if (isInitialMount.current) return;
     localStorage.setItem('libraryOwned', JSON.stringify(Array.from(ownedBooks)));
   }, [ownedBooks]);
 
-  // UI Local Storage
   useEffect(() => {
     const localGenres = localStorage.getItem('libraryOpenGenres');
-    if (localGenres) {
-      setOpenGenres(new Set(JSON.parse(localGenres)));
-    }
+    if (localGenres) setOpenGenres(new Set(JSON.parse(localGenres)));
   }, []);
 
   useEffect(() => {
@@ -152,19 +143,14 @@ export default function Collection() {
   const toggleGenre = (genreId) => {
     setOpenGenres(prev => {
       const next = new Set(prev);
-      if (next.has(genreId)) {
-        next.delete(genreId);
-      } else {
-        next.add(genreId);
-      }
+      if (next.has(genreId)) next.delete(genreId);
+      else next.add(genreId);
       return next;
     });
   };
 
   const toggleBook = async (bookId, e) => {
     e.stopPropagation();
-    
-    // Optimistic UI update (using integer ID)
     const isAdding = !ownedBooks.has(bookId);
     setOwnedBooks(prev => {
       const next = new Set(prev);
@@ -174,21 +160,14 @@ export default function Collection() {
     });
 
     if (!user) return;
-
     try {
       if (isAdding) {
-        await supabase.from('user_books').insert({
-          user_id: user.id,
-          book_id: bookId
-        });
+        await supabase.from('user_books').insert({ user_id: user.id, book_id: bookId });
       } else {
-        await supabase.from('user_books').delete()
-          .eq('user_id', user.id)
-          .eq('book_id', bookId);
+        await supabase.from('user_books').delete().eq('user_id', user.id).eq('book_id', bookId);
       }
     } catch (err) {
       console.error("Error syncing book:", err);
-      // Revert optimistic update on error
       setOwnedBooks(prev => {
         const next = new Set(prev);
         if (isAdding) next.delete(bookId);
@@ -198,21 +177,15 @@ export default function Collection() {
     }
   };
 
-  // Calculate stats
   const stats = useMemo(() => {
     let total = 0;
-    let owned = ownedBooks.size;
-    libraryData.forEach(genre => {
-      total += genre.books.length;
-    });
-    return {
-      total,
-      owned,
-      pct: total === 0 ? 0 : Math.round((owned / total) * 100)
-    };
+    libraryData.forEach(genre => total += genre.books.length);
+    const owned = ownedBooks.size;
+    // Show 1 decimal place (e.g. 0.5%)
+    const pct = total === 0 ? 0 : (owned / total) * 100;
+    return { total, owned, pct: pct.toFixed(1) };
   }, [ownedBooks, libraryData]);
 
-  // Render variables
   const lowerSearch = searchQuery.toLowerCase();
 
   return (
@@ -220,7 +193,7 @@ export default function Collection() {
       <div className="collection-header-container">
         <h1 className="collection-title">Collection Checklist</h1>
         
-        {isSyncing && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>Syncing with cloud...</div>}
+        {isSyncing && <div className="collection-sync-badge">Syncing with scriptorium...</div>}
         
         <div className="collection-stats">
           <div className="collection-stat-box">
@@ -231,8 +204,11 @@ export default function Collection() {
             <div className="collection-stat-val">{stats.total}</div>
             <div className="collection-stat-label">Total</div>
           </div>
-          <div className="collection-stat-box">
-            <div className="collection-stat-val">{stats.pct}%</div>
+          <div className="collection-stat-box collection-stat-box--pct">
+            <div className="collection-stat-flex">
+              <div className="collection-stat-val">{stats.pct}%</div>
+              <ProgressRing pct={stats.pct} size={22} stroke={2.5} />
+            </div>
             <div className="collection-stat-label">Complete</div>
           </div>
         </div>
@@ -240,65 +216,42 @@ export default function Collection() {
         <input 
           type="search" 
           className="collection-search-bar" 
-          placeholder="Search titles or authors..." 
+          placeholder="Search the ledger..." 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          autoComplete="off" 
-          autoCorrect="off" 
-          spellCheck="false"
         />
         
         <div className="collection-filters">
-          <button 
-            className={`collection-filter-btn ${activeFilter === 'all' ? 'active' : ''}`} 
-            onClick={() => setActiveFilter('all')}
-          >
-            All Books
-          </button>
-          <button 
-            className={`collection-filter-btn ${activeFilter === 'missing' ? 'active' : ''}`} 
-            onClick={() => setActiveFilter('missing')}
-          >
-            Still Needed
-          </button>
-          <button 
-            className={`collection-filter-btn ${activeFilter === 'owned' ? 'active' : ''}`} 
-            onClick={() => setActiveFilter('owned')}
-          >
-            Owned
-          </button>
+          {['all', 'missing', 'owned'].map(f => (
+            <button 
+              key={f}
+              className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
+              onClick={() => setActiveFilter(f)}
+            >
+              {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="collection-library">
         {libraryData.map(genre => {
-          // Filter books within genre
           const visibleBooks = genre.books.map((book) => {
             const isOwned = ownedBooks.has(book.id);
-            
-            // Apply search filter
             if (searchQuery) {
-              const match = book.t.toLowerCase().includes(lowerSearch) || 
-                            book.a.toLowerCase().includes(lowerSearch);
+              const match = book.t.toLowerCase().includes(lowerSearch) || book.a.toLowerCase().includes(lowerSearch);
               if (!match) return null;
             }
-
-            // Apply status filter
             if (activeFilter === 'missing' && isOwned) return null;
             if (activeFilter === 'owned' && !isOwned) return null;
-
             return { ...book, isOwned };
           }).filter(Boolean);
 
-          // If no books match filters in this genre, hide the genre
           if (visibleBooks.length === 0) return null;
 
-          // Genre stats
           const genreTotal = genre.books.length;
-          const genreOwnedCount = genre.books.reduce((acc, book) => 
-            acc + (ownedBooks.has(book.id) ? 1 : 0), 0
-          );
-
+          const genreOwnedCount = genre.books.filter(b => ownedBooks.has(b.id)).length;
+          const genrePct = (genreOwnedCount / genreTotal) * 100;
           const isOpen = openGenres.has(genre.id) || searchQuery.length > 0;
 
           return (
@@ -313,16 +266,32 @@ export default function Collection() {
                   <span>{genreOwnedCount}/{genreTotal}</span>
                   <span className="collection-chevron">▼</span>
                 </div>
+                {/* Horizontal Progress Bar */}
+                <div className="collection-genre-progress">
+                  <div className="collection-genre-progress-fill" style={{ width: `${genrePct}%` }}></div>
+                </div>
               </div>
               
               <div className="collection-book-list">
                 {visibleBooks.map(book => (
                   <div 
                     key={book.id} 
-                    className={`collection-book-item ${book.isOwned ? 'owned' : ''}`}
+                    className={`collection-book-item ${book.isOwned ? 'owned' : 'unowned'}`}
                     onClick={(e) => toggleBook(book.id, e)}
                   >
-                    <div className="collection-checkbox"></div>
+                    <div className="collection-checkbox-wrapper">
+                      <motion.div 
+                        className={`collection-checkbox ${book.isOwned ? 'checked' : ''}`}
+                        animate={{ scale: book.isOwned ? [1, 1.2, 1] : 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {book.isOwned && (
+                          <motion.svg viewBox="0 0 24 24" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                            <path fill="none" stroke="currentColor" strokeWidth="3" d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </motion.svg>
+                        )}
+                      </motion.div>
+                    </div>
                     <div className="collection-book-details">
                       <div className="collection-book-title">{book.t}</div>
                       <div className="collection-book-author">{book.a}</div>
@@ -333,7 +302,6 @@ export default function Collection() {
                           {book.isbn && <span>{book.isbn}</span>}
                         </div>
                       )}
-                      {book.n && <div className="collection-book-note">{book.n}</div>}
                     </div>
                   </div>
                 ))}
