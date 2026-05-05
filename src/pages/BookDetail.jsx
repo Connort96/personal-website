@@ -66,13 +66,16 @@ export default function BookDetail() {
       if (!workData) throw new Error('Work not found');
 
       // 2. Fetch User Archive & Editions for this Work
+      // Fallback to admin ID for public viewing
+      const viewerId = user?.id || 'd01d61f6-334c-4d90-8bce-4b691eebf514';
+      
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
         .select(`
           *,
           editions (*)
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', viewerId);
       
       if (ubErr) throw ubErr;
 
@@ -109,6 +112,7 @@ export default function BookDetail() {
       // Find the "best" review/rating among all owned editions
       const bestReview = ownedEditions.find(e => e.review)?.review || '';
       const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
+      const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
       const mainProgress = sortedEditions[0]; 
 
       setWork({
@@ -132,7 +136,7 @@ export default function BookDetail() {
   };
 
   useEffect(() => {
-    if (user) loadBookData();
+    loadBookData();
   }, [id, user]);
 
   const handleSaveReview = async (workId, updates, globalCoverUrl) => {
