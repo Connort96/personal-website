@@ -162,26 +162,41 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footnotes */}
-      <footer className="footnotes">
+      {/* Footnotes Grid */}
+      <section className="footnotes-section">
         <div className="container">
-          <div className="footnotes__inner">
-            <span className="footnotes__label">OTHER NOTES //</span>
-            <div className="footnotes__links">
-              {latestPost && (
-                <Link to={`/blog/${latestPost.slug}`} className="footnote-link">
-                  Latest Journal: <span>{latestPost.title}</span>
-                </Link>
-              )}
-              {latestTrip && (
-                <Link to="/travel" className="footnote-link">
-                  Recent Dispatch: <span>{latestTrip.title} ({latestTrip.location})</span>
-                </Link>
-              )}
-            </div>
+          <div className="footnotes-header">
+            <span className="footnotes-micro-tag">SECONDARY ENTRIES</span>
+            <h2 className="footnotes-title">The Footnotes</h2>
+          </div>
+          
+          <div className="footnotes-grid">
+            {/* Blog Card */}
+            <motion.div whileHover={{ y: -5 }}>
+              <Link to={latestPost ? `/blog/${latestPost.slug}` : '/blog'} className="footnote-card">
+                <span className="footnote-card__label">Latest Journal</span>
+                <h3 className="footnote-card__title">{latestPost?.title || "Drafting new entries..."}</h3>
+                <div className="footnote-card__meta">Read Dispatch →</div>
+              </Link>
+            </motion.div>
+
+            {/* Travel Card */}
+            <motion.div whileHover={{ y: -5 }}>
+              <Link to="/travel" className="footnote-card">
+                <span className="footnote-card__label">Recent Travel</span>
+                <h3 className="footnote-card__title">{latestTrip ? `${latestTrip.title} (${latestTrip.location})` : "Scouting new horizons..."}</h3>
+                <div className="footnote-card__meta">View Journey →</div>
+              </Link>
+            </motion.div>
+
+            {/* Spotify Card */}
+            <motion.div whileHover={{ y: -5 }} className="footnote-card footnote-card--spotify">
+              <span className="footnote-card__label">Latest Rotation</span>
+              <NowPlaying />
+            </motion.div>
           </div>
         </div>
-      </footer>
+      </section>
     </div>
   );
 }

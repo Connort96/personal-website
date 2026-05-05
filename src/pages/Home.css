@@ -227,50 +227,97 @@
   border: 1px solid var(--border-subtle);
 }
 
-/* ── Footnotes ── */
-.footnotes {
-  padding: var(--space-16) 0;
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-strong);
+/* ── Footnotes Grid ── */
+.footnotes-section {
+  padding: var(--space-24) 0 var(--space-32);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.footnotes__inner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
+.footnotes-header {
+  margin-bottom: var(--space-12);
 }
 
-.footnotes__label {
+.footnotes-micro-tag {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.3em;
-  white-space: nowrap;
+  color: var(--accent-secondary);
+  letter-spacing: 0.2em;
+  display: block;
+  margin-bottom: var(--space-2);
 }
 
-.footnotes__links {
-  display: flex;
-  gap: var(--space-16);
-  flex-wrap: wrap;
-}
-
-.footnote-link {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.footnote-link span {
+.footnotes-title {
   font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-left: 4px;
+  font-size: var(--text-2xl);
+  font-weight: 600;
 }
 
-.footnote-link:hover span {
+.footnotes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-8);
+}
+
+.footnote-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  transition: all 0.3s var(--ease-out);
+}
+
+.footnote-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.footnote-card__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-4);
+}
+
+.footnote-card__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: var(--space-6);
+}
+
+.footnote-card__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
   color: var(--accent-primary);
-  text-decoration: underline;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: auto;
+  font-weight: 700;
+}
+
+/* Spotify Overrides */
+.footnote-card--spotify {
+  padding: var(--space-6);
+}
+
+.footnote-card--spotify .now-playing {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  max-width: 100%;
+}
+
+.footnote-card--spotify .now-playing:hover {
+  transform: none;
 }
 
 /* Responsive */
@@ -292,10 +339,8 @@
     width: 100%;
     max-width: 400px;
   }
-  .footnotes__inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-6);
+  .footnotes-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -308,9 +353,5 @@
   }
   .shelf-item__cover, .shelf-item__placeholder {
     height: 195px;
-  }
-  .footnotes__links {
-    flex-direction: column;
-    gap: var(--space-4);
   }
 }
