@@ -155,7 +155,7 @@
 
 /* ── Shelf Section ── */
 .shelf-section {
-  padding: var(--space-24) 0;
+  padding: var(--space-20) 0;
   background: linear-gradient(to bottom, var(--bg-primary), var(--bg-secondary));
   border-top: 1px solid var(--border-subtle);
 }
@@ -164,12 +164,12 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-10);
 }
 
 .shelf-title {
   font-family: var(--font-serif);
-  font-size: var(--text-3xl);
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
@@ -184,9 +184,9 @@
 
 .shelf-row {
   display: flex;
-  gap: var(--space-8);
+  gap: var(--space-6);
   overflow-x: auto;
-  padding: var(--space-4) 0 var(--space-12);
+  padding: var(--space-4) 0 var(--space-8);
   scrollbar-width: none;
 }
 
@@ -196,142 +196,142 @@
 
 .shelf-item {
   flex-shrink: 0;
-  width: 160px;
+  width: 140px;
 }
 
 .shelf-item__cover {
   width: 100%;
-  height: 240px;
+  height: 210px;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-lg);
   transition: all 0.4s var(--ease-out);
   border: 1px solid var(--border-subtle);
 }
 
 .shelf-item:hover .shelf-item__cover {
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), var(--shadow-glow);
+  transform: translateY(-5px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
 }
 
 .shelf-item__placeholder {
   width: 100%;
-  height: 240px;
+  height: 210px;
   background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-serif);
-  font-size: var(--text-4xl);
+  font-size: var(--text-3xl);
   color: var(--accent-primary);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
 }
 
-/* ── Footnotes Section ── */
+/* ── Footnotes Section (Compact Design) ── */
 .footnotes-section {
-  padding: var(--space-24) 0 var(--space-32);
+  padding: var(--space-12) 0 var(--space-16); /* Tight overall padding */
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-subtle);
 }
 
 .footnotes-header {
-  margin-bottom: var(--space-16);
+  margin-bottom: var(--space-8);
 }
 
 .footnotes-micro-tag {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--accent-secondary);
   letter-spacing: 0.2em;
   display: block;
-  margin-bottom: var(--space-2);
+  margin-bottom: 2px;
 }
 
 .footnotes-title {
   font-family: var(--font-serif);
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .footnotes-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-12);
+  grid-template-columns: repeat(3, 1fr); /* Strict 3-column layout */
+  gap: 2rem; /* Precise 2rem grid-gap */
   align-items: stretch;
 }
 
-/* Common sizing for all footnote items */
+/* Shared sizing rule for all cells to maintain surface area parity */
 .footnote-editorial, .footnote-travel, .footnote-spotify {
-  min-height: 320px;
+  min-height: 280px; /* Comparable footprint */
   height: 100%;
-}
-
-/* 1. Journal (Editorial) */
-.footnote-editorial {
   display: flex;
   flex-direction: column;
+}
+
+/* 1. Journal (Editorial - Contained Snippet) */
+.footnote-editorial {
   padding: var(--space-6) 0 var(--space-6) var(--space-8);
-  border-left: 2px solid var(--accent-primary);
+  border-left: 2px solid var(--accent-primary); /* Gold anchor line */
   text-decoration: none;
   transition: transform 0.3s var(--ease-out);
   background: transparent;
+  position: relative;
 }
 
 .footnote-editorial:hover {
-  transform: translateX(10px);
+  transform: translateX(8px);
 }
 
 .footnote-editorial__date {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 .footnote-editorial__title {
   font-family: var(--font-serif);
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   color: var(--text-primary);
-  line-height: 1.2;
-  margin-bottom: var(--space-6);
+  line-height: 1.3;
+  margin-bottom: var(--space-4);
 }
 
 .footnote-editorial__excerpt {
   font-family: 'Crimson Pro', serif;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-style: italic;
   color: var(--text-secondary);
   display: -webkit-box;
-  -webkit-line-clamp: 3; /* Increased slightly for bigger cards */
+  -webkit-line-clamp: 2; /* Strict 2-line excerpt */
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: var(--space-8);
-  line-height: 1.6;
+  margin-bottom: var(--space-6);
+  line-height: 1.5;
 }
 
 .footnote-editorial__link {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--accent-primary);
   text-transform: uppercase;
   font-weight: 700;
   margin-top: auto;
 }
 
-/* 2. Travel Log (Photographic) */
+/* 2. Travel Log (Photographic - Image-Driven) */
 .footnote-travel {
   position: relative;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: var(--space-10);
+  padding: var(--space-8);
   text-decoration: none;
   background: var(--bg-card);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .footnote-travel__bg {
@@ -343,44 +343,46 @@
 }
 
 .footnote-travel:hover .footnote-travel__bg {
-  transform: scale(1.1);
+  transform: scale(1.08);
 }
 
 .footnote-travel__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.2) 100%);
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.2) 100%);
 }
 
 .footnote-travel__content {
   position: relative;
   z-index: 2;
+  margin-top: auto; /* Push content to bottom */
 }
 
 .footnote-travel__label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   color: var(--accent-primary);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
   display: block;
 }
 
 .footnote-travel__title {
   font-family: var(--font-serif);
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   color: #fff;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+  line-height: 1.2;
 }
 
 .footnote-travel__location {
   font-family: var(--font-sans);
-  font-size: var(--text-base);
-  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.7);
 }
 
-/* 3. Spotify Rotation (Widget) */
+/* 3. Spotify Rotation (Widget - Audio Player) */
 .footnote-spotify {
   display: flex;
   flex-direction: column;
@@ -389,11 +391,11 @@
 .footnote-spotify__player {
   background: #12100e;
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-lg);
-  padding: var(--space-10);
+  border-radius: var(--radius-md);
+  padding: var(--space-8);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5), var(--shadow-glow);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -402,13 +404,13 @@
 .footnote-spotify__header {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
 }
 
 .footnote-spotify__label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 8px;
   color: var(--accent-secondary);
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -417,8 +419,8 @@
 .footnote-spotify__eq {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 12px;
+  gap: 2px;
+  height: 10px;
 }
 
 .footnote-spotify__eq span {
@@ -436,27 +438,40 @@
   50% { transform: scaleY(1); }
 }
 
+/* Target NowPlaying internal elements to fit this widget style */
 .footnote-spotify__player .now-playing {
   background: none;
   border: none;
   padding: 0;
   box-shadow: none;
-  margin-top: var(--space-4);
+  margin-top: 0;
   flex: 1;
   display: flex;
   align-items: center;
 }
 
 .footnote-spotify__player .now-playing__container {
-  gap: var(--space-8);
+  gap: var(--space-6);
   width: 100%;
 }
 
 .footnote-spotify__player .now-playing__image {
-  width: 90px;
-  height: 90px;
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+  width: 75px;
+  height: 75px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+/* Subtle glow behind album art */
+.footnote-spotify__player .now-playing__image::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  background: var(--accent-primary);
+  filter: blur(15px);
+  opacity: 0.15;
+  z-index: -1;
 }
 
 .footnote-spotify__player .now-playing__status {
@@ -464,12 +479,14 @@
 }
 
 .footnote-spotify__player .now-playing__title {
-  font-size: var(--text-lg);
-  margin-bottom: 6px;
+  font-size: var(--text-base);
+  margin-bottom: 4px;
+  color: #fff;
 }
 
 .footnote-spotify__player .now-playing__artist {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .footnote-spotify__progress-bar {
@@ -477,13 +494,12 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 3px;
+  height: 2px;
   background: var(--accent-primary);
   opacity: 0.6;
-  box-shadow: 0 0 15px var(--accent-primary);
 }
 
-/* Responsive */
+/* Responsive (Stacking) */
 @media (max-width: 1024px) {
   .hero__text-wrapper {
     flex-direction: column;
@@ -496,11 +512,11 @@
     max-width: 400px;
   }
   .footnotes-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-16);
+    grid-template-columns: 1fr; /* Stack on smaller screens */
+    gap: var(--space-12);
   }
   .footnote-editorial, .footnote-travel, .footnote-spotify {
-    min-height: 280px;
+    min-height: 220px;
   }
 }
 
@@ -509,9 +525,9 @@
     font-size: 3rem;
   }
   .shelf-item {
-    width: 130px;
+    width: 120px;
   }
   .shelf-item__cover, .shelf-item__placeholder {
-    height: 195px;
+    height: 180px;
   }
 }
