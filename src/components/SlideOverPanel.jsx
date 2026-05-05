@@ -76,11 +76,33 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const fetchISBNImage = async (editionId, isbn) => {
     if (!isbn) return;
     const cleanIsbn = isbn.replace(/[^0-9X]/gi, '');
-    const url = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-M.jpg`;
     
-    // Test if image exists (Open Library returns a small placeholder if not found)
-    // For now, we'll just set it.
-    handleEditionChange(editionId, 'cover_image_url', url);
+    try {
+      // Parallel hunt for better covers
+      const [olRes, gbRes] = await Promise.all([
+        fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`),
+        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`)
+      ]);
+
+      const olData = await olRes.json();
+      const gbData = await gbRes.json();
+      
+      const olInfo = olData[`ISBN:${cleanIsbn}`];
+      const gbInfo = gbData.items?.[0]?.volumeInfo;
+
+      const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
+      const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
+      
+      const bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+      
+      if (bestCover) {
+        handleEditionChange(editionId, 'cover_image_url', bestCover);
+        // Also update the other possible column name for safety
+        handleEditionChange(editionId, 'cover_url', bestCover);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
   };
 
   const handleEditionChange = (id, field, value) => {
@@ -93,25 +115,26 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const handleSave = async () => {
     setSaving(true);
     
-    // 1. Save global review/rating
-    await onSave(
-      book.id,
-      { 
-        status, 
-        rating: rating || null, 
-        review: review.trim() || null,
-        current_page: parseInt(currentPage) || 0 
-      }, 
-      coverUrl.trim() || null
-    );
-
-    // 2. Save individual edition edits
-    for (const [id, updates] of Object.entries(editionEdits)) {
-      await supabase.from('editions').update(updates).eq('id', id);
+    try {
+      // Pass all edits (global and edition-specific) to the controller
+      await onSave(
+        book.id,
+        { 
+          status, 
+          rating: rating || null, 
+          review: review.trim() || null,
+          current_page: parseInt(currentPage) || 0 
+        }, 
+        coverUrl.trim() || null,
+        editionEdits
+      );
+      
+      onClose();
+    } catch (err) {
+      console.error("Save error:", err);
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    onClose();
   };
 
   const editions = book.editions || [];

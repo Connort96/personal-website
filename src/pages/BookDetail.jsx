@@ -142,10 +142,10 @@ export default function BookDetail() {
     loadBookData();
   }, [id, user]);
 
-  const handleSaveReview = async (workId, updates, globalCoverUrl) => {
+  const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}) => {
     if (!isAdmin) return;
     try {
-      // Sync the review/rating across ALL editions of this work
+      // 1. Sync global review/rating across ALL editions
       const editionIds = work.editions.map(ed => ed.id);
       if (editionIds.length > 0) {
         await supabase.from('user_books')
@@ -154,13 +154,42 @@ export default function BookDetail() {
           .in('edition_id', editionIds);
       }
       
-      if (globalCoverUrl !== undefined) {
-        await supabase.from('editions').update({ cover_url: globalCoverUrl }).eq('work_id', workId);
+      // 2. Update global cover if provided
+      if (globalCoverUrl !== undefined && globalCoverUrl !== null) {
+        await supabase.from('editions').update({ cover_image_url: globalCoverUrl }).eq('work_id', workId);
+      }
+      
+      // 3. Process individual edition updates with legacy mirroring
+      for (const [id, edits] of Object.entries(editionUpdates)) {
+        const { data: currentEd } = await supabase.from('editions').select('*').eq('id', id).single();
+        if (!currentEd) continue;
+
+        // Update the modern 'editions' table
+        await supabase.from('editions').update(edits).eq('id', id);
+
+        // Mirror to legacy 'books' table for grid visibility
+        const searchIsbn = edits.isbn || currentEd.isbn;
+        if (searchIsbn) {
+          const legacyUpdates = {
+            publisher: edits.publisher || currentEd.publisher,
+            cover_url: edits.cover_image_url || edits.cover_url || currentEd.cover_image_url || currentEd.cover_url,
+            isbn: edits.isbn || currentEd.isbn,
+            page_count: edits.page_count || currentEd.page_count
+          };
+          
+          await supabase.from('books').update(legacyUpdates).eq('isbn', searchIsbn);
+        } else {
+          // Fallback to title/author sync if no ISBN
+          await supabase.from('books')
+            .update({ cover_url: edits.cover_image_url || edits.cover_url })
+            .ilike('title', work.title)
+            .ilike('author', work.author);
+        }
       }
       
       await loadBookData();
     } catch (err) {
-      console.error('Failed to save review:', err);
+      console.error('Failed to save archive updates:', err);
     }
   };
 
