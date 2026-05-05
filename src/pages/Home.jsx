@@ -62,11 +62,22 @@ export default function Home() {
           }
 
           if (additionsData) {
-            setRecentAdditions(additionsData.map(item => ({
-              id: item.editions?.work_id || item.book_id,
-              cover_url: item.editions?.cover_url || item.books?.cover_url,
-              title: item.editions?.works?.title || item.books?.title
-            })));
+            const additionsGrouped = additionsData.reduce((acc, item) => {
+              const title = item.editions?.works?.title || item.books?.title;
+              const author = item.editions?.works?.author || item.books?.author;
+              const key = `${title?.toLowerCase().trim()}--${author?.toLowerCase().trim()}`;
+              
+              if (!acc.has(key)) {
+                acc.set(key, {
+                  id: item.editions?.work_id || item.book_id,
+                  cover_url: item.editions?.cover_url || item.books?.cover_url,
+                  title: title
+                });
+              }
+              return acc;
+            }, new Map());
+
+            setRecentAdditions(Array.from(additionsGrouped.values()));
           }
 
           if (latestPostData?.[0]) setLatestPost(latestPostData[0]);

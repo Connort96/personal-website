@@ -142,7 +142,23 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     setLoading(true);
 
     try {
-      // 0. Fetch the Admin ID to ensure visibility in the library grid
+      // 0. Prevent Duplicate ISBNs
+      if (bookData.isbn) {
+        const { data: existingEd } = await supabase
+          .from('editions')
+          .select('id')
+          .eq('isbn', bookData.isbn.trim())
+          .maybeSingle();
+        
+        if (existingEd) {
+          setError("This edition is already in your archive.");
+          setLoading(false);
+          setStatus('confirming');
+          return;
+        }
+      }
+
+      // 1. Fetch the Admin ID to ensure visibility in the library grid
       const { data: adminSettings } = await supabase
         .from('admin_settings')
         .select('admin_user_id')
