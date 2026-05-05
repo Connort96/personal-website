@@ -47,14 +47,17 @@ export default function Home() {
 
           if (readingData?.[0]) {
             const item = readingData[0];
-            const pageCount = item.books?.page_count || 300;
-            const progress = item.current_page > 0 ? (item.current_page / pageCount) * 100 : 0;
+            const totalPages = item.books?.page_count || 300;
+            const currentPage = item.current_page || 0;
+            const progress = totalPages > 0 ? (currentPage / totalPages) * 100 : 0;
             setCurrentlyReading({
               id: item.book_id,
               title: item.editions?.works?.title || item.books?.title || 'Unknown Title',
               author: item.editions?.works?.author || item.books?.author || 'Unknown Author',
               cover_url: item.editions?.cover_url || item.books?.cover_url,
-              progress: Math.min(100, progress)
+              progress: Math.min(100, progress),
+              currentPage: currentPage,
+              pageCount: totalPages
             });
           }
 
@@ -113,21 +116,30 @@ export default function Home() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 1, delay: 0.3 }}
               >
+                <div className="hero-reading-card__glass" />
                 <div className="hero-reading-card__header">
                   <span className="hero-reading-card__badge">CURRENTLY READING</span>
                 </div>
                 <div className="hero-reading-card__content">
-                  {currentlyReading.cover_url ? (
-                    <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card__cover" />
-                  ) : (
-                    <div className="hero-reading-card__cover-placeholder">{currentlyReading.title?.[0]}</div>
-                  )}
+                  <div className="hero-reading-card__cover-3d">
+                    {currentlyReading.cover_url ? (
+                      <img src={currentlyReading.cover_url} alt={currentlyReading.title} className="hero-reading-card__cover" />
+                    ) : (
+                      <div className="hero-reading-card__cover-placeholder">{currentlyReading.title?.[0]}</div>
+                    )}
+                  </div>
                   <div className="hero-reading-card__info">
                     <h3 className="hero-reading-card__title">{currentlyReading.title}</h3>
-                    <p className="hero-reading-card__author">{currentlyReading.author}</p>
+                    <p className="hero-reading-card__author">by {currentlyReading.author}</p>
+                    
+                    <div className="hero-reading-card__progress-meta">
+                      <span className="hero-reading-card__percent">{Math.round(currentlyReading.progress)}%</span>
+                      <span className="hero-reading-card__pages">{currentlyReading.currentPage} / {currentlyReading.pageCount} pp</span>
+                    </div>
                     <div className="hero-reading-card__progress-track">
                        <div className="hero-reading-card__progress-fill" style={{ width: `${currentlyReading.progress}%` }}></div>
                     </div>
+                    <Link to="/books" className="hero-reading-card__edit-hint">Update progress →</Link>
                   </div>
                 </div>
               </motion.div>
