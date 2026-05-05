@@ -85,12 +85,15 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
       setBookData({
         title: bookInfo.title,
+        subtitle: bookInfo.subtitle || '',
         author: bookInfo.authors?.[0]?.name || 'Unknown Author',
         publisher: bookInfo.publishers?.[0]?.name || 'Unknown Publisher',
         year: bookInfo.publish_date || 'Unknown',
+        full_date: bookInfo.publish_date ? (bookInfo.publish_date.match(/\d{4}/) ? `${bookInfo.publish_date.match(/\d{4}/)[0]}-01-01` : null) : null,
         cover: bookInfo.cover?.large || bookInfo.cover?.medium || '',
         pages: bookInfo.number_of_pages || 0,
-        isbn: isbn
+        isbn: isbn,
+        description: bookInfo.description || bookInfo.notes || ''
       });
     } catch (err) {
       setError(err.message || "Could not retrieve book details.");
@@ -142,7 +145,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           page_count: bookData.pages,
           genre_id: selectedGenre,
           genre_name: genreMeta.genre_name,
-          color: genreMeta.color
+          color: genreMeta.color,
+          publication_date: bookData.full_date
         })
         .select().single();
 
@@ -164,7 +168,9 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         genre_name: genreMeta.genre_name,
         color: genreMeta.color,
         page_count: bookData.pages,
-        book_index: nextIndex
+        book_index: nextIndex,
+        publication_date: bookData.full_date,
+        note: bookData.description
       }).select().single();
 
       // 4. Link to User Archive (using legacy book_id for dual support)
