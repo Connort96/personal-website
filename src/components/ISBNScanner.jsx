@@ -200,7 +200,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         edition_id: newEdition.id,
         book_id: legacyBook?.id,
         status: wReview?.status || 'unread',
-        rating: wReview?.rating || 0,
+        rating: wReview?.rating || null, // Use null instead of 0 to avoid check constraint violations
         review: wReview?.review || '',
         owned_at: new Date().toISOString()
       });
