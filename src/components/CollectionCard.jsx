@@ -62,14 +62,10 @@ export default function CollectionCard({
             <p className="collection-card__subtitle">{subtitle}</p>
           </div>
           
-          <div className="collection-card__review-zone">
-            <p className="collection-card__notes collection-card__notes--list">
-              {notes || ""}
-            </p>
-          </div>
+          <p className="collection-card__notes collection-card__notes--list">
+            {notes || ""}
+          </p>
           
-          <div className="collection-card__spacer" />
-
           <div className="collection-card__list-bottom">
             <div className="collection-card__genres">
               {genres && genres.length > 0 ? (
@@ -122,13 +118,9 @@ export default function CollectionCard({
         <h3 className="collection-card__title">{title}</h3>
         <p className="collection-card__subtitle">{subtitle}</p>
         
-        <div className="collection-card__review-zone">
-          <p className="collection-card__notes">
-            {notes || ""}
-          </p>
-        </div>
-
-        <div className="collection-card__spacer" />
+        <p className="collection-card__notes">
+          {notes || ""}
+        </p>
         
         <div className="collection-card__meta">
           <div className="collection-card__genres">
