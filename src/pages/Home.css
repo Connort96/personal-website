@@ -230,6 +230,8 @@
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: var(--space-10);
+  gap: var(--space-6);
+  flex-wrap: wrap; /* Allow wrapping on small screens */
 }
 
 .shelf-title {
@@ -566,18 +568,28 @@
 
 /* Responsive (Stacking) */
 @media (max-width: 1024px) {
+  .hero {
+    padding-bottom: var(--space-24);
+  }
   .hero__text-wrapper {
     flex-direction: column;
     text-align: center;
+    gap: var(--space-16); /* Increased gap for mobile stacking */
+  }
+  .hero__subtitle {
+    margin-left: auto;
+    margin-right: auto;
   }
   .hero-reading-card {
-    margin-top: var(--space-12);
+    margin-top: var(--space-8);
     transform: none;
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
   }
   .footnotes-grid {
-    grid-template-columns: 1fr; /* Stack on smaller screens */
+    grid-template-columns: 1fr;
     gap: var(--space-12);
   }
   .footnote-editorial, .footnote-travel, .footnote-spotify {
@@ -587,7 +599,16 @@
 
 @media (max-width: 640px) {
   .hero__title {
-    font-size: 3rem;
+    font-size: 2.8rem;
+  }
+  .shelf-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .shelf-link {
+    align-self: flex-end; /* Force link to the far right */
+    margin-top: var(--space-2);
   }
   .shelf-item {
     width: 120px;
