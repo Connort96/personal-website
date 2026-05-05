@@ -68,13 +68,21 @@ export default function Music() {
           <div className="music-loading">Loading sounds...</div>
         ) : (
           <>
+            {!spotifyData?.top_artists?.items && !spotifyData?.recently_played?.items && (
+              <div className="music-offline-notice animate-fade-in">
+                <div className="notice-icon">⚠️</div>
+                <h2>Music Sync is Currently Offline</h2>
+                <p>We're having trouble connecting to Spotify. Please check your Edge Function secrets or re-run the setup scripts.</p>
+              </div>
+            )}
+
             <TopArtists artists={spotifyData?.top_artists?.items} />
 
             <div className="music-split-view">
               <section className="music-featured">
                 <h2 className="section-title--left">Featured Rotation</h2>
                 <div className="music-grid">
-                  {featured.map((item, i) => (
+                  {featured.length > 0 ? featured.map((item, i) => (
                     <motion.div 
                       key={item.id} 
                       className="music-card" 
@@ -92,7 +100,9 @@ export default function Music() {
                         <p className="music-card__artist">{item.artist}</p>
                       </div>
                     </motion.div>
-                  ))}
+                  )) : (
+                    <div className="bento-empty">Curating the crate...</div>
+                  )}
                 </div>
               </section>
 

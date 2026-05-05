@@ -99,3 +99,28 @@
   0%, 100% { transform: scaleY(0.4); }
   50% { transform: scaleY(1); }
 }
+
+.now-playing--offline {
+  border-style: dashed;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+}
+
+.now-playing--offline .now-playing__icon {
+  font-size: 1.5rem;
+  filter: grayscale(1);
+}
+
+.now-playing--offline .now-playing__status {
+  color: var(--text-muted);
+}
+
+.now-playing--offline .now-playing__track {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

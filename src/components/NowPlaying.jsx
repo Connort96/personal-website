@@ -33,7 +33,17 @@ export default function NowPlaying() {
   const isPlaying = data?.currently_playing?.is_playing;
   const track = isPlaying ? data.currently_playing.item : data?.recently_played?.items?.[0]?.track;
 
-  if (!track) return null;
+  if (!track) {
+    return (
+      <div className="now-playing now-playing--offline">
+        <div className="now-playing__icon">📡</div>
+        <div className="now-playing__info">
+          <span className="now-playing__status">Spotify Sync Offline</span>
+          <span className="now-playing__track">Check credentials</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="now-playing">

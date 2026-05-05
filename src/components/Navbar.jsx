@@ -50,7 +50,7 @@ export default function Navbar() {
       <div className="navbar__inner container">
         {/* Editorial Wordmark */}
         <NavLink to="/" className="navbar__logo" id="nav-logo">
-          THE LIBRARY
+          CONNOR'S LIBRARY
         </NavLink>
 
         <button 

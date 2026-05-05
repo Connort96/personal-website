@@ -195,3 +195,32 @@
     gap: var(--space-4);
   }
 }
+
+.music-offline-notice {
+  background: var(--bg-card);
+  border: 1px dashed var(--accent-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-12);
+  text-align: center;
+  margin: var(--space-8) auto;
+  max-width: 600px;
+  box-shadow: var(--shadow-sm);
+}
+
+.notice-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-4);
+  filter: drop-shadow(0 0 10px var(--accent-primary));
+}
+
+.music-offline-notice h2 {
+  font-family: var(--font-serif);
+  color: var(--accent-primary);
+  margin-bottom: var(--space-2);
+}
+
+.music-offline-notice p {
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}

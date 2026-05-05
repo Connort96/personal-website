@@ -94,7 +94,7 @@ export default function Home() {
             <div className="hero__text">
               <p className="hero__greeting">The Reading Room</p>
               <h1 className="hero__title">
-                <span className="hero__title-line">A PERSONAL LIBRARY</span>
+                <span className="hero__title-line">CONNOR'S LIBRARY</span>
               </h1>
               <p className="hero__subtitle">
                 A curated archive of literature, philosophical inquiry, and tracking my progress through the scriptorium.
