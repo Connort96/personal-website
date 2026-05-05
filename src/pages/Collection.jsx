@@ -349,7 +349,11 @@ export default function Collection() {
             if (activeFilter === 'missing' && isOwned) return null;
             if (activeFilter === 'owned' && !isOwned) return null;
             return { ...book, isOwned };
-          }).filter(Boolean);
+          }).filter(Boolean)
+          .sort((a, b) => {
+            if (a.isOwned !== b.isOwned) return a.isOwned ? -1 : 1;
+            return a.t.localeCompare(b.t);
+          });
 
           if (visibleBooks.length === 0) return null;
 
