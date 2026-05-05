@@ -1,10 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import CollectionCard from '../components/CollectionCard';
 import SlideOverPanel from '../components/SlideOverPanel';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import './Books.css'; // Reusing books styles for consistency
+import './Reviews.css';
+
+const StarRating = ({ rating }) => {
+  return (
+    <div className="journal-entry__stars">
+      {[...Array(5)].map((_, i) => (
+        <span key={i} className={i < rating ? "star filled" : "star"}>★</span>
+      ))}
+    </div>
+  );
+};
 
 export default function Reviews() {
   const { user } = useAuth();
@@ -31,28 +40,9 @@ export default function Reviews() {
         const { data, error: fetchErr } = await supabase
           .from('user_books')
           .select(`
-            user_id,
-            book_id,
-            edition_id,
-            status,
-            rating,
-            review,
-            owned_at,
-            editions (
-              id,
-              cover_url,
-              color,
-              genre_name,
-              works ( title, author )
-            ),
-            books (
-              id,
-              title,
-              author,
-              cover_url,
-              color,
-              genre_name
-            )
+            user_id, book_id, edition_id, status, rating, review, owned_at,
+            editions ( id, cover_url, color, genre_name, works ( title, author ) ),
+            books ( id, title, author, cover_url, color, genre_name )
           `)
           .eq('user_id', adminId)
           .not('rating', 'is', null)
@@ -76,7 +66,11 @@ export default function Reviews() {
             rating: row.rating || 0,
             review: row.review || '',
             notes: row.review || '',
-            owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
+            owned_at: row.owned_at ? new Date(row.owned_at).toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric', 
+              year: 'numeric' 
+            }) : 'Recently',
           };
         });
 
@@ -111,52 +105,77 @@ export default function Reviews() {
   };
 
   return (
-    <div className="books-page reviews-page">
-      <div className="container">
+    <div className="reviews-page">
+      <div className="container container--narrow">
         <header className="page-header animate-fade-in-up">
           <h1 className="page-header__title">Reading Log</h1>
           <p className="page-header__subtitle">
-            Reflections and ratings on my journey through the archives.
+            A chronological journal of reflections from the archive.
           </p>
         </header>
 
         {loading && (
-          <div className="books-loading">
-            <div className="books-loading__spinner" />
-            <p>Fetching the log…</p>
+          <div className="reviews-loading">
+            <div className="reviews-loading__spinner" />
+            <p>Consulting the log...</p>
           </div>
         )}
 
         {!loading && error && (
-          <div className="books-empty">
+          <div className="reviews-empty">
             <p>Could not load the log: {error}</p>
           </div>
         )}
 
-        {!loading && !error && allBooks.length === 0 && (
-          <div className="books-empty">
-            <p>No reviews found yet. The log remains silent.</p>
+        {!loading && !error && (
+          <div className="reviews-feed">
+            {allBooks.map((book, i) => (
+              <motion.div 
+                key={book.id} 
+                className="journal-entry"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => setSelectedBook(book)}
+              >
+                <div className="journal-entry__cover-wrapper">
+                  {book.coverUrl ? (
+                    <img src={book.coverUrl} alt={book.title} className="journal-entry__cover" />
+                  ) : (
+                    <div className="journal-entry__cover-placeholder" style={{ backgroundColor: book.coverColor }}>
+                      <span>{book.title[0]}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="journal-entry__content">
+                  <div className="journal-entry__header">
+                    <span className="journal-entry__date">Logged on {book.owned_at}</span>
+                    <StarRating rating={book.rating} />
+                  </div>
+                  
+                  <h2 className="journal-entry__title">{book.title}</h2>
+                  <p className="journal-entry__author">by {book.author}</p>
+                  
+                  {book.review && (
+                    <div className="journal-entry__reflection">
+                      {book.review}
+                    </div>
+                  )}
+
+                  <div className="journal-entry__footer">
+                    <span className="journal-entry__tag">{book.genre}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
 
-        {!loading && !error && (
-          <div className="books-grid">
-            {allBooks.map((book, i) => (
-              <CollectionCard
-                key={book.id}
-                title={book.title}
-                subtitle={book.author}
-                genre={book.genre}
-                coverColor={book.coverColor}
-                coverUrl={book.coverUrl}
-                notes={book.notes}
-                rating={book.rating}
-                status={book.status}
-                viewMode="grid"
-                index={i}
-                onClick={() => setSelectedBook(book)}
-              />
-            ))}
+        {!loading && !error && allBooks.length === 0 && (
+          <div className="reviews-empty">
+            <p>The ledger is currently blank.</p>
           </div>
         )}
       </div>
