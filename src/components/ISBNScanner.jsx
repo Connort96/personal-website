@@ -141,7 +141,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           isbn: bookData.isbn,
           publisher: bookData.publisher,
           cover_image_url: bookData.cover,
-          format: 'Hardcover',
+          format: bookData.format || 'Hardcover',
           page_count: bookData.pages,
           genre_id: selectedGenre,
           genre_name: genreMeta.genre_name,
@@ -255,32 +255,89 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                   <button onClick={restartScanner} className="scanner-btn-retry">Try Again</button>
                 </div>
               ) : (
-                <div className="confirmation-content">
-                  <div className="book-preview">
-                    {bookData.cover && <img src={bookData.cover} alt="Cover" />}
-                    <div className="book-info">
-                      <h3>{bookData.title}</h3>
-                      <p className="author">{bookData.author}</p>
+                  <div className="confirmation-content">
+                    <div className="book-preview-grid">
+                      <div className="book-preview-art">
+                        {bookData.cover ? (
+                          <img src={bookData.cover} alt="Cover" />
+                        ) : (
+                          <div className="cover-placeholder">No Cover Found</div>
+                        )}
+                      </div>
                       
-                      <div className="scanner-genre-picker">
-                        <label>Select Category</label>
-                        <select 
-                          value={selectedGenre} 
-                          onChange={(e) => setSelectedGenre(e.target.value)}
-                        >
-                          <option value="uncategorized">Uncategorized</option>
-                          {genres.map(g => (
-                            <option key={g.genre_id} value={g.genre_id}>{g.genre_name}</option>
-                          ))}
-                        </select>
+                      <div className="book-preview-form">
+                        <div className="scanner-field-group">
+                          <label>Title</label>
+                          <input 
+                            type="text" 
+                            value={bookData.title}
+                            onChange={(e) => setBookData({ ...bookData, title: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="scanner-field-row">
+                          <div className="scanner-field-group">
+                            <label>Author</label>
+                            <input 
+                              type="text" 
+                              value={bookData.author}
+                              onChange={(e) => setBookData({ ...bookData, author: e.target.value })}
+                            />
+                          </div>
+                          <div className="scanner-field-group">
+                            <label>Publisher</label>
+                            <input 
+                              type="text" 
+                              value={bookData.publisher}
+                              onChange={(e) => setBookData({ ...bookData, publisher: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="scanner-field-row">
+                          <div className="scanner-field-group">
+                            <label>Format</label>
+                            <select 
+                              value={bookData.format || 'Hardcover'}
+                              onChange={(e) => setBookData({ ...bookData, format: e.target.value })}
+                            >
+                              <option value="Hardcover">Hardcover</option>
+                              <option value="Paperback">Paperback</option>
+                              <option value="Audiobook">Audiobook</option>
+                              <option value="Digital">Digital</option>
+                              <option value="Kindle">Kindle</option>
+                            </select>
+                          </div>
+                          <div className="scanner-field-group">
+                            <label>Pages</label>
+                            <input 
+                              type="number" 
+                              value={bookData.pages}
+                              onChange={(e) => setBookData({ ...bookData, pages: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="scanner-field-group">
+                          <label>Primary Category</label>
+                          <select 
+                            value={selectedGenre} 
+                            onChange={(e) => setSelectedGenre(e.target.value)}
+                            className="genre-select"
+                          >
+                            <option value="uncategorized">Uncategorized</option>
+                            {genres.map(g => (
+                              <option key={g.genre_id} value={g.genre_id}>{g.genre_name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
+                    <div className="confirmation-actions">
+                      <button onClick={handleAddToArchive} className="scanner-btn-add">Archive Volume</button>
+                      <button onClick={restartScanner} className="scanner-btn-cancel">Rescan</button>
+                    </div>
                   </div>
-                  <div className="confirmation-actions">
-                    <button onClick={handleAddToArchive} className="scanner-btn-add">Add to Archive</button>
-                    <button onClick={restartScanner} className="scanner-btn-cancel">Cancel</button>
-                  </div>
-                </div>
               )}
             </motion.div>
           )}
