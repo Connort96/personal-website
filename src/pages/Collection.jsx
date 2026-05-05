@@ -50,69 +50,62 @@ export default function Collection() {
     async function loadData() {
       setIsSyncing(true);
       try {
-        let booksData = [];
-        let hasMore = true;
-        let fromIndex = 0;
-        const pageSize = 1000;
-        
-        while (hasMore) {
-          const { data: pageData, error: catalogError } = await supabase
-            .from('books')
-            .select('*')
-            .order('id', { ascending: true })
-            .range(fromIndex, fromIndex + pageSize - 1);
-            
-          if (catalogError) throw catalogError;
-          booksData = [...booksData, ...pageData];
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          } else {
-            fromIndex += pageSize;
-          }
-        }
+        // 1. Fetch all Works & Editions for the catalog
+        const { data: worksData, error: worksError } = await supabase
+          .from('works')
+          .select(`
+            *,
+            editions (*)
+          `)
+          .order('title', { ascending: true });
+        if (worksError) throw worksError;
 
         const genresMap = new Map();
-        booksData.forEach(b => {
-          if (!genresMap.has(b.genre_id)) {
-            genresMap.set(b.genre_id, {
-              id: b.genre_id,
-              name: b.genre_name,
-              color: b.color,
-              badge: b.badge,
-              badgeLabel: b.badge_label,
+        worksData.forEach(w => {
+          // Use the first edition's genre info for the checklist grouping
+          const primaryEd = w.editions?.[0] || {};
+          const gid = primaryEd.genre_id || 'uncategorized';
+          
+          if (!genresMap.has(gid)) {
+            genresMap.set(gid, {
+              id: gid,
+              name: primaryEd.genre_name || 'Uncategorized',
+              color: primaryEd.color || '#1a1a1a',
+              badge: primaryEd.badge || 'badge-none',
+              badgeLabel: primaryEd.badge_label || 'Other',
               books: []
             });
           }
-          genresMap.get(b.genre_id).books.push({
-            id: b.id,
-            t: b.title,
-            a: b.author,
-            n: b.note,
-            year: b.publication_date ? new Date(b.publication_date).getFullYear() : null,
-            pages: b.page_count || null,
-            isbn: b.isbn || null,
+          
+          genresMap.get(gid).books.push({
+            id: w.id,
+            t: w.title,
+            a: w.author,
+            editions: w.editions || []
           });
         });
         
         setLibraryData(Array.from(genresMap.values()));
 
-        let ownedSet = new Set();
+        // 2. Fetch owned editions
+        let ownedWorkSet = new Set();
         if (user) {
           const { data: userBooks, error: userError } = await supabase
             .from('user_books')
-            .select('book_id')
+            .select(`
+              edition_id,
+              editions (work_id)
+            `)
             .eq('user_id', user.id);
+          
           if (userError) throw userError;
-          if (userBooks && userBooks.length > 0) {
-            userBooks.forEach(row => ownedSet.add(row.book_id));
-          }
-        } else {
-          const localOwned = localStorage.getItem('libraryOwned');
-          if (localOwned) {
-            JSON.parse(localOwned).forEach(id => ownedSet.add(id));
+          if (userBooks) {
+            userBooks.forEach(row => {
+              if (row.editions?.work_id) ownedWorkSet.add(row.editions.work_id);
+            });
           }
         }
-        setOwnedBooks(ownedSet);
+        setOwnedBooks(ownedWorkSet);
       } catch (err) {
         console.error("Error loading collection:", err);
       } finally {
@@ -149,29 +142,54 @@ export default function Collection() {
     });
   };
 
-  const toggleBook = async (bookId, e) => {
+  const toggleBook = async (workId, e) => {
     e.stopPropagation();
-    const isAdding = !ownedBooks.has(bookId);
+    if (!user) return;
+    
+    const isAdding = !ownedBooks.has(workId);
+    const work = libraryData.flatMap(g => g.books).find(b => b.id === workId);
+    if (!work) return;
+
+    // Pick the first edition to link to user_books
+    const editionId = work.editions?.[0]?.id;
+    if (!editionId) {
+      console.error("No edition found for this work to add to archive.");
+      return;
+    }
+
     setOwnedBooks(prev => {
       const next = new Set(prev);
-      if (isAdding) next.add(bookId);
-      else next.delete(bookId);
+      if (isAdding) next.add(workId);
+      else next.delete(workId);
       return next;
     });
 
-    if (!user) return;
     try {
       if (isAdding) {
-        await supabase.from('user_books').insert({ user_id: user.id, book_id: bookId });
+        await supabase.from('user_books').insert({ 
+          user_id: user.id, 
+          edition_id: editionId,
+          status: 'unread',
+          owned_at: new Date().toISOString()
+        });
       } else {
-        await supabase.from('user_books').delete().eq('user_id', user.id).eq('book_id', bookId);
+        // Find the user_book record for this work and delete it
+        const { data: ubData } = await supabase
+          .from('user_books')
+          .select('id, editions!inner(work_id)')
+          .eq('user_id', user.id)
+          .eq('editions.work_id', workId);
+        
+        if (ubData && ubData.length > 0) {
+          await supabase.from('user_books').delete().eq('id', ubData[0].id);
+        }
       }
     } catch (err) {
       console.error("Error syncing book:", err);
       setOwnedBooks(prev => {
         const next = new Set(prev);
-        if (isAdding) next.delete(bookId);
-        else next.add(bookId);
+        if (isAdding) next.delete(workId);
+        else next.add(workId);
         return next;
       });
     }

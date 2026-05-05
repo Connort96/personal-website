@@ -44,37 +44,61 @@ export default function BookDetail() {
         .single();
       if (workErr) throw workErr;
 
-      const { data: editionsData, error: edErr } = await supabase
-        .from('editions')
-        .select('*')
-        .eq('work_id', id);
-      if (edErr) throw edErr;
-
-      const { data: userBooksData } = await supabase
+      // Fetch ONLY editions that are present in the user's archive for this work
+      const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
-        .select('*')
-        .eq('edition_id', editionsData[0]?.id)
-        .limit(1)
-        .single();
+        .select(`
+          *,
+          editions (*)
+        `)
+        .eq('user_id', user.id);
+      
+      if (ubErr) throw ubErr;
+
+      // Filter editions that belong to THIS work
+      const ownedEditions = userBooksData
+        .filter(ub => ub.editions?.work_id === parseInt(id))
+        .map(ub => ({
+          ...ub.editions,
+          user_book_id: ub.id,
+          rating: ub.rating,
+          review: ub.review,
+          status: ub.status,
+          owned_at: ub.owned_at,
+          current_page: ub.current_page
+        }));
+
+      if (ownedEditions.length === 0) {
+        // Fallback for admins or if book was just added to works but not yet to user_books
+        const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', id);
+        setWork({ 
+          ...workData, 
+          editions: allEditions || [], 
+          primaryEdition: allEditions?.[0] || {},
+          status: 'unread' 
+        });
+        return;
+      }
 
       const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
-      const sortedEditions = [...editionsData].sort((a, b) => {
+      const sortedEditions = [...ownedEditions].sort((a, b) => {
         const aPrio = formatPriority[a.format] || 5;
         const bPrio = formatPriority[b.format] || 5;
         return aPrio - bPrio;
       });
 
       const primaryEdition = sortedEditions.find(e => e.cover_url) || sortedEditions[0];
+      const mainProgress = sortedEditions[0]; // Use most recent or highest priority for main display
 
       setWork({
         ...workData,
         editions: sortedEditions,
         primaryEdition,
-        review: userBooksData?.review || '',
-        rating: userBooksData?.rating || 0,
-        ownedAt: userBooksData?.owned_at,
-        currentPage: userBooksData?.current_page || 0,
-        status: userBooksData?.status || 'unread',
+        review: mainProgress.review || '',
+        rating: mainProgress.rating || 0,
+        ownedAt: mainProgress.owned_at,
+        currentPage: mainProgress.current_page || 0,
+        status: mainProgress.status || 'unread',
         pageCount: primaryEdition?.page_count || 0,
         coverUrl: primaryEdition?.cover_url || ''
       });

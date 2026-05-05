@@ -153,46 +153,37 @@ export default function Admin() {
     setFormLoading(true);
     setFormStatus({ type: '', message: '' });
     try {
-      // 1. Get genre meta (needed for both tables)
+      // 1. Get genre meta
       const { data: genreBooks, error: fetchError } = await supabase
         .from('books').select('genre_id, color, badge, badge_label, genre_name, book_index')
         .eq('genre_id', formData.genre_id).order('book_index', { ascending: false });
       if (fetchError) throw fetchError;
-      if (!genreBooks || genreBooks.length === 0) throw new Error('Genre not found in database.');
+      const genreMeta = genreBooks?.[0] || { genre_name: 'Uncategorized', color: '#1a1a1a' };
+      const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
 
-      const nextIndex = (genreBooks[0]?.book_index || 0) + 1;
-      const genreMeta = genreBooks[0];
+      // 2. SMART WORK LOOKUP (Prevent Duplicates)
+      let workId;
+      const { data: existingWork } = await supabase
+        .from('works')
+        .select('id')
+        .ilike('title', formData.title)
+        .ilike('author', formData.author)
+        .maybeSingle();
 
-      // 2. Insert into master books table (legacy)
-      const { data: bookData, error: bookError } = await supabase.from('books').insert({
-        genre_id: formData.genre_id,
-        genre_name: genreMeta.genre_name,
-        color: genreMeta.color,
-        badge: genreMeta.badge,
-        badge_label: genreMeta.badge_label,
-        book_index: nextIndex,
-        title: formData.title,
-        author: formData.author,
-        note: formData.note || null,
-        cover_url: formData.cover_url || null,
-        publisher: formData.publisher || null,
-        page_count: formData.page_count ? parseInt(formData.page_count) : null,
-        isbn: formData.isbn || null,
-        publication_date: formData.publication_date || null,
-        translator: formData.translator || null,
-      }).select().single();
-      if (bookError) throw bookError;
+      if (existingWork) {
+        workId = existingWork.id;
+      } else {
+        const { data: newWork, error: workError } = await supabase
+          .from('works')
+          .insert({ title: formData.title, author: formData.author })
+          .select().single();
+        if (workError) throw workError;
+        workId = newWork.id;
+      }
 
-      // 3. Insert into works table
-      const { data: workData, error: workError } = await supabase.from('works').insert({
-        title: formData.title,
-        author: formData.author
-      }).select().single();
-      if (workError) throw workError;
-
-      // 4. Insert into editions table (source of truth for UI)
-      const { error: editionError } = await supabase.from('editions').insert({
-        work_id: workData.id,
+      // 3. Create Edition
+      const { data: editionData, error: editionError } = await supabase.from('editions').insert({
+        work_id: workId,
         cover_url: formData.cover_url || null,
         publisher: formData.publisher || null,
         page_count: formData.page_count ? parseInt(formData.page_count) : null,
@@ -205,12 +196,20 @@ export default function Admin() {
         badge: genreMeta.badge,
         badge_label: genreMeta.badge_label,
         book_index: nextIndex
-      });
+      }).select().single();
       if (editionError) throw editionError;
 
-      setFormStatus({ type: 'success', message: `"${formData.title}" added successfully to all tables!` });
-      setFormData({ ...emptyForm, genre_id: formData.genre_id }); // keep genre selected
-      setLookupSource('');
+      // 4. Automatically add to User's Archive (prevent phantom records)
+      const { error: ubError } = await supabase.from('user_books').insert({
+        user_id: user.id,
+        edition_id: editionData.id,
+        status: 'unread',
+        owned_at: new Date().toISOString()
+      });
+      if (ubError) throw ubError;
+
+      setFormStatus({ type: 'success', message: `"${formData.title}" added to catalog and your archive!` });
+      setFormData({ ...emptyForm, genre_id: formData.genre_id });
     } catch (err) {
       setFormStatus({ type: 'error', message: err.message || 'Failed to add book.' });
     } finally {
@@ -273,38 +272,29 @@ export default function Admin() {
       genreMaxIndex[gid] = nextIndex;
 
       try {
-        // 1. Master books insert
-        const { data: bookData, error: bookError } = await supabase.from('books').insert({
-          genre_id: gid,
-          genre_name: genreMeta[gid].genre_name,
-          color: genreMeta[gid].color,
-          badge: genreMeta[gid].badge,
-          badge_label: genreMeta[gid].badge_label,
-          book_index: nextIndex,
-          title: row.title,
-          author: row.author,
-          note: row.note || null,
-          cover_url: meta.cover_url || null,
-          publisher: meta.publisher || null,
-          page_count: meta.page_count || null,
-          isbn: meta.isbn || null,
-          publication_date: meta.publication_date || null,
-          translator: meta.translator || null,
-        }).select().single();
+        // 1. SMART WORK LOOKUP (Prevent Duplicates)
+        let workId;
+        const { data: existingWork } = await supabase
+          .from('works')
+          .select('id')
+          .ilike('title', row.title)
+          .ilike('author', row.author)
+          .maybeSingle();
 
-        if (bookError) throw bookError;
+        if (existingWork) {
+          workId = existingWork.id;
+        } else {
+          const { data: newWork, error: workError } = await supabase
+            .from('works')
+            .insert({ title: row.title, author: row.author })
+            .select().single();
+          if (workError) throw workError;
+          workId = newWork.id;
+        }
 
-        // 2. Works insert
-        const { data: workData, error: workError } = await supabase.from('works').insert({
-          title: row.title,
-          author: row.author
-        }).select().single();
-
-        if (workError) throw workError;
-
-        // 3. Editions insert
-        const { error: editionError } = await supabase.from('editions').insert({
-          work_id: workData.id,
+        // 2. Editions insert
+        const { data: editionData, error: editionError } = await supabase.from('editions').insert({
+          work_id: workId,
           cover_url: meta.cover_url || null,
           publisher: meta.publisher || null,
           page_count: meta.page_count || null,
@@ -317,9 +307,17 @@ export default function Admin() {
           badge: genreMeta[gid].badge,
           badge_label: genreMeta[gid].badge_label,
           book_index: nextIndex
-        });
+        }).select().single();
 
         if (editionError) throw editionError;
+
+        // 3. Automatically add to User's Archive
+        await supabase.from('user_books').insert({
+          user_id: user.id,
+          edition_id: editionData.id,
+          status: 'unread',
+          owned_at: new Date().toISOString()
+        });
         
         updated[i] = { ...row, _status: 'done' };
       } catch (err) {
