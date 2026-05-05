@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import SlideOverPanel from '../components/SlideOverPanel';
 import ViewToggle from '../components/ViewToggle';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -35,8 +34,6 @@ export default function Reviews() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('reviews-view') || 'list');
-
-  const isAdmin = user?.email === 'theconison96@gmail.com';
 
   const handleViewChange = (mode) => {
     setViewMode(mode);
@@ -136,25 +133,6 @@ export default function Reviews() {
     }
     loadData();
   }, []);
-
-  const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
-    if (!isAdmin) return;
-    try {
-      const { error } = await supabase
-        .from('user_books')
-        .update(updates)
-        .eq('user_id', user.id)
-        .eq('book_id', bookId);
-      if (error) throw error;
-
-      setAllBooks(prev => prev.map(b => b.id === bookId
-        ? { ...b, ...updates, notes: updates.review || b.notes }
-        : b
-      ));
-    } catch (err) {
-      console.error('Failed to save review:', err);
-    }
-  };
 
   const groupedBooks = useMemo(() => groupEntriesByMonth(allBooks), [allBooks]);
 
@@ -256,8 +234,6 @@ export default function Reviews() {
             <p>The ledger is currently blank.</p>
           </div>
         )}
-      </div>
-
       </div>
     </div>
   );

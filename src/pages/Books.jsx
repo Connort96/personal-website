@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
-import SlideOverPanel from '../components/SlideOverPanel';
 import LibraryHero from '../components/LibraryHero';
 import ViewToggle from '../components/ViewToggle';
 import { supabase } from '../lib/supabase';
@@ -189,21 +188,6 @@ export default function Books() {
     }
     loadData();
   }, [user]);
-
-  const handleSaveReview = async (bookId, updates, globalCoverUrl) => {
-    if (!isAdmin) return;
-    try {
-      const { error } = await supabase.from('user_books').update(updates).eq('user_id', user.id).eq('book_id', bookId);
-      if (error) throw error;
-      if (globalCoverUrl !== undefined) {
-        await supabase.from('editions').update({ cover_url: globalCoverUrl }).eq('work_id', bookId);
-        await supabase.from('books').update({ cover_url: globalCoverUrl }).eq('id', bookId);
-      }
-      setAllBooks(prev => prev.map(b => b.id === bookId ? { ...b, ...updates, coverUrl: globalCoverUrl !== undefined ? globalCoverUrl : b.coverUrl } : b));
-    } catch (err) {
-      console.error('Failed to save review:', err);
-    }
-  };
 
   // ─── Derived state (Search & Filter) ───────────────────────────────────────
   const filteredBooks = useMemo(() => {
