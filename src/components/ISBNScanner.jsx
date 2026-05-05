@@ -97,16 +97,25 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       
       let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
 
-      // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs, try the Search API (more aggressive)
-      if (!bestCover) {
-        console.log("[Art Hunt] Primary failed, launching Search API fallback...");
-        const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
-        const searchData = await searchRes.json();
-        const coverI = searchData.docs?.[0]?.cover_i;
-        if (coverI) {
-          bestCover = `https://covers.openlibrary.org/b/id/${coverI}-L.jpg`;
-          console.log("[Art Hunt] Search API Success!", bestCover);
-        }
+      // SAGA SCOUT: Check for series info
+      let seriesInfo = null;
+      console.log("[Saga Scout] Searching for series metadata...");
+      const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
+      const searchData = await searchRes.json();
+      const firstDoc = searchData.docs?.[0];
+
+      if (firstDoc?.series?.[0]) {
+        seriesInfo = {
+          name: firstDoc.series[0],
+          // Try to extract sequence if possible (often in 'series' string or title)
+          sequence: parseInt(firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
+        };
+        console.log("[Saga Scout] Series Detected:", seriesInfo.name);
+      }
+
+      // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs
+      if (!bestCover && firstDoc?.cover_i) {
+        bestCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
       }
 
       setBookData({
@@ -122,7 +131,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         pages: olInfo?.number_of_pages || gbInfo?.pageCount || 0,
         isbn: isbn,
         description: olInfo?.description || gbInfo?.description || olInfo?.notes || '',
-        format: 'Hardcover' // Default starting point
+        format: 'Hardcover',
+        series: seriesInfo
       });
     } catch (err) {
       console.error("Fetch error:", err);
@@ -241,17 +251,40 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         .limit(1)
         .maybeSingle();
 
-      const { error: saveErr } = await supabase.from('user_books').insert({
-        user_id: targetUserId,
-        edition_id: newEdition.id,
-        book_id: legacyBook?.id,
-        status: wReview?.status || 'unread',
-        rating: wReview?.rating || null, // Use null instead of 0 to avoid check constraint violations
-        review: wReview?.review || '',
-        owned_at: new Date().toISOString()
-      });
-
       if (saveErr) throw saveErr;
+
+      // 5. AUTO-SAGA: Map to series if detected
+      if (bookData.series) {
+        console.log("[Saga Auto] Processing Series:", bookData.series.name);
+        
+        // Find or Create Series
+        let { data: existingSeries } = await supabase
+          .from('series')
+          .select('id')
+          .ilike('name', bookData.series.name)
+          .maybeSingle();
+        
+        let sId;
+        if (existingSeries) {
+          sId = existingSeries.id;
+        } else {
+          const { data: newS } = await supabase
+            .from('series')
+            .insert({ name: bookData.series.name, description: `The ${bookData.series.name} series.` })
+            .select('id')
+            .single();
+          sId = newS.id;
+        }
+
+        // Link Work to Series
+        await supabase.from('series_works').upsert({
+          series_id: sId,
+          work_id: workId,
+          sequence_order: bookData.series.sequence
+        }, { onConflict: 'series_id, work_id' });
+        
+        console.log("[Saga Auto] Linked Work to Series.");
+      }
 
       if (onComplete) onComplete(bookData);
       onClose();
@@ -329,6 +362,11 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                             value={bookData.title}
                             onChange={(e) => setBookData({ ...bookData, title: e.target.value })}
                           />
+                          {bookData.series && (
+                            <div className="scanner-series-tag">
+                              Saga Detected: {bookData.series.name} (Vol {bookData.series.sequence})
+                            </div>
+                          )}
                         </div>
 
                         <div className="scanner-field-row">
