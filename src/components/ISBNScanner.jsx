@@ -75,27 +75,45 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
-      const data = await res.json();
-      const bookInfo = data[`ISBN:${isbn}`];
+      // Parallel fetch from Open Library and Google Books for better cover/metadata coverage
+      const [olRes, gbRes] = await Promise.all([
+        fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`),
+        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
+      ]);
 
-      if (!bookInfo) {
-        throw new Error("Book not found in Open Library archive.");
+      const olData = await olRes.json();
+      const gbData = await gbRes.json();
+      
+      const olInfo = olData[`ISBN:${isbn}`];
+      const gbInfo = gbData.items?.[0]?.volumeInfo;
+
+      if (!olInfo && !gbInfo) {
+        throw new Error("Book not found in any known archives.");
       }
 
+      // Prefer Google Books for cover art as it's often higher resolution
+      const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
+      const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
+      
+      const bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+
       setBookData({
-        title: bookInfo.title,
-        subtitle: bookInfo.subtitle || '',
-        author: bookInfo.authors?.[0]?.name || 'Unknown Author',
-        publisher: bookInfo.publishers?.[0]?.name || 'Unknown Publisher',
-        year: bookInfo.publish_date || 'Unknown',
-        full_date: bookInfo.publish_date ? (bookInfo.publish_date.match(/\d{4}/) ? `${bookInfo.publish_date.match(/\d{4}/)[0]}-01-01` : null) : null,
-        cover: bookInfo.cover?.large || bookInfo.cover?.medium || '',
-        pages: bookInfo.number_of_pages || 0,
+        title: olInfo?.title || gbInfo?.title || 'Unknown Title',
+        subtitle: olInfo?.subtitle || gbInfo?.subtitle || '',
+        author: olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || 'Unknown Author',
+        publisher: olInfo?.publishers?.[0]?.name || gbInfo?.publisher || 'Unknown Publisher',
+        year: olInfo?.publish_date || gbInfo?.publishedDate || 'Unknown',
+        full_date: (olInfo?.publish_date || gbInfo?.publishedDate)?.match(/\d{4}/) 
+          ? `${(olInfo?.publish_date || gbInfo?.publishedDate).match(/\d{4}/)[0]}-01-01` 
+          : null,
+        cover: bestCover,
+        pages: olInfo?.number_of_pages || gbInfo?.pageCount || 0,
         isbn: isbn,
-        description: bookInfo.description || bookInfo.notes || ''
+        description: olInfo?.description || gbInfo?.description || olInfo?.notes || '',
+        format: 'Hardcover' // Default starting point
       });
     } catch (err) {
+      console.error("Fetch error:", err);
       setError(err.message || "Could not retrieve book details.");
       setStatus('scanning');
       // Restart scanner on error
