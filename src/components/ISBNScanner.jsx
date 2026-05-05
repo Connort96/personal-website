@@ -88,19 +88,31 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       const gbInfo = gbData.items?.[0]?.volumeInfo;
 
       if (!olInfo && !gbInfo) {
-        throw new Error("Book not found in any known archives.");
+        throw new Error("Book not found in primary archives.");
       }
 
-      // Prefer Google Books for cover art as it's often higher resolution
+      // Prefer Google Books for cover art
       const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
       const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
       
-      const bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+      let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+
+      // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs, try the Search API (more aggressive)
+      if (!bestCover) {
+        console.log("[Art Hunt] Primary failed, launching Search API fallback...");
+        const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
+        const searchData = await searchRes.json();
+        const coverI = searchData.docs?.[0]?.cover_i;
+        if (coverI) {
+          bestCover = `https://covers.openlibrary.org/b/id/${coverI}-L.jpg`;
+          console.log("[Art Hunt] Search API Success!", bestCover);
+        }
+      }
 
       setBookData({
-        title: olInfo?.title || gbInfo?.title || 'Unknown Title',
+        title: olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title',
         subtitle: olInfo?.subtitle || gbInfo?.subtitle || '',
-        author: olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || 'Unknown Author',
+        author: olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || searchData?.docs?.[0]?.author_name?.[0] || 'Unknown Author',
         publisher: olInfo?.publishers?.[0]?.name || gbInfo?.publisher || 'Unknown Publisher',
         year: olInfo?.publish_date || gbInfo?.publishedDate || 'Unknown',
         full_date: (olInfo?.publish_date || gbInfo?.publishedDate)?.match(/\d{4}/) 

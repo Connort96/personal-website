@@ -101,8 +101,20 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
       const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
       const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
       
-      const bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+      let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
       
+      // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs, try the Search API (more aggressive)
+      if (!bestCover) {
+        console.log("[Art Hunt] Primary failed, launching Search API fallback...");
+        const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${cleanIsbn}`);
+        const searchData = await searchRes.json();
+        const coverI = searchData.docs?.[0]?.cover_i;
+        if (coverI) {
+          bestCover = `https://covers.openlibrary.org/b/id/${coverI}-L.jpg`;
+          console.log("[Art Hunt] Search API Success!", bestCover);
+        }
+      }
+
       if (bestCover) {
         console.log(`[Art Hunt] Success! Found cover: ${bestCover}`);
         handleEditionChange(editionId, 'cover_image_url', bestCover);
