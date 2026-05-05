@@ -65,23 +65,27 @@ export default function Home() {
             const additionsGrouped = additionsData.reduce((acc, item) => {
               const title = item.editions?.works?.title || item.books?.title;
               const author = item.editions?.works?.author || item.books?.author;
-              if (!title) return acc;
-
-              const key = `${title.toLowerCase().trim()}--${author?.toLowerCase().trim() || 'unknown'}`;
+              
+              // Only merge if we have a valid title, otherwise treat as unique
+              const key = title 
+                ? `${title.toLowerCase().trim()}--${author?.toLowerCase().trim() || 'unknown'}`
+                : `unique-${item.id}`;
+                
               const currentCover = item.editions?.cover_url || item.books?.cover_url;
+              const currentId = item.editions?.work_id || item.book_id;
               
               if (!acc.has(key)) {
                 acc.set(key, {
-                  id: item.editions?.work_id || item.book_id,
+                  id: currentId,
                   cover_url: currentCover,
-                  title: title
+                  title: title || 'Unknown Title'
                 });
               } else if (currentCover && !acc.get(key).cover_url) {
                 // If we found a duplicate that actually has a cover, prefer it!
                 acc.set(key, {
                   ...acc.get(key),
                   cover_url: currentCover,
-                  id: item.editions?.work_id || item.book_id
+                  id: currentId
                 });
               }
               return acc;

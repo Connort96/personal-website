@@ -120,16 +120,18 @@ export default function Books() {
           const work = edition?.works;
           if (!work) return;
 
-          // Use a normalized Title + Author key to catch works that might have different internal IDs
-          const dedupKey = `${work.title?.toLowerCase().trim()}--${work.author?.toLowerCase().trim()}`;
+          // Use a normalized Title + Author key, but only if we have a title to prevent merging "unknown" books
+          const dedupKey = work.title 
+            ? `${work.title.toLowerCase().trim()}--${work.author?.toLowerCase().trim() || 'unknown'}`
+            : `unique-${row.id}`;
           
           if (edition?.genre_name) tags.add(edition.genre_name);
 
           if (!workGroups.has(dedupKey)) {
             workGroups.set(dedupKey, {
-              id: work.id, // Keep the first found ID for navigation
-              title: work.title,
-              author: work.author,
+              id: work.id, 
+              title: work.title || 'Unknown Title',
+              author: work.author || 'Unknown Author',
               genres: new Set(),
               status: row.status || 'unread',
               rating: 0,
@@ -173,6 +175,7 @@ export default function Books() {
 
           return {
             ...work,
+            id: primary.work_id || work.id, // Ensure we link to the work ID of the primary edition
             coverUrl: primary.cover_url || primary.cover_image_url,
             coverColor: primary.color,
             formats: formats,
