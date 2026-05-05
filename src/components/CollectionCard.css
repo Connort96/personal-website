@@ -1,6 +1,7 @@
 .collection-card {
   display: flex;
   flex-direction: column;
+  height: 100%;
   border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--bg-card);
