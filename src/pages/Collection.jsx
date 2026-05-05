@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -50,44 +51,48 @@ export default function Collection() {
     async function loadData() {
       setIsSyncing(true);
       try {
-        // 1. Fetch all Works & Editions for the catalog
-        const { data: worksData, error: worksError } = await supabase
-          .from('works')
-          .select(`
-            *,
-            editions (*)
-          `)
-          .order('title', { ascending: true });
-        if (worksError) throw worksError;
+        // 1. Fetch ALL books from the master catalog with pagination
+        let catalogData = [];
+        let from = 0;
+        const limit = 1000;
+        
+        while (true) {
+          const { data, error } = await supabase
+            .from('books')
+            .select('*')
+            .order('title', { ascending: true })
+            .range(from, from + limit - 1);
+          
+          if (error) throw error;
+          catalogData = [...catalogData, ...data];
+          if (data.length < limit) break;
+          from += limit;
+        }
 
         const genresMap = new Map();
-        worksData.forEach(w => {
-          // Use the first edition's genre info for the checklist grouping
-          const primaryEd = w.editions?.[0] || {};
-          const gid = primaryEd.genre_id || 'uncategorized';
-          
-          if (!genresMap.has(gid)) {
-            genresMap.set(gid, {
-              id: gid,
-              name: primaryEd.genre_name || 'Uncategorized',
-              color: primaryEd.color || '#1a1a1a',
-              badge: primaryEd.badge || 'badge-none',
-              badgeLabel: primaryEd.badge_label || 'Other',
+        catalogData.forEach(b => {
+          if (!genresMap.has(b.genre_id)) {
+            genresMap.set(b.genre_id, {
+              id: b.genre_id,
+              name: b.genre_name,
+              color: b.color,
+              badge: b.badge,
+              badgeLabel: b.badge_label,
               books: []
             });
           }
-          
-          genresMap.get(gid).books.push({
-            id: w.id,
-            t: w.title,
-            a: w.author,
-            editions: w.editions || []
+          genresMap.get(b.genre_id).books.push({
+            id: b.id, // Legacy ID matches Work ID in our migration
+            t: b.title,
+            a: b.author,
+            publisher: b.publisher,
+            pages: b.page_count
           });
         });
         
         setLibraryData(Array.from(genresMap.values()));
 
-        // 2. Fetch owned editions
+        // 2. Fetch owned editions (to see what is checked)
         let ownedWorkSet = new Set();
         if (user) {
           const { data: userBooks, error: userError } = await supabase
@@ -102,6 +107,7 @@ export default function Collection() {
           if (userBooks) {
             userBooks.forEach(row => {
               if (row.editions?.work_id) ownedWorkSet.add(row.editions.work_id);
+              else if (row.book_id) ownedWorkSet.add(row.book_id); // Fallback for legacy rows
             });
           }
         }
@@ -147,15 +153,6 @@ export default function Collection() {
     if (!user) return;
     
     const isAdding = !ownedBooks.has(workId);
-    const work = libraryData.flatMap(g => g.books).find(b => b.id === workId);
-    if (!work) return;
-
-    // Pick the first edition to link to user_books
-    const editionId = work.editions?.[0]?.id;
-    if (!editionId) {
-      console.error("No edition found for this work to add to archive.");
-      return;
-    }
 
     setOwnedBooks(prev => {
       const next = new Set(prev);
@@ -166,6 +163,23 @@ export default function Collection() {
 
     try {
       if (isAdding) {
+        // Find or create an edition for this work to link to user_books
+        let editionId;
+        const { data: editions } = await supabase.from('editions').select('id').eq('work_id', workId).limit(1);
+        
+        if (editions && editions.length > 0) {
+          editionId = editions[0].id;
+        } else {
+          // Create a default edition if none exists (Safety fallback)
+          const book = libraryData.flatMap(g => g.books).find(b => b.id === workId);
+          const { data: newEd } = await supabase.from('editions').insert({
+            work_id: workId,
+            publisher: book?.publisher || 'Unknown Publisher',
+            format: 'Hardcover'
+          }).select().single();
+          editionId = newEd.id;
+        }
+
         await supabase.from('user_books').insert({ 
           user_id: user.id, 
           edition_id: editionId,
@@ -176,12 +190,15 @@ export default function Collection() {
         // Find the user_book record for this work and delete it
         const { data: ubData } = await supabase
           .from('user_books')
-          .select('id, editions!inner(work_id)')
+          .select('id, edition_id, editions!inner(work_id)')
           .eq('user_id', user.id)
           .eq('editions.work_id', workId);
         
         if (ubData && ubData.length > 0) {
           await supabase.from('user_books').delete().eq('id', ubData[0].id);
+        } else {
+          // Legacy fallback delete
+          await supabase.from('user_books').delete().eq('user_id', user.id).eq('book_id', workId);
         }
       }
     } catch (err) {
@@ -311,13 +328,14 @@ export default function Collection() {
                       </motion.div>
                     </div>
                     <div className="collection-book-details">
-                      <div className="collection-book-title">{book.t}</div>
+                      <Link to={`/book/${book.id}`} className="collection-book-link" onClick={(e) => e.stopPropagation()}>
+                        <div className="collection-book-title">{book.t}</div>
+                      </Link>
                       <div className="collection-book-author">{book.a}</div>
-                      {(book.year || book.pages || book.isbn) && (
+                      {book.editions?.[0] && (
                         <div className="collection-book-meta">
-                          {book.year && <span>{book.year}</span>}
-                          {book.pages && <span>{book.pages} pp</span>}
-                          {book.isbn && <span>{book.isbn}</span>}
+                          {book.editions[0].publisher && <span>{book.editions[0].publisher}</span>}
+                          {book.editions[0].page_count && <span>{book.editions[0].page_count} pp</span>}
                         </div>
                       )}
                     </div>

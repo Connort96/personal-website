@@ -287,6 +287,17 @@
   min-width: 0;
 }
 
+.collection-book-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  cursor: pointer;
+}
+
+.collection-book-link:hover .collection-book-title {
+  color: var(--accent-primary);
+}
+
 .collection-book-title {
   font-family: var(--font-serif);
   font-size: var(--text-base);
