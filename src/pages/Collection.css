@@ -233,8 +233,14 @@
 
 /* Ghosted logic for unowned */
 .collection-book-item.unowned {
-  opacity: 0.4;
+  opacity: 0.6; /* Increased for better legibility */
   color: var(--text-muted);
+  transition: opacity 0.3s var(--ease-out), background 0.3s var(--ease-out);
+}
+
+.collection-book-item.unowned:hover {
+  opacity: 0.9; /* Hover feedback to show interactivity */
+  background: rgba(200, 168, 75, 0.05);
 }
 
 /* Gold logic for owned */
@@ -255,9 +261,9 @@
 .collection-checkbox {
   width: 18px;
   height: 18px;
-  border: 1px solid var(--accent-primary);
+  border: 1px solid rgba(200, 168, 75, 0.4); /* Strengthened border for unowned */
   border-radius: 4px;
-  background: transparent; /* No bright white */
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -266,6 +272,7 @@
 
 .collection-checkbox.checked {
   background: var(--accent-primary);
+  border-color: var(--accent-primary);
 }
 
 .collection-checkbox svg {
