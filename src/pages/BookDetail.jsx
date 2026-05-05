@@ -410,6 +410,7 @@ export default function BookDetail() {
                                   await supabase.from('books').insert({
                                     title: s.works.title,
                                     author: s.works.author,
+                                    work_id: s.work_id, // Permanent link to the saga work
                                     genre_name: work.genres?.[0] || 'Uncategorized',
                                     color: '#1a1a1a',
                                     note: 'Added from Saga Roadmap'

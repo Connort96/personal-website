@@ -224,31 +224,44 @@ export default function Collection() {
           editionId = edMatch.id;
           workId = edMatch.work_id;
         } else {
-          const book = libraryData.flatMap(g => g.books).find(b => b.id === id);
+          // Check if the legacy record already has a work_id
+          const { data: legacyRef } = await supabase.from('books').select('work_id, title, author').eq('id', id).single();
           
-          const { data: workMatch } = await supabase
-            .from('works')
-            .select('id')
-            .ilike('title', book?.t || '')
-            .ilike('author', book?.a || '')
-            .maybeSingle();
-          
-          if (workMatch) {
-            workId = workMatch.id;
+          if (legacyRef?.work_id) {
+            workId = legacyRef.work_id;
           } else {
-            const { data: newWork } = await supabase
+            const { data: workMatch } = await supabase
               .from('works')
-              .insert({ title: book?.t, author: book?.a })
-              .select().single();
-            workId = newWork.id;
+              .select('id')
+              .ilike('title', legacyRef?.title || '')
+              .ilike('author', legacyRef?.author || '')
+              .maybeSingle();
+            
+            if (workMatch) {
+              workId = workMatch.id;
+            } else {
+              const { data: newWork } = await supabase
+                .from('works')
+                .insert({ title: legacyRef?.title, author: legacyRef?.author })
+                .select().single();
+              workId = newWork.id;
+            }
+            // Update legacy record with the found/created work_id
+            await supabase.from('books').update({ work_id: workId }).eq('id', id);
           }
 
-          const { data: newEd } = await supabase.from('editions').insert({
-            work_id: workId,
-            publisher: book?.publisher || 'Unknown Publisher',
-            format: 'Hardcover'
-          }).select().single();
-          editionId = newEd.id;
+          // Create a Generic Edition for this work if one doesn't exist
+          const { data: existingGeneric } = await supabase.from('editions').select('id').eq('work_id', workId).eq('format', 'Hardcover').maybeSingle();
+          if (existingGeneric) {
+            editionId = existingGeneric.id;
+          } else {
+            const { data: newEd } = await supabase.from('editions').insert({
+              work_id: workId,
+              publisher: legacyRef?.publisher || 'Unknown Publisher',
+              format: 'Hardcover'
+            }).select().single();
+            editionId = newEd.id;
+          }
         }
 
         // 3. AUTO-SAGA SCOUT: When ticking a book, discover its saga

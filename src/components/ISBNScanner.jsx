@@ -253,6 +253,13 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
       if (saveErr) throw saveErr;
 
+      // 4.5. CHECKLIST HANDSHAKE: Sync with legacy 'books' checklist
+      console.log("[Scanner Sync] Checking for checklist items to fulfill...");
+      await supabase.from('books')
+        .update({ work_id: workId }) // Ensure link exists
+        .ilike('title', bookData.title)
+        .ilike('author', bookData.author);
+
       // 5. AUTO-SAGA: Map to series if detected
       if (bookData.series) {
         console.log("[Saga Auto] Processing Series:", bookData.series.name);
