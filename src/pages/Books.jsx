@@ -277,7 +277,7 @@ export default function Books() {
           </div>
         )}
 
-        <div className="books-content" style={{ height: 'calc(100vh - 400px)', minHeight: '600px' }}>
+        <div className="books-content">
           {loading ? (
             <div className="books-loading">
               <div className="books-loading__spinner" />
@@ -293,13 +293,14 @@ export default function Books() {
               totalCount={filteredBooks.length}
               components={{ List: GridList, Item: GridItem }}
               itemContent={(index, book) => RowContent(index, book)}
-              initialItemCount={12}
-              overscan={200}
+              useWindowScroll
+              overscan={400}
             />
           ) : (
             <Virtuoso
               data={filteredBooks}
               totalCount={filteredBooks.length}
+              useWindowScroll
               itemContent={(index, book) => (
                 <div style={{ marginBottom: 'var(--space-4)' }}>
                   {RowContent(index, book)}
