@@ -390,6 +390,33 @@
   color: var(--accent-primary);
 }
 
+.saga-roadmap-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.saga-add-to-checklist-btn {
+  background: rgba(200, 168, 75, 0.05);
+  border: 1px solid rgba(200, 168, 75, 0.3);
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.saga-add-to-checklist-btn:hover {
+  background: var(--accent-primary);
+  color: #12100e;
+  border-color: var(--accent-primary);
+}
+
 /* ── States ─────────────────────────────────────────────── */
 .book-detail-loading,
 .book-detail-error {

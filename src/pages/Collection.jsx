@@ -251,7 +251,39 @@ export default function Collection() {
           editionId = newEd.id;
         }
 
-        // Use UPSERT to avoid duplicate key errors
+        // 3. AUTO-SAGA SCOUT: When ticking a book, discover its saga
+        console.log("[Checklist Scout] Scanning for saga info...");
+        try {
+          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(book?.t || '')}&author=${encodeURIComponent(book?.a || '')}`);
+          const searchData = await searchRes.json();
+          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(book?.t?.toLowerCase()));
+
+          if (firstDoc?.series_name?.[0]) {
+            const seriesName = firstDoc.series_name[0];
+            const sequence = parseInt(firstDoc.series_position?.[0] || 1);
+            
+            console.log(`  > Found Saga: ${seriesName} (Vol ${sequence})`);
+
+            let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
+            let sId;
+            if (existingS) {
+              sId = existingS.id;
+            } else {
+              const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
+              sId = newS.id;
+            }
+
+            await supabase.from('series_works').upsert({
+              series_id: sId,
+              work_id: workId,
+              sequence_order: sequence
+            }, { onConflict: 'series_id, work_id' });
+            console.log("  > Saga mapped successfully.");
+          }
+        } catch (sErr) {
+          console.error("Saga Scout failed:", sErr);
+        }
+
         await supabase.from('user_books').upsert({ 
           user_id: user.id, 
           book_id: id,
