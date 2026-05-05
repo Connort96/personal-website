@@ -49,8 +49,7 @@ export default function CollectionCard({
           style={{
             backgroundColor: coverColor || '#2a2a3a',
             backgroundImage: coverUrl ? `url(${coverUrl})` : 'none',
-            backgroundSize: 'contain',
-            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
             backgroundPosition: 'center'
           }}
         >
@@ -103,8 +102,7 @@ export default function CollectionCard({
         style={{
           backgroundColor: coverColor || '#2a2a3a',
           backgroundImage: coverUrl ? `url(${coverUrl})` : 'none',
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       >
