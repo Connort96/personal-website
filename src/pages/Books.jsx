@@ -78,7 +78,11 @@ export default function Books() {
             .from('user_books')
             .select(`
               user_id, book_id, edition_id, status, rating, review, current_page, owned_at,
-              editions ( id, work_id, cover_url, genre_id, genre_name, color, publisher, page_count, isbn, publication_date, translator, works ( id, title, author ) ),
+              editions ( 
+                id, work_id, cover_url, genre_id, genre_name, color, publisher, 
+                page_count, isbn, publication_date, translator, format,
+                works ( id, title, author ) 
+              ),
               books ( id, title, author, genre_name, color, cover_url, publisher, page_count, isbn, publication_date, translator )
             `)
             .eq('user_id', adminId)
@@ -90,40 +94,78 @@ export default function Books() {
           from += pageSize;
         }
 
-        const mapped = allRows.map(row => {
+        // 1. Group all user_books by Work ID
+        const workGroups = new Map();
+        const tags = new Set();
+
+        allRows.forEach(row => {
           const edition = row.editions;
           const work = edition?.works;
           const legacy = row.books;
+          const workId = work?.id || legacy?.id || row.book_id;
+
+          if (edition?.genre_name) tags.add(edition.genre_name);
+          else if (legacy?.genre_name) tags.add(legacy.genre_name);
+
+          if (!workGroups.has(workId)) {
+            workGroups.set(workId, {
+              id: workId,
+              title: work?.title || legacy?.title || '(Unknown)',
+              author: work?.author || legacy?.author || '',
+              tag: edition?.genre_name || legacy?.genre_name || 'Uncategorized',
+              status: row.status || 'unread',
+              rating: row.rating || 0,
+              review: row.review || '',
+              owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
+              editions: []
+            });
+          }
+
+          const group = workGroups.get(workId);
+          if (edition) {
+            group.editions.push({
+              ...edition,
+              status: row.status,
+              owned_at: row.owned_at
+            });
+          } else if (legacy) {
+            // Legacy fallback
+            group.editions.push({
+              ...legacy,
+              format: 'Hardcover',
+              status: row.status,
+              owned_at: row.owned_at
+            });
+          }
+        });
+
+        // 2. Final mapping: Choose primary cover and aggregate formats
+        const mapped = Array.from(workGroups.values()).map(work => {
+          // Sort editions by priority: Hardcover > Paperback > Audiobook > Digital
+          const priority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
+          const sortedEditions = [...work.editions].sort((a, b) => {
+            return (priority[a.format] || 5) - (priority[b.format] || 5);
+          });
+
+          const primary = sortedEditions[0] || {};
+          const formats = Array.from(new Set(work.editions.map(e => e.format).filter(Boolean)));
+
           return {
-            id: work?.id || legacy?.id || row.book_id,
-            bookId: row.book_id,
-            title: work?.title || legacy?.title || '(Unknown)',
-            author: work?.author || legacy?.author || '',
-            tag: edition?.genre_name || legacy?.genre_name || 'Uncategorized',
-            coverColor: edition?.color || legacy?.color,
-            coverUrl: edition?.cover_url || legacy?.cover_url,
-            status: row.status || 'unread',
-            rating: row.rating || 0,
-            review: row.review || '',
-            owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
-            editions: edition ? [edition] : [],
+            ...work,
+            coverUrl: primary.cover_url,
+            coverColor: primary.color,
+            formats: formats,
+            primaryFormat: primary.format,
+            pageCount: primary.page_count,
+            publisher: primary.publisher,
+            isbn: primary.isbn,
+            publicationDate: primary.publication_date,
+            translator: primary.translator
           };
         });
 
-        const workMap = new Map();
-        const tags = new Set();
-        for (const book of mapped) {
-          if (book.tag) tags.add(book.tag);
-          if (workMap.has(book.id)) {
-            const existing = workMap.get(book.id);
-            existing.editions = [...(existing.editions || []), ...(book.editions || [])];
-          } else {
-            workMap.set(book.id, { ...book });
-          }
-        }
-
         setAllTags(Array.from(tags).sort());
-        setAllBooks(Array.from(workMap.values()));
+        setAllBooks(mapped);
       } catch (err) {
         console.error('Error loading library:', err);
         setError(err.message);

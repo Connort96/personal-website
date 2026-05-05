@@ -71,8 +71,12 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
 
   const handleSave = async () => {
     setSaving(true);
+    // The user wants reviews tied to the WORK. 
+    // We will update the current edition's user_book record, 
+    // and potentially others if the logic requires syncing.
+    // For now, we update the primary record passed from Books.jsx.
     await onSave(
-      book.bookId, // Use bookId for user_books table
+      book.id, // work_id
       { 
         status, 
         rating: rating || null, 
@@ -110,51 +114,22 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
             <p className="slideover-author">by {book.author}</p>
             {book.translator && <p className="slideover-translator">Translated by {book.translator}</p>}
             {book.genre && <span className="slideover-genre">{book.genre}</span>}
-            <span
-              className="slideover-status-pill"
-              style={{ backgroundColor: statusColors[book.status] + '22', color: statusColors[book.status] }}
-            >
-              {statusLabels[book.status] || 'Unread'}
-            </span>
+            <div className="slideover-format-pills">
+              {book.formats?.map(f => (
+                <span key={f} className="slideover-format-pill">{f}</span>
+              ))}
+            </div>
           </div>
         </div>
-
-        {/* Edition Details (public) */}
-        {(book.publisher || book.pageCount || book.isbn || book.publicationDate) && (
-          <div className="slideover-edition-details">
-            {book.publisher && <span>{book.publisher}</span>}
-            {book.publicationDate && <span>{new Date(book.publicationDate).getFullYear()}</span>}
-            {book.pageCount && <span>{book.pageCount} pages</span>}
-            {book.isbn && <span className="slideover-isbn">{book.isbn}</span>}
-          </div>
-        )}
       </div>
 
       <div className="slideover-body">
-        {/* Public review display (non-admin) */}
-        {!isAdmin && (
-          <>
-            {book.rating > 0 && (
-              <div className="slideover-section">
-                <h3 className="slideover-section-label">Rating</h3>
-                <div className="slideover-stars-display">
-                  {'★'.repeat(book.rating)}{'☆'.repeat(5 - book.rating)}
-                </div>
-              </div>
-            )}
-            {book.review && (
-              <div className="slideover-section">
-                <h3 className="slideover-section-label">Review</h3>
-                <p className="slideover-review-text">{book.review}</p>
-              </div>
-            )}
-            {!book.review && !book.rating && (
-              <p className="slideover-empty">No review written yet.</p>
-            )}
-          </>
-        )}
+        {/* Admin/User sync info */}
+        <div className="slideover-sync-badge">
+          Journaling and reviews apply to all {editions.length} editions of this work.
+        </div>
 
-        {/* Admin edit form */}
+        {/* Status & Progress */}
         {isAdmin && (
           <div className="slideover-section">
             <h3 className="slideover-section-label">Reading Status</h3>
@@ -163,9 +138,9 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
               value={status}
               onChange={e => setStatus(e.target.value)}
             >
-              <option value="unread">Unread (Owned)</option>
-              <option value="reading">Currently Reading</option>
-              <option value="read">Finished Reading</option>
+              {Object.entries(statusLabels).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
             </select>
             
             {status === 'reading' && (
@@ -187,72 +162,90 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
 
-            <h3 className="slideover-section-label" style={{ marginTop: 'var(--space-5)' }}>Rating</h3>
-            <div className="slideover-star-input">
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  type="button"
-                  className={`slideover-star ${star <= (hoverRating || rating) ? 'active' : ''}`}
-                  onClick={() => setRating(star === rating ? 0 : star)}
-                  onMouseEnter={() => setHoverRating(star)}
-                  onMouseLeave={() => setHoverRating(0)}
-                >
-                  ★
-                </button>
-              ))}
+        {/* Rating & Review */}
+        <div className="slideover-section">
+          <h3 className="slideover-section-label">The Archive Reflection</h3>
+          {isAdmin ? (
+            <>
+              <div className="slideover-star-input">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    type="button"
+                    className={`slideover-star ${star <= (hoverRating || rating) ? 'active' : ''}`}
+                    onClick={() => setRating(star === rating ? 0 : star)}
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="slideover-textarea"
+                rows={5}
+                value={review}
+                onChange={e => setReview(e.target.value)}
+                placeholder="Write your thoughts on this story..."
+              />
+            </>
+          ) : (
+            <div className="slideover-public-review">
+              <div className="slideover-stars-display">
+                {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+              </div>
+              <p className="slideover-review-text">{review || "No reflection logged yet."}</p>
             </div>
+          )}
+        </div>
 
-            <h3 className="slideover-section-label" style={{ marginTop: 'var(--space-5)' }}>Review</h3>
-            <textarea
-              className="slideover-textarea"
-              rows={5}
-              value={review}
-              onChange={e => setReview(e.target.value)}
-              placeholder="Write your thoughts on this book..."
-            />
+        {/* Editions in Archive */}
+        <div className="slideover-section">
+          <h3 className="slideover-section-label">Editions in Archive</h3>
+          <div className="slideover-editions-list">
+            {editions.map((ed, i) => (
+              <div key={ed.id || i} className="slideover-edition-item">
+                <div className="slideover-edition-art">
+                  {ed.cover_url ? (
+                    <img src={ed.cover_url} alt={ed.format} />
+                  ) : (
+                    <div className="slideover-edition-placeholder" style={{ backgroundColor: ed.color || 'var(--bg-tertiary)' }}>
+                      {ed.format?.[0] || 'E'}
+                    </div>
+                  )}
+                </div>
+                <div className="slideover-edition-info">
+                  <span className="slideover-edition-format">{ed.format}</span>
+                  <span className="slideover-edition-publisher">{ed.publisher || 'Unknown Publisher'}</span>
+                  {ed.isbn && <span className="slideover-edition-isbn">ISBN: {ed.isbn}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-            <h3 className="slideover-section-label" style={{ marginTop: 'var(--space-5)' }}>Cover Image URL</h3>
+        {/* Cover Control */}
+        {isAdmin && (
+          <div className="slideover-section">
+            <h3 className="slideover-section-label">Display Cover URL</h3>
             <input
               type="url"
               className="slideover-input"
               value={coverUrl}
               onChange={e => setCoverUrl(e.target.value)}
-              placeholder="https://..."
+              placeholder="Primary cover URL for the library grid..."
             />
-            {coverUrl && (
-              <img src={coverUrl} alt="Preview" style={{ height: 80, marginTop: 'var(--space-2)', borderRadius: 'var(--radius-sm)' }} />
-            )}
           </div>
         )}
 
-        {/* Editions owned (if multiple) */}
-        {editions.length > 1 && (
-          <div className="slideover-section">
-            <h3 className="slideover-section-label">Editions Owned ({editions.length})</h3>
-            <div className="slideover-editions-row">
-              {editions.map((ed, i) => (
-                <div key={ed.id || i} className="slideover-edition-thumb">
-                  {ed.cover_url ? (
-                    <img src={ed.cover_url} alt={`Edition ${i + 1}`} />
-                  ) : (
-                    <div className="slideover-edition-placeholder" style={{ backgroundColor: ed.color || 'var(--bg-tertiary)' }}>
-                      {i + 1}
-                    </div>
-                  )}
-                  {ed.publisher && <small>{ed.publisher}</small>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Save button (admin only) */}
+        {/* Actions */}
         {isAdmin && (
           <div className="slideover-actions">
             <button className="slideover-btn-save" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Syncing to Archive...' : 'Sync Review'}
             </button>
           </div>
         )}
