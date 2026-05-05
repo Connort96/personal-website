@@ -201,12 +201,13 @@
 }
 
 .collection-card__cover--list {
-  width: 80px;
+  width: 84px; /* Slightly wider for better presence */
   height: 112px;
   aspect-ratio: unset;
   flex-shrink: 0;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  border-radius: 0; /* Flush left */
+  box-shadow: 1px 0 8px rgba(0,0,0,0.1);
+  padding: 0;
 }
 
 .collection-card__list-info {
