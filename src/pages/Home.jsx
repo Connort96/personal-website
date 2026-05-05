@@ -63,7 +63,7 @@ export default function Home() {
 
           if (additionsData) {
             setRecentAdditions(additionsData.map(item => ({
-              id: item.book_id,
+              id: item.editions?.work_id || item.book_id,
               cover_url: item.editions?.cover_url || item.books?.cover_url,
               title: item.editions?.works?.title || item.books?.title
             })));
@@ -166,7 +166,7 @@ export default function Home() {
                 transition={{ delay: i * 0.05 }}
                 whileHover={{ y: -10, transition: { duration: 0.2 } }}
               >
-                <Link to="/books">
+                <Link to={`/book/${book.id}`}>
                   {book.cover_url ? (
                     <img src={book.cover_url} alt={book.title} className="shelf-item__cover" />
                   ) : (
