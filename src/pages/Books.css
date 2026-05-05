@@ -139,14 +139,6 @@
   margin-top: var(--space-4);
 }
 
-/* Virtuoso Grid Override */
-.virtuoso-grid-list {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-  gap: var(--space-8) !important;
-  padding-bottom: var(--space-20) !important;
-}
-
 /* ── Loading ────────────────────────────────────────────── */
 .books-loading {
   display: flex;

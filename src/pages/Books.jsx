@@ -24,8 +24,18 @@ const STATUS_EMOJIS = {
 };
 
 // Virtualized Grid Components
-const GridList = ({ className, children, ...props }) => (
-  <div className={className} {...props} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-8)' }}>
+const GridList = ({ className, children, style, ...props }) => (
+  <div 
+    className={className} 
+    {...props} 
+    style={{ 
+      ...style, 
+      display: 'grid', 
+      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+      gap: 'var(--space-8)',
+      paddingBottom: 'var(--space-20)'
+    }}
+  >
     {children}
   </div>
 );
@@ -296,7 +306,7 @@ export default function Books() {
               components={{ List: GridList, Item: GridItem }}
               itemContent={(index, book) => RowContent(index, book)}
               useWindowScroll
-              overscan={400}
+              overscan={800}
             />
           ) : (
             <Virtuoso
