@@ -173,7 +173,6 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         edition_id: newEdition.id,
         book_id: legacyBook.id,
         status: 'unread',
-        is_wishlist: false,
         owned_at: new Date().toISOString()
       });
 
