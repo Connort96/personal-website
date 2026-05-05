@@ -141,14 +141,27 @@ export default function Books() {
 
         // 2. Final mapping: Choose primary cover and aggregate formats
         const mapped = Array.from(workGroups.values()).map(work => {
-          // Sort editions by priority: Hardcover > Paperback > Audiobook > Digital
-          const priority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
+          // Priority 1: Has a cover
+          // Priority 2: Format (Hardcover > Paperback > Audiobook > Digital)
+          const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
+          
           const sortedEditions = [...work.editions].sort((a, b) => {
-            return (priority[a.format] || 5) - (priority[b.format] || 5);
+            // First, prioritize those with covers
+            const aHasCover = !!a.cover_url;
+            const bHasCover = !!b.cover_url;
+            if (aHasCover !== bHasCover) return aHasCover ? -1 : 1;
+
+            // Second, apply format priority
+            const aPrio = formatPriority[a.format] || 5;
+            const bPrio = formatPriority[b.format] || 5;
+            return aPrio - bPrio;
           });
 
           const primary = sortedEditions[0] || {};
           const formats = Array.from(new Set(work.editions.map(e => e.format).filter(Boolean)));
+          
+          // Get the most recent acquisition date for sorting
+          const latestOwnedAt = Math.max(...work.editions.map(e => e.owned_at ? new Date(e.owned_at).getTime() : 0));
 
           return {
             ...work,
@@ -160,7 +173,8 @@ export default function Books() {
             publisher: primary.publisher,
             isbn: primary.isbn,
             publicationDate: primary.publication_date,
-            translator: primary.translator
+            translator: primary.translator,
+            owned_at: latestOwnedAt || work.owned_at
           };
         });
 
