@@ -42,7 +42,7 @@ export default function BookDetail() {
       let numericId = parseInt(id);
 
       const { data: directWork } = await supabase.from('works').select('*').eq('id', numericId).maybeSingle();
-      
+
       if (directWork) {
         workData = directWork;
       } else {
@@ -68,7 +68,7 @@ export default function BookDetail() {
       // 2. Fetch User Archive & Editions for this Work
       // Fallback to admin ID for public viewing
       const viewerId = user?.id || 'd01d61f6-334c-4d90-8bce-4b691eebf514';
-      
+
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
         .select(`
@@ -76,7 +76,7 @@ export default function BookDetail() {
           editions (*)
         `)
         .eq('user_id', viewerId);
-      
+
       if (ubErr) throw ubErr;
 
       const ownedEditions = userBooksData
@@ -93,11 +93,11 @@ export default function BookDetail() {
 
       if (ownedEditions.length === 0) {
         const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
-        setWork({ 
-          ...workData, 
-          editions: allEditions || [], 
+        setWork({
+          ...workData,
+          editions: allEditions || [],
           primaryEdition: allEditions?.[0] || {},
-          status: 'unread' 
+          status: 'unread'
         });
         return;
       }
@@ -113,9 +113,51 @@ export default function BookDetail() {
       const bestReview = ownedEditions.find(e => e.review)?.review || '';
       const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
       const allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
-      
+
       const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
-      const mainProgress = sortedEditions[0]; 
+      const mainProgress = sortedEditions[0];
+
+      // 3. Fetch Series Info
+      const { data: seriesLink } = await supabase
+        .from('series_works')
+        .select(`
+          sequence_order,
+          series (
+            id,
+            name,
+            description
+          )
+        `)
+        .eq('work_id', numericId)
+        .maybeSingle();
+
+      let sagaInfo = null;
+      if (seriesLink && seriesLink.series) {
+        // Fetch sibling works in the same series
+        const { data: siblingWorks } = await supabase
+          .from('series_works')
+          .select(`
+            sequence_order,
+            work_id,
+            works (
+              id,
+              title,
+              author
+            )
+          `)
+          .eq('series_id', seriesLink.series.id)
+          .order('sequence_order', { ascending: true });
+
+        // Find Next/Previous
+        const currentIndex = siblingWorks.findIndex(sw => sw.work_id === numericId);
+        sagaInfo = {
+          ...seriesLink.series,
+          sequence: seriesLink.sequence_order,
+          siblings: siblingWorks,
+          previous: siblingWorks[currentIndex - 1],
+          next: siblingWorks[currentIndex + 1]
+        };
+      }
 
       setWork({
         ...workData,
@@ -128,7 +170,8 @@ export default function BookDetail() {
         currentPage: mainProgress.current_page || 0,
         status: mainProgress.status || 'unread',
         pageCount: primaryEdition?.page_count || 0,
-        coverUrl: primaryEdition?.cover_image_url || primaryEdition?.cover_url || ''
+        coverUrl: primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
+        saga: sagaInfo
       });
     } catch (err) {
       console.error('Error loading book detail:', err);
@@ -153,12 +196,12 @@ export default function BookDetail() {
           .eq('user_id', user.id)
           .in('edition_id', editionIds);
       }
-      
+
       // 2. Update global cover if provided
       if (globalCoverUrl !== undefined && globalCoverUrl !== null) {
         await supabase.from('editions').update({ cover_image_url: globalCoverUrl }).eq('work_id', workId);
       }
-      
+
       // 3. Process individual edition updates with legacy mirroring
       for (const [id, edits] of Object.entries(editionUpdates)) {
         const { data: currentEd } = await supabase.from('editions').select('*').eq('id', id).single();
@@ -176,7 +219,7 @@ export default function BookDetail() {
             isbn: edits.isbn || currentEd.isbn,
             page_count: edits.page_count || currentEd.page_count
           };
-          
+
           await supabase.from('books').update(legacyUpdates).eq('isbn', searchIsbn);
         } else {
           // Fallback to title/author sync if no ISBN
@@ -186,7 +229,7 @@ export default function BookDetail() {
             .ilike('author', work.author);
         }
       }
-      
+
       await loadBookData();
     } catch (err) {
       console.error('Failed to save archive updates:', err);
@@ -213,7 +256,7 @@ export default function BookDetail() {
         <div className="book-detail-nav-row">
           <Link to="/books" className="book-detail-back">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Back to Library
           </Link>
@@ -228,13 +271,13 @@ export default function BookDetail() {
         <div className="book-detail-grid">
           <div className="book-detail-art-column">
             <div className="sticky-art-wrapper">
-              <motion.div 
+              <motion.div
                 className="book-detail-primary-cover"
                 initial={{ opacity: 0, scale: 0.95, rotateY: -10 }}
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               >
-                { work.coverUrl ? (
+                {work.coverUrl ? (
                   <img src={work.coverUrl} alt={work.title} />
                 ) : (
                   <div className="cover-placeholder" style={{ backgroundColor: work.primaryEdition?.color || 'var(--bg-tertiary)' }}>
@@ -249,8 +292,13 @@ export default function BookDetail() {
           <div className="book-detail-content-column">
             <header className="book-detail-header">
               <h1 className="book-detail-title">{work.title}</h1>
+              {work.saga && (
+                <div className="book-detail-saga-badge">
+                  {work.saga.name} • Vol {work.saga.sequence}
+                </div>
+              )}
               <p className="book-detail-author">by {work.author}</p>
-              
+
               <div className="book-detail-meta">
                 <div className="book-detail-stars">
                   {'★'.repeat(work.rating)}{'☆'.repeat(5 - work.rating)}
@@ -280,6 +328,38 @@ export default function BookDetail() {
                   <p className="no-review">No reflection has been logged for this work yet.</p>
                 )}
               </div>
+            
+            {work.saga && (
+              <section className="book-detail-saga-nav">
+                <h3 className="saga-nav-title">The Saga</h3>
+                <div className="saga-nav-grid">
+                  {work.saga.previous && (
+                    <Link to={`/book/${work.saga.previous.work_id}`} className="saga-nav-card saga-nav-card--prev">
+                      <div className="saga-nav-hint">← Previous</div>
+                      <div className="saga-nav-item-title">{work.saga.previous.works.title}</div>
+                    </Link>
+                  )}
+                  {work.saga.next && (
+                    <Link to={`/book/${work.saga.next.work_id}`} className="saga-nav-card saga-nav-card--next">
+                      <div className="saga-nav-hint">Next →</div>
+                      <div className="saga-nav-item-title">{work.saga.next.works.title}</div>
+                    </Link>
+                  )}
+                </div>
+                <div className="saga-progress-track">
+                   <div className="saga-progress-label">Series Completion</div>
+                   <div className="saga-progress-bar">
+                     {work.saga.siblings.map((s, i) => (
+                       <div 
+                         key={s.work_id} 
+                         className={`saga-progress-dot \${s.work_id === work.id ? 'active' : ''}`}
+                         title={s.works.title}
+                       />
+                     ))}
+                   </div>
+                </div>
+              </section>
+            )}
             </div>
 
             <section className="book-detail-holdings">
