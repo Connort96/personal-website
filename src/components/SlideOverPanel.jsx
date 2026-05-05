@@ -73,10 +73,16 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setEditionEdits({});
   }, [book]);
 
+  const [fetchingArt, setFetchingArt] = useState(null); // ID of edition being fetched
+
   const fetchISBNImage = async (editionId, isbn) => {
     if (!isbn) return;
-    const cleanIsbn = isbn.replace(/[^0-9X]/gi, '');
+    const cleanIsbn = isbn.replace(/[^0-9X]/gi, '').trim();
+    if (!cleanIsbn) return;
     
+    setFetchingArt(editionId);
+    console.log(`[Art Hunt] Searching for ISBN: ${cleanIsbn}...`);
+
     try {
       // Parallel hunt for better covers
       const [olRes, gbRes] = await Promise.all([
@@ -90,18 +96,26 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
       const olInfo = olData[`ISBN:${cleanIsbn}`];
       const gbInfo = gbData.items?.[0]?.volumeInfo;
 
+      console.log(`[Art Hunt] OL Found: ${!!olInfo}, GB Found: ${!!gbInfo}`);
+
       const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
       const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
       
       const bestCover = (gbCover || olCover || '').replace('http://', 'https://');
       
       if (bestCover) {
+        console.log(`[Art Hunt] Success! Found cover: ${bestCover}`);
         handleEditionChange(editionId, 'cover_image_url', bestCover);
-        // Also update the other possible column name for safety
         handleEditionChange(editionId, 'cover_url', bestCover);
+      } else {
+        console.warn(`[Art Hunt] No artwork found for ISBN: ${cleanIsbn}`);
+        alert("No artwork found in the archives for this ISBN.");
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error("[Art Hunt] Fetch error:", err);
+      alert("Failed to reach the book archives. Please check your connection.");
+    } finally {
+      setFetchingArt(null);
     }
   };
 
@@ -274,10 +288,11 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
                               onChange={e => handleEditionChange(ed.id, 'isbn', e.target.value)}
                             />
                             <button 
-                              className="isbn-fetch-btn"
+                              className={`isbn-fetch-btn ${fetchingArt === ed.id ? 'active' : ''}`}
                               onClick={() => fetchISBNImage(ed.id, edits.isbn || ed.isbn)}
+                              disabled={fetchingArt === ed.id}
                             >
-                              Fetch Art
+                              {fetchingArt === ed.id ? 'Searching...' : 'Fetch Art'}
                             </button>
                           </div>
                         </div>
