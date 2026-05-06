@@ -245,6 +245,7 @@ export default function Collection() {
         }
 
         if (!editionId) {
+          if (!workId) {
             const { data: workMatch } = await supabase
               .from('works')
               .select('id')
@@ -261,8 +262,6 @@ export default function Collection() {
                 .select().single();
               workId = newWork.id;
             }
-            // Update legacy record with the found/created work_id
-            await supabase.from('books').update({ work_id: workId }).eq('id', id);
           }
 
           // Create a Generic Edition for this work if one doesn't exist
@@ -296,101 +295,58 @@ export default function Collection() {
         // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
         console.log(`[Checklist Scout] Scanning for "${bookTitle}" metadata...`);
         try {
-          // Use specific title/author query for precision
           const searchRes = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent('"' + bookTitle + '"')}+author:${encodeURIComponent('"' + bookAuthor + '"')}&limit=1`);
           const searchData = await searchRes.json();
           const firstDoc = searchData.docs?.[0];
 
           if (firstDoc) {
-            // Title & Author Guardian: Reject if metadata is radically different
             const resultTitle = firstDoc.title.toLowerCase();
             const resultAuthor = (firstDoc.author_name?.[0] || '').toLowerCase();
             const targetTitle = bookTitle.toLowerCase();
             const targetAuthor = bookAuthor.toLowerCase();
             
-            console.log(`[Saga Scout] Verifying: "${firstDoc.title}" by "${firstDoc.author_name?.[0]}"`);
-
             const isTitleMatch = resultTitle.includes(targetTitle) || targetTitle.includes(resultTitle);
             const isAuthorMatch = resultAuthor.includes(targetAuthor) || targetAuthor.includes(resultAuthor);
 
-            if (!isTitleMatch || !isAuthorMatch) {
-              console.warn(`[Saga Scout] Metadata mismatch! Target: "${bookTitle}" by "${bookAuthor}". Got: "${firstDoc.title}" by "${firstDoc.author_name?.[0]}". Aborting.`);
-              throw new Error("Metadata mismatch");
-            }
+            if (isTitleMatch && isAuthorMatch) {
+              if (firstDoc.series_name?.[0]) {
+                const seriesName = firstDoc.series_name[0];
+                const sequence = parseInt(firstDoc.series_position?.[0] || 1);
+                
+                let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
+                let sId;
+                if (existingS) sId = existingS.id;
+                else {
+                  const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
+                  sId = newS.id;
+                }
 
-            // Note: 'works' table does not have a description column. 
-            // Descriptions are sourced dynamically or stored in a separate table if needed.
+                await supabase.from('series_works').upsert({
+                  series_id: sId,
+                  work_id: workId,
+                  sequence_order: sequence
+                }, { onConflict: 'series_id, work_id' });
+              }
 
-            if (firstDoc.series_name?.[0]) {
-              const seriesName = firstDoc.series_name[0];
-              const sequence = parseInt(firstDoc.series_position?.[0] || 1);
+              const updates = {};
+              if (firstDoc.number_of_pages_median) updates.page_count = firstDoc.number_of_pages_median;
+              if (firstDoc.publisher?.[0]) updates.publisher = firstDoc.publisher[0];
+              const bestIsbn = firstDoc.isbn?.find(i => i.length === 13) || firstDoc.isbn?.[0];
+              if (bestIsbn) updates.isbn = bestIsbn;
+              if (firstDoc.first_publish_year) updates.publication_date = `${firstDoc.first_publish_year}-01-01`;
+              if (firstDoc.cover_i) {
+                const olCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
+                updates.cover_image_url = olCover;
+                updates.cover_url = olCover;
+              }
               
-              console.log(`  > Found Saga: ${seriesName} (Vol ${sequence})`);
-
-              let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
-              let sId;
-              if (existingS) {
-                sId = existingS.id;
-              } else {
-                const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
-                sId = newS.id;
+              if (Object.keys(updates).length > 0) {
+                await supabase.from('editions').update(updates).eq('id', editionId);
               }
-
-              // SEQUENCE PROTECTION: Check if this sequence already has a work mapped
-              const { data: existingSeqWork } = await supabase
-                .from('series_works')
-                .select('work_id')
-                .eq('series_id', sId)
-                .eq('sequence_order', sequence)
-                .maybeSingle();
-
-              if (existingSeqWork && existingSeqWork.work_id !== workId) {
-                console.log(`  > Sequence Vol ${sequence} already has work ${existingSeqWork.work_id}. Merging/Linking...`);
-                // If we found a different work ID at this sequence, we should link our legacy book to THAT work instead
-                workId = existingSeqWork.work_id;
-                await supabase.from('books').update({ work_id: workId }).eq('id', id);
-                await supabase.from('editions').update({ work_id: workId }).eq('id', editionId);
-              }
-
-              await supabase.from('series_works').upsert({
-                series_id: sId,
-                work_id: workId,
-                sequence_order: sequence
-              }, { onConflict: 'series_id, work_id' });
-              console.log("  > Saga mapped successfully.");
-            }
-
-            // Update Edition with more info (Pages, Publisher, ISBN, Cover)
-            const updates = {};
-            if (firstDoc.number_of_pages_median) updates.page_count = firstDoc.number_of_pages_median;
-            if (firstDoc.publisher?.[0]) updates.publisher = firstDoc.publisher[0];
-            
-            // Extract the best ISBN-13 or ISBN-10
-            const bestIsbn = firstDoc.isbn?.find(i => i.length === 13) || firstDoc.isbn?.[0];
-            if (bestIsbn) updates.isbn = bestIsbn;
-            
-            if (firstDoc.first_publish_year) {
-              updates.publication_date = `${firstDoc.first_publish_year}-01-01`;
-            }
-
-            // Sync cover art if we have a valid cover ID
-            if (firstDoc.cover_i) {
-              const olCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
-              updates.cover_image_url = olCover;
-              updates.cover_url = olCover;
-            }
-            
-            if (Object.keys(updates).length > 0) {
-              console.log(`  > Syncing archival metadata:`, updates);
-              await supabase.from('editions').update(updates).eq('id', editionId);
             }
           }
         } catch (sErr) {
-          console.error("[Saga Scout] FAILED for " + bookTitle + ":", sErr);
-          // Show alert only if it's a critical error, otherwise log it
-          if (sErr.message === "Metadata mismatch") {
-            console.warn(`[Saga Scout] Shield active: Rejected incorrect metadata for ${bookTitle}`);
-          }
+          console.error("[Saga Scout] Metadata scout failed:", sErr);
         }
 
         await supabase.from('user_books').upsert({ 
@@ -407,18 +363,11 @@ export default function Collection() {
           return next;
         });
       } else {
-        await supabase.from('user_books')
-          .delete()
-          .match({ user_id: user.id, book_id: id });
-          
-        // Cleanup by edition_id too just in case
-        await supabase.from('user_books')
-          .delete()
-          .match({ user_id: user.id, edition_id: id });
+        await supabase.from('user_books').delete().match({ user_id: user.id, book_id: id });
+        await supabase.from('user_books').delete().match({ user_id: user.id, edition_id: id });
       }
     } catch (err) {
       console.error("Error syncing book:", err);
-      // Only rollback on delete failure to keep UI responsive
       if (!isAdding) {
         setOwnedBooks(prev => {
           const next = new Set(prev);
