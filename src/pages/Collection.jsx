@@ -42,6 +42,9 @@ export default function Collection() {
   const [ownedBooks, setOwnedBooks] = useState(new Set());
   const [openGenres, setOpenGenres] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
+  const [categorySort, setCategorySort] = useState('alphabetical'); // 'alphabetical' | 'count'
+  const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '' });
@@ -439,6 +442,7 @@ export default function Collection() {
       }
     });
   }, [libraryData, categorySort]);
+  
   const handleQuickAdd = async (e) => {
     e.preventDefault();
     if (!newBook.title || !newBook.author || !newBook.genre_id) return;
@@ -504,7 +508,8 @@ export default function Collection() {
       setAddStatus('error');
     }
   };
-const lowerSearch = searchQuery.toLowerCase();
+
+  const lowerSearch = searchQuery.toLowerCase();
 
   return (
     <div className="collection-page container container--narrow animate-fade-in">
@@ -512,7 +517,6 @@ const lowerSearch = searchQuery.toLowerCase();
         <h1 className="collection-title">Collection Checklist</h1>
         
         {isSyncing && <div className="collection-sync-badge">Syncing with scriptorium...</div>}
-        
       </div>
 
       {isAdmin && (
@@ -570,56 +574,56 @@ const lowerSearch = searchQuery.toLowerCase();
           )}
         </div>
       )}
-        <div className="collection-stats">
-          <div className="collection-stat-box">
-            <div className="collection-stat-val">{stats.owned}</div>
-            <div className="collection-stat-label">Owned</div>
+
+      <div className="collection-stats">
+        <div className="collection-stat-box">
+          <div className="collection-stat-val">{stats.owned}</div>
+          <div className="collection-stat-label">Owned</div>
+        </div>
+        <div className="collection-stat-box">
+          <div className="collection-stat-val">{stats.total}</div>
+          <div className="collection-stat-label">Total</div>
+        </div>
+        <div className="collection-stat-box collection-stat-box--pct">
+          <div className="collection-stat-flex">
+            <div className="collection-stat-val">{stats.pct}%</div>
+            <ProgressRing pct={stats.pct} size={22} stroke={2.5} />
           </div>
-          <div className="collection-stat-box">
-            <div className="collection-stat-val">{stats.total}</div>
-            <div className="collection-stat-label">Total</div>
-          </div>
-          <div className="collection-stat-box collection-stat-box--pct">
-            <div className="collection-stat-flex">
-              <div className="collection-stat-val">{stats.pct}%</div>
-              <ProgressRing pct={stats.pct} size={22} stroke={2.5} />
-            </div>
-            <div className="collection-stat-label">Complete</div>
-          </div>
+          <div className="collection-stat-label">Complete</div>
+        </div>
+      </div>
+
+      <input 
+        type="search" 
+        className="collection-search-bar" 
+        placeholder="Search the ledger..." 
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
+      
+      <div className="collection-controls-row">
+        <div className="collection-filters">
+          {['all', 'missing', 'owned'].map(f => (
+            <button 
+              key={f}
+              className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
+              onClick={() => setActiveFilter(f)}
+            >
+              {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
+            </button>
+          ))}
         </div>
 
-        <input 
-          type="search" 
-          className="collection-search-bar" 
-          placeholder="Search the ledger..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        
-        <div className="collection-controls-row">
-          <div className="collection-filters">
-            {['all', 'missing', 'owned'].map(f => (
-              <button 
-                key={f}
-                className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
-                onClick={() => setActiveFilter(f)}
-              >
-                {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
-              </button>
-            ))}
-          </div>
-
-          <div className="collection-sort-controls">
-            <span className="sort-label">Sort categories:</span>
-            <button 
-              className={`sort-btn ${categorySort === 'alphabetical' ? 'active' : ''}`}
-              onClick={() => setCategorySort('alphabetical')}
-            >A-Z</button>
-            <button 
-              className={`sort-btn ${categorySort === 'count' ? 'active' : ''}`}
-              onClick={() => setCategorySort('count')}
-            >Size</button>
-          </div>
+        <div className="collection-sort-controls">
+          <span className="sort-label">Sort categories:</span>
+          <button 
+            className={`sort-btn ${categorySort === 'alphabetical' ? 'active' : ''}`}
+            onClick={() => setCategorySort('alphabetical')}
+          >A-Z</button>
+          <button 
+            className={`sort-btn ${categorySort === 'count' ? 'active' : ''}`}
+            onClick={() => setCategorySort('count')}
+          >Size</button>
         </div>
       </div>
 
@@ -690,12 +694,6 @@ const lowerSearch = searchQuery.toLowerCase();
                         <div className="collection-book-title">{book.t}</div>
                       </Link>
                       <div className="collection-book-author">{book.a}</div>
-                      {book.editions?.[0] && (
-                        <div className="collection-book-meta">
-                          {book.editions[0].publisher && <span>{book.editions[0].publisher}</span>}
-                          {book.editions[0].page_count && <span>{book.editions[0].page_count} pp</span>}
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
