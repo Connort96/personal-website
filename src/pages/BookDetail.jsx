@@ -116,8 +116,22 @@ export default function BookDetail() {
 
       const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
       const mainProgress = sortedEditions[0];
+      
+      const primaryGenre = {
+        id: primaryEdition?.genre_id || 'modern_post2000',
+        name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
+      };
 
-      // 3. Fetch Series Info
+      setWork({
+        ...workData,
+        editions: sortedEditions,
+        primaryEdition,
+        primaryGenre,
+        status: mainProgress?.status || 'unread',
+        rating: bestRating,
+        review: bestReview,
+        genres: allGenres
+      });
       const { data: seriesLink } = await supabase
         .from('series_works')
         .select(`
@@ -384,11 +398,15 @@ export default function BookDetail() {
                                   console.log("[Checklist Add] Adding missing volume:", s.works.title);
                                   
                                   try {
+                                    const gId = work.primaryGenre?.id || 'modern_post2000';
+                                    const gName = work.primaryGenre?.name || 'Modern Fiction (Post-2000)';
+                                    
                                     const { error: insErr } = await supabase.from('books').insert({
                                       title: s.works.title,
                                       author: s.works.author,
                                       work_id: s.work_id,
-                                      genre_name: work.genres?.[0]?.genre_name || 'Uncategorized',
+                                      genre_id: gId,
+                                      genre_name: gName,
                                       color: '#1a1a1a',
                                       note: `Saga volume added from ${series?.name}`
                                     });
