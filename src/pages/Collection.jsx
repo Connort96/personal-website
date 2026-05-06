@@ -268,14 +268,23 @@ export default function Collection() {
           }
         }
 
-        // 3. AUTO-SAGA & METADATA SCOUT: Unconditional Discovery
-        console.log("[Checklist Scout] Scanning for saga and archival metadata...");
+        // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
+        console.log(`[Checklist Scout] Scanning for "${bookTitle}" metadata...`);
         try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookTitle)}&author=${encodeURIComponent(bookAuthor)}`);
+          // Use specific title/author query for precision
+          const searchRes = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent('"' + bookTitle + '"')}+author:${encodeURIComponent('"' + bookAuthor + '"')}&limit=1`);
           const searchData = await searchRes.json();
-          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(bookTitle.toLowerCase()));
+          const firstDoc = searchData.docs?.[0];
 
           if (firstDoc) {
+            // Title Guardian: Reject if title is radically different (prevents Aristotle crossovers)
+            const resultTitle = firstDoc.title.toLowerCase();
+            const targetTitle = bookTitle.toLowerCase();
+            if (!resultTitle.includes(targetTitle) && !targetTitle.includes(resultTitle)) {
+              console.warn(`[Saga Scout] Title mismatch: Got "${firstDoc.title}" for "${bookTitle}". Aborting scout.`);
+              throw new Error("Metadata mismatch");
+            }
+
             // Update Work description if missing
             if (firstDoc.first_sentence || firstDoc.description) {
               await supabase.from('works').update({ 
