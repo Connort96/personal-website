@@ -417,6 +417,18 @@
   border-color: var(--accent-primary);
 }
 
+.saga-wishlisted-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(200, 168, 75, 0.1);
+  border: 1px solid rgba(200, 168, 75, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* ── States ─────────────────────────────────────────────── */
 .book-detail-loading,
 .book-detail-error {

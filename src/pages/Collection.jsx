@@ -342,6 +342,12 @@ export default function Collection() {
           status: 'unread',
           owned_at: new Date().toISOString()
         }, { onConflict: 'user_id, book_id' });
+
+        setOwnedBooks(prev => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
       } else {
         await supabase.from('user_books')
           .delete()

@@ -93,45 +93,52 @@ export default function BookDetail() {
 
       if (ownedEditions.length === 0) {
         const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
+        const primaryEdition = allEditions?.[0] || {};
+        
         setWork({
           ...workData,
           editions: allEditions || [],
-          primaryEdition: allEditions?.[0] || {},
+          primaryEdition: primaryEdition,
+          cover_image_url: workData.cover_image_url || primaryEdition.cover_image_url || primaryEdition.cover_url || '',
+          primaryGenre: {
+            id: primaryEdition.genre_id || 'modern_post2000',
+            name: primaryEdition.genre_name || 'Modern Fiction (Post-2000)'
+          },
           status: 'unread'
         });
-        return;
+        // Continue to fetch series info even if not owned
+      } else {
+        const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
+        const sortedEditions = [...ownedEditions].sort((a, b) => {
+          const aPrio = formatPriority[a.format] || 5;
+          const bPrio = formatPriority[b.format] || 5;
+          return aPrio - bPrio;
+        });
+
+        const bestReview = ownedEditions.find(e => e.review)?.review || '';
+        const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
+        const allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
+
+        const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
+        const mainProgress = sortedEditions[0];
+        
+        const primaryGenre = {
+          id: primaryEdition?.genre_id || 'modern_post2000',
+          name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
+        };
+
+        setWork({
+          ...workData,
+          editions: sortedEditions,
+          primaryEdition,
+          primaryGenre,
+          cover_image_url: workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
+          status: mainProgress?.status || 'unread',
+          rating: bestRating,
+          review: bestReview,
+          genres: allGenres
+        });
       }
-
-      const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
-      const sortedEditions = [...ownedEditions].sort((a, b) => {
-        const aPrio = formatPriority[a.format] || 5;
-        const bPrio = formatPriority[b.format] || 5;
-        return aPrio - bPrio;
-      });
-
-      // Find the "best" review/rating among all owned editions
-      const bestReview = ownedEditions.find(e => e.review)?.review || '';
-      const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
-      const allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
-
-      const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
-      const mainProgress = sortedEditions[0];
-      
-      const primaryGenre = {
-        id: primaryEdition?.genre_id || 'modern_post2000',
-        name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
-      };
-
-      setWork({
-        ...workData,
-        editions: sortedEditions,
-        primaryEdition,
-        primaryGenre,
-        status: mainProgress?.status || 'unread',
-        rating: bestRating,
-        review: bestReview,
-        genres: allGenres
-      });
       const { data: seriesLink } = await supabase
         .from('series_works')
         .select(`
@@ -170,9 +177,18 @@ export default function BookDetail() {
         
         const ownedWorkIds = new Set(ownedWorks?.map(ow => ow.editions?.work_id));
 
+        // Check which ones are on the checklist
+        const { data: checklistWorks } = await supabase
+          .from('books')
+          .select('work_id')
+          .not('work_id', 'is', null);
+        
+        const checklistWorkIds = new Set(checklistWorks?.map(cw => cw.work_id));
+
         const siblingsWithStatus = siblingWorks.map(sw => ({
           ...sw,
-          isOwned: ownedWorkIds.has(sw.work_id)
+          isOwned: ownedWorkIds.has(sw.work_id),
+          isWishlisted: checklistWorkIds.has(sw.work_id)
         }));
 
         // Find Next/Previous
@@ -389,7 +405,9 @@ export default function BookDetail() {
                             <div className="saga-roadmap-title saga-roadmap-title--missing">
                               {s.works.title}
                             </div>
-                            {isAdmin && (
+                            {s.isWishlisted ? (
+                              <span className="saga-wishlisted-badge">✓ Wishlisted</span>
+                            ) : isAdmin && (
                               <button 
                                 className="saga-add-to-checklist-btn"
                                 onClick={async (e) => {
@@ -407,7 +425,7 @@ export default function BookDetail() {
                                       .select('book_index')
                                       .order('book_index', { ascending: false })
                                       .limit(1)
-                                      .maybeSingle(); // maybeSingle instead of single to handle empty table
+                                      .maybeSingle(); 
                                     const nextIndex = (maxBook?.book_index || 0) + 1;
 
                                     const { error: insErr } = await supabase.from('books').insert({
@@ -428,6 +446,18 @@ export default function BookDetail() {
                                       alert(`Failed to add: ${insErr.message} (${insErr.details || 'No details'})`);
                                       return;
                                     }
+
+                                    // Update local state instantly
+                                    setWork(prev => ({
+                                      ...prev,
+                                      saga: {
+                                        ...prev.saga,
+                                        siblings: prev.saga.siblings.map(sib => 
+                                          sib.work_id === s.work_id ? { ...sib, isWishlisted: true } : sib
+                                        )
+                                      }
+                                    }));
+
                                     alert(`" ${s.works.title} " added to your Collection Checklist!`);
                                   } catch (err) {
                                     console.error("Checklist add failed:", err);
