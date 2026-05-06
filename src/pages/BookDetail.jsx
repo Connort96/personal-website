@@ -66,110 +66,67 @@ export default function BookDetail() {
       if (!workData) throw new Error('Work not found');
 
       // 2. Fetch User Archive & Editions for this Work
-      // Fallback to admin ID for public viewing
       const viewerId = user?.id || 'd01d61f6-334c-4d90-8bce-4b691eebf514';
 
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
-        .select(`
-          *,
-          editions (*)
-        `)
+        .select('*, editions(*)')
         .eq('user_id', viewerId);
 
       if (ubErr) throw ubErr;
 
       const ownedEditions = userBooksData
-        .filter(ub => ub.editions?.work_id === numericId)
+        ?.filter(ub => ub.editions?.work_id === numericId)
         .map(ub => ({
           ...ub.editions,
-          user_book_id: ub.id,
-          rating: ub.rating,
-          review: ub.review,
-          status: ub.status,
           owned_at: ub.owned_at,
-          current_page: ub.current_page
-        }));
+          current_page: ub.current_page,
+          status: ub.status,
+          rating: ub.rating,
+          review: ub.review
+        })) || [];
 
-      if (ownedEditions.length === 0) {
-        const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
-        const primaryEdition = allEditions?.[0] || {};
-        
-        setWork({
-          ...workData,
-          editions: allEditions || [],
-          primaryEdition: primaryEdition,
-          cover_image_url: workData.cover_image_url || primaryEdition.cover_image_url || primaryEdition.cover_url || '',
-          primaryGenre: {
-            id: primaryEdition.genre_id || 'modern_post2000',
-            name: primaryEdition.genre_name || 'Modern Fiction (Post-2000)'
-          },
-          status: 'unread'
-        });
-        // Continue to fetch series info even if not owned
-      } else {
+      let editions = [];
+      let primaryEdition = {};
+      let bestReview = '';
+      let bestRating = 0;
+      let allGenres = [];
+      let mainProgress = { status: 'unread', current_page: 0 };
+
+      if (ownedEditions.length > 0) {
         const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
-        const sortedEditions = [...ownedEditions].sort((a, b) => {
-          const aPrio = formatPriority[a.format] || 5;
-          const bPrio = formatPriority[b.format] || 5;
-          return aPrio - bPrio;
-        });
-
-        const bestReview = ownedEditions.find(e => e.review)?.review || '';
-        const bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
-        const allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
-
-        const primaryEdition = sortedEditions.find(e => e.cover_url || e.cover_image_url) || sortedEditions[0];
-        const mainProgress = sortedEditions[0];
-        
-        const primaryGenre = {
-          id: primaryEdition?.genre_id || 'modern_post2000',
-          name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
-        };
-
-        setWork({
-          ...workData,
-          editions: sortedEditions,
-          primaryEdition,
-          primaryGenre,
-          cover_image_url: workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
-          status: mainProgress?.status || 'unread',
-          rating: bestRating,
-          review: bestReview,
-          genres: allGenres
-        });
+        editions = [...ownedEditions].sort((a, b) => (formatPriority[a.format] || 5) - (formatPriority[b.format] || 5));
+        primaryEdition = editions.find(e => e.cover_url || e.cover_image_url) || editions[0];
+        bestReview = ownedEditions.find(e => e.review)?.review || '';
+        bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
+        allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
+        mainProgress = editions[0];
+      } else {
+        const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
+        editions = allEditions || [];
+        primaryEdition = editions[0] || {};
       }
+
+      const primaryGenre = {
+        id: primaryEdition?.genre_id || 'modern_post2000',
+        name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
+      };
+
+      // 3. Fetch Series Info
       const { data: seriesLink } = await supabase
         .from('series_works')
-        .select(`
-          sequence_order,
-          series (
-            id,
-            name,
-            description
-          )
-        `)
+        .select('sequence_order, series(id, name, description)')
         .eq('work_id', numericId)
         .maybeSingle();
 
       let sagaInfo = null;
-      if (seriesLink && seriesLink.series) {
-        // Fetch sibling works in the same series with ownership status
+      if (seriesLink?.series) {
         const { data: siblingWorks } = await supabase
           .from('series_works')
-          .select(`
-            sequence_order,
-            work_id,
-            works (
-              id,
-              title,
-              author
-            )
-          `)
+          .select('sequence_order, work_id, works(id, title, author)')
           .eq('series_id', seriesLink.series.id)
           .order('sequence_order', { ascending: true });
 
-        // Check which ones the user owns
         const { data: ownedWorks } = await supabase
           .from('user_books')
           .select('editions!inner(work_id)')
@@ -177,7 +134,6 @@ export default function BookDetail() {
         
         const ownedWorkIds = new Set(ownedWorks?.map(ow => ow.editions?.work_id));
 
-        // Check which ones are on the checklist
         const { data: checklistWorks } = await supabase
           .from('books')
           .select('work_id')
@@ -191,7 +147,6 @@ export default function BookDetail() {
           isWishlisted: checklistWorkIds.has(sw.work_id)
         }));
 
-        // Find Next/Previous
         const currentIndex = siblingsWithStatus.findIndex(sw => sw.work_id === numericId);
         sagaInfo = {
           ...seriesLink.series,
@@ -204,16 +159,17 @@ export default function BookDetail() {
 
       setWork({
         ...workData,
-        editions: sortedEditions,
+        editions,
         primaryEdition,
-        review: bestReview,
+        primaryGenre,
+        cover_image_url: workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
+        status: mainProgress.status || 'unread',
+        currentPage: mainProgress.current_page || 0,
         rating: bestRating,
+        review: bestReview,
         genres: allGenres,
         ownedAt: mainProgress.owned_at,
-        currentPage: mainProgress.current_page || 0,
-        status: mainProgress.status || 'unread',
         pageCount: primaryEdition?.page_count || 0,
-        coverUrl: primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
         saga: sagaInfo
       });
     } catch (err) {
@@ -279,19 +235,24 @@ export default function BookDetail() {
     }
   };
 
-  if (loading) return (
-    <div className="book-detail-loading">
-      <div className="spinner" />
-      <p>Opening the volume...</p>
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="book-detail-error">
+        <h2>The archives are silent on this work</h2>
+        <p>{error}</p>
+        <Link to="/books" className="back-link">Return to the Master Catalog</Link>
+      </div>
+    );
+  }
 
-  if (error || !work) return (
-    <div className="book-detail-error">
-      <p>The archives are silent on this work.</p>
-      <Link to="/books" className="back-link">Return to Library</Link>
-    </div>
-  );
+  if (loading || !work) {
+    return (
+      <div className="book-detail-loading">
+        <div className="loading-spinner"></div>
+        <p>Consulting the archives...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="book-detail-page">
