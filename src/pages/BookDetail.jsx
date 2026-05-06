@@ -157,12 +157,15 @@ export default function BookDetail() {
         };
       }
 
+      const coverImage = workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '';
+
       setWork({
         ...workData,
         editions,
         primaryEdition,
         primaryGenre,
-        cover_image_url: workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '',
+        cover_image_url: coverImage,
+        coverUrl: coverImage,
         status: mainProgress.status || 'unread',
         currentPage: mainProgress.current_page || 0,
         rating: bestRating,
@@ -281,8 +284,8 @@ export default function BookDetail() {
                 animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               >
-                {work.coverUrl ? (
-                  <img src={work.coverUrl} alt={work.title} />
+                {work.cover_image_url ? (
+                  <img src={work.cover_image_url} alt={work.title} />
                 ) : (
                   <div className="cover-placeholder" style={{ backgroundColor: work.primaryEdition?.color || 'var(--bg-tertiary)' }}>
                     <span>{work.title[0]}</span>
