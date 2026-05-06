@@ -99,6 +99,7 @@ export default function Collection() {
             publisher: b.publisher,
             pages: b.page_count,
             genre_id: b.genre_id,
+            work_id: b.work_id,
             genre_name: b.genre_name,
             color: b.color,
             badge: b.badge,
@@ -702,7 +703,7 @@ export default function Collection() {
                       </motion.div>
                     </div>
                     <div className="collection-book-details">
-                      <Link to={`/book/${book.id}`} className="collection-book-link" onClick={(e) => e.stopPropagation()}>
+                      <Link to={`/book/${book.work_id || book.id}`} className="collection-book-link" onClick={(e) => e.stopPropagation()}>
                         <div className="collection-book-title">{book.t}</div>
                       </Link>
                       <div className="collection-book-author">{book.a}</div>
