@@ -49,6 +49,8 @@ export default function Collection() {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '' });
   const [addStatus, setAddStatus] = useState(null); // 'saving', 'success', 'error'
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
   // Load Catalog and Owned Books
@@ -509,6 +511,34 @@ export default function Collection() {
     }
   };
 
+  const handleTitleSearch = async (val) => {
+    setNewBook(prev => ({ ...prev, title: val }));
+    if (val.length < 3) {
+      setSearchSuggestions([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      const res = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent(val)}&limit=5&fields=title,author_name,cover_i,first_publish_year`);
+      const data = await res.json();
+      setSearchSuggestions(data.docs || []);
+    } catch (err) {
+      console.error("Autocomplete failed:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectSuggestion = (s) => {
+    setNewBook({
+      title: s.title,
+      author: s.author_name?.[0] || 'Unknown Author',
+      genre_id: newBook.genre_id // Keep existing genre if selected
+    });
+    setSearchSuggestions([]);
+  };
+
   const lowerSearch = searchQuery.toLowerCase();
 
   return (
@@ -516,38 +546,55 @@ export default function Collection() {
       <div className="collection-header-container">
         <h1 className="collection-title">Collection Checklist</h1>
         
-        {isSyncing && <div className="collection-sync-badge">Syncing with scriptorium...</div>}
+        <div className="collection-header-actions">
+          {isAdmin && (
+            <button 
+              className={`quick-add-minimal-btn ${isAddingNew ? 'active' : ''}`}
+              onClick={() => setIsAddingNew(!isAddingNew)}
+              title="Add to Checklist"
+            >
+              <span className="icon">+</span>
+            </button>
+          )}
+          {isSyncing && <div className="collection-sync-badge">Syncing...</div>}
+        </div>
       </div>
 
-      {isAdmin && (
-        <div className="collection-admin-actions">
-          {!isAddingNew ? (
-            <motion.button 
-              className="quick-add-toggle-btn"
-              onClick={() => setIsAddingNew(true)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="icon">+</span> Add New Masterpiece to Checklist
-            </motion.button>
-          ) : (
-            <motion.form 
-              className="quick-add-form"
-              onSubmit={handleQuickAdd}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
+      <AnimatePresence>
+        {isAddingNew && isAdmin && (
+          <motion.div 
+            className="collection-quick-add-overlay"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+          >
+            <form className="quick-add-form" onSubmit={handleQuickAdd}>
               <div className="form-row">
+                <div className="autocomplete-wrapper">
+                  <input 
+                    type="text" 
+                    placeholder="Search titles..."
+                    value={newBook.title}
+                    onChange={e => handleTitleSearch(e.target.value)}
+                    required
+                  />
+                  {searchSuggestions.length > 0 && (
+                    <div className="search-suggestions">
+                      {searchSuggestions.map((s, i) => (
+                        <div key={i} className="suggestion-item" onClick={() => selectSuggestion(s)}>
+                          <div className="suggestion-info">
+                            <span className="suggestion-title">{s.title}</span>
+                            <span className="suggestion-author">{s.author_name?.[0]}</span>
+                          </div>
+                          {s.first_publish_year && <span className="suggestion-year">{s.first_publish_year}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <input 
                   type="text" 
-                  placeholder="Title (e.g. Chamber of Secrets)"
-                  value={newBook.title}
-                  onChange={e => setNewBook(prev => ({ ...prev, title: e.target.value }))}
-                  required
-                />
-                <input 
-                  type="text" 
-                  placeholder="Author (e.g. J.K. Rowling)"
+                  placeholder="Author"
                   value={newBook.author}
                   onChange={e => setNewBook(prev => ({ ...prev, author: e.target.value }))}
                   required
@@ -557,23 +604,21 @@ export default function Collection() {
                   onChange={e => setNewBook(prev => ({ ...prev, genre_id: e.target.value }))}
                   required
                 >
-                  <option value="">Select Genre...</option>
+                  <option value="">Genre...</option>
                   {libraryData.map(g => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
               </div>
               <div className="form-actions">
-                <button type="button" className="cancel-btn" onClick={() => setIsAddingNew(false)}>Cancel</button>
                 <button type="submit" className="submit-btn" disabled={addStatus === 'saving'}>
-                  {addStatus === 'saving' ? 'Archiving...' : addStatus === 'success' ? 'Success!' : 'Add to Checklist'}
+                  {addStatus === 'saving' ? 'Archiving...' : addStatus === 'success' ? 'Added!' : 'Add to Checklist'}
                 </button>
               </div>
-              {addStatus === 'error' && <div className="error-msg">Failed to add. Please try again.</div>}
-            </motion.form>
-          )}
-        </div>
-      )}
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="collection-stats">
         <div className="collection-stat-box">

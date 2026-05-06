@@ -502,3 +502,107 @@
   margin-top: var(--space-2);
   text-align: right;
 }
+
+/* Minimal Quick Add Styling */
+.collection-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-8);
+}
+
+.collection-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.quick-add-minimal-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.quick-add-minimal-btn:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-secondary);
+  box-shadow: 0 0 15px rgba(200, 168, 75, 0.2);
+}
+
+.quick-add-minimal-btn.active {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  transform: rotate(45deg);
+}
+
+.collection-quick-add-overlay {
+  overflow: hidden;
+  margin-bottom: var(--space-8);
+}
+
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  z-index: 1000;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.suggestion-item {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestion-title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.suggestion-author {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.suggestion-year {
+  font-size: var(--text-xs);
+  color: var(--accent-primary);
+  opacity: 0.8;
+}
