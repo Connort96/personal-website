@@ -335,12 +335,28 @@ export default function Collection() {
               console.log("  > Saga mapped successfully.");
             }
 
-            // Update Edition with more info (Pages, Publisher)
+            // Update Edition with more info (Pages, Publisher, ISBN, Cover)
             const updates = {};
             if (firstDoc.number_of_pages_median) updates.page_count = firstDoc.number_of_pages_median;
             if (firstDoc.publisher?.[0]) updates.publisher = firstDoc.publisher[0];
             
+            // Extract the best ISBN-13 or ISBN-10
+            const bestIsbn = firstDoc.isbn?.find(i => i.length === 13) || firstDoc.isbn?.[0];
+            if (bestIsbn) updates.isbn = bestIsbn;
+            
+            if (firstDoc.first_publish_year) {
+              updates.publication_date = `${firstDoc.first_publish_year}-01-01`;
+            }
+
+            // Sync cover art if we have a valid cover ID
+            if (firstDoc.cover_i) {
+              const olCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
+              updates.cover_image_url = olCover;
+              updates.cover_url = olCover;
+            }
+            
             if (Object.keys(updates).length > 0) {
+              console.log(`  > Syncing archival metadata:`, updates);
               await supabase.from('editions').update(updates).eq('id', editionId);
             }
           }
