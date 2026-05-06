@@ -378,44 +378,27 @@ export default function BookDetail() {
                             {isAdmin && (
                               <button 
                                 className="saga-add-to-checklist-btn"
-                                onClick={async () => {
-                                  // 3. AUTO-SAGA SCOUT: When ticking a book, discover its saga
-                                  console.log("[Checklist Scout] Scanning for saga info...");
-                                  const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(s.works.title || '')}&author=${encodeURIComponent(s.works.author || '')}`);
-                                  const searchData = await searchRes.json();
-                                  const firstDoc = searchData.docs?.[0];
-
-                                  if (firstDoc?.series_name?.[0]) {
-                                    const seriesName = firstDoc.series_name[0];
-                                    const sequence = parseInt(firstDoc.series_position?.[0] || 1);
-                                    
-                                    console.log(`  > Found Saga: ${seriesName} (Vol ${sequence})`);
-
-                                    let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
-                                    let sId;
-                                    if (existingS) {
-                                      sId = existingS.id;
-                                    } else {
-                                      const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
-                                      sId = newS.id;
-                                    }
-
-                                    await supabase.from('series_works').upsert({
-                                      series_id: sId,
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  console.log("[Checklist Add] Adding missing volume:", s.works.title);
+                                  
+                                  try {
+                                    const { error: insErr } = await supabase.from('books').insert({
+                                      title: s.works.title,
+                                      author: s.works.author,
                                       work_id: s.work_id,
-                                      sequence_order: sequence
-                                    }, { onConflict: 'series_id, work_id' });
-                                  }
+                                      genre_name: work.genres?.[0]?.genre_name || 'Uncategorized',
+                                      color: '#1a1a1a',
+                                      note: `Saga volume added from ${series?.name}`
+                                    });
 
-                                  await supabase.from('books').insert({
-                                    title: s.works.title,
-                                    author: s.works.author,
-                                    work_id: s.work_id, // Permanent link to the saga work
-                                    genre_name: work.genres?.[0] || 'Uncategorized',
-                                    color: '#1a1a1a',
-                                    note: 'Added from Saga Roadmap'
-                                  });
-                                  alert(`${s.works.title} added to your Checklist!`);
+                                    if (insErr) throw insErr;
+                                    alert(`" ${s.works.title} " added to your Collection Checklist!`);
+                                  } catch (err) {
+                                    console.error("Checklist add failed:", err);
+                                    alert("Failed to add to checklist. Check console for details.");
+                                  }
                                 }}
                               >
                                 + Add to Checklist
