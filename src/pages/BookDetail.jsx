@@ -420,7 +420,7 @@ export default function BookDetail() {
                                       badge: work.primaryEdition?.badge || 'badge-black',
                                       badge_label: work.primaryEdition?.badge_label || 'Modern Fiction',
                                       book_index: nextIndex,
-                                      note: `Saga volume added from ${series?.name}`
+                                      note: `Saga volume added from ${work.saga?.name}`
                                     });
 
                                     if (insErr) {
