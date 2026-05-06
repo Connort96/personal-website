@@ -298,6 +298,22 @@ export default function Collection() {
                 sId = newS.id;
               }
 
+              // SEQUENCE PROTECTION: Check if this sequence already has a work mapped
+              const { data: existingSeqWork } = await supabase
+                .from('series_works')
+                .select('work_id')
+                .eq('series_id', sId)
+                .eq('sequence_order', sequence)
+                .maybeSingle();
+
+              if (existingSeqWork && existingSeqWork.work_id !== workId) {
+                console.log(`  > Sequence Vol ${sequence} already has work ${existingSeqWork.work_id}. Merging/Linking...`);
+                // If we found a different work ID at this sequence, we should link our legacy book to THAT work instead
+                workId = existingSeqWork.work_id;
+                await supabase.from('books').update({ work_id: workId }).eq('id', id);
+                await supabase.from('editions').update({ work_id: workId }).eq('id', editionId);
+              }
+
               await supabase.from('series_works').upsert({
                 series_id: sId,
                 work_id: workId,
