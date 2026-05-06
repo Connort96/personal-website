@@ -267,9 +267,9 @@ export default function Collection() {
         // 3. AUTO-SAGA & METADATA SCOUT: When ticking a book, discover its saga and rich metadata
         console.log("[Checklist Scout] Scanning for saga and archival metadata...");
         try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(book?.t || '')}&author=${encodeURIComponent(book?.a || '')}`);
+          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(legacyRef?.title || '')}&author=${encodeURIComponent(legacyRef?.author || '')}`);
           const searchData = await searchRes.json();
-          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(book?.t?.toLowerCase()));
+          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(legacyRef?.title?.toLowerCase()));
 
           if (firstDoc) {
             // Update Work description if missing
