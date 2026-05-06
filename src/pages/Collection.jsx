@@ -277,20 +277,24 @@ export default function Collection() {
           const firstDoc = searchData.docs?.[0];
 
           if (firstDoc) {
-            // Title Guardian: Reject if title is radically different (prevents Aristotle crossovers)
+            // Title & Author Guardian: Reject if metadata is radically different
             const resultTitle = firstDoc.title.toLowerCase();
+            const resultAuthor = (firstDoc.author_name?.[0] || '').toLowerCase();
             const targetTitle = bookTitle.toLowerCase();
-            if (!resultTitle.includes(targetTitle) && !targetTitle.includes(resultTitle)) {
-              console.warn(`[Saga Scout] Title mismatch: Got "${firstDoc.title}" for "${bookTitle}". Aborting scout.`);
+            const targetAuthor = bookAuthor.toLowerCase();
+            
+            console.log(`[Saga Scout] Verifying: "${firstDoc.title}" by "${firstDoc.author_name?.[0]}"`);
+
+            const isTitleMatch = resultTitle.includes(targetTitle) || targetTitle.includes(resultTitle);
+            const isAuthorMatch = resultAuthor.includes(targetAuthor) || targetAuthor.includes(resultAuthor);
+
+            if (!isTitleMatch || !isAuthorMatch) {
+              console.warn(`[Saga Scout] Metadata mismatch! Target: "${bookTitle}" by "${bookAuthor}". Got: "${firstDoc.title}" by "${firstDoc.author_name?.[0]}". Aborting.`);
               throw new Error("Metadata mismatch");
             }
 
-            // Update Work description if missing
-            if (firstDoc.first_sentence || firstDoc.description) {
-              await supabase.from('works').update({ 
-                description: firstDoc.first_sentence?.[0] || firstDoc.description 
-              }).eq('id', workId);
-            }
+            // Note: 'works' table does not have a description column. 
+            // Descriptions are sourced dynamically or stored in a separate table if needed.
 
             if (firstDoc.series_name?.[0]) {
               const seriesName = firstDoc.series_name[0];
@@ -341,7 +345,11 @@ export default function Collection() {
             }
           }
         } catch (sErr) {
-          console.error("Saga Scout failed:", sErr);
+          console.error("[Saga Scout] FAILED for " + bookTitle + ":", sErr);
+          // Show alert only if it's a critical error, otherwise log it
+          if (sErr.message === "Metadata mismatch") {
+            console.warn(`[Saga Scout] Shield active: Rejected incorrect metadata for ${bookTitle}`);
+          }
         }
 
         await supabase.from('user_books').upsert({ 
