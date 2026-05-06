@@ -407,7 +407,7 @@ export default function BookDetail() {
                                       .select('book_index')
                                       .order('book_index', { ascending: false })
                                       .limit(1)
-                                      .single();
+                                      .maybeSingle(); // maybeSingle instead of single to handle empty table
                                     const nextIndex = (maxBook?.book_index || 0) + 1;
 
                                     const { error: insErr } = await supabase.from('books').insert({
@@ -423,11 +423,15 @@ export default function BookDetail() {
                                       note: `Saga volume added from ${series?.name}`
                                     });
 
-                                    if (insErr) throw insErr;
+                                    if (insErr) {
+                                      console.error("Checklist add failed:", insErr);
+                                      alert(`Failed to add: ${insErr.message} (${insErr.details || 'No details'})`);
+                                      return;
+                                    }
                                     alert(`" ${s.works.title} " added to your Collection Checklist!`);
                                   } catch (err) {
                                     console.error("Checklist add failed:", err);
-                                    alert("Failed to add to checklist. Check console for details.");
+                                    alert(`Critical error: ${err.message}`);
                                   }
                                 }}
                               >
