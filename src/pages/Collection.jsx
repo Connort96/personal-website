@@ -421,6 +421,20 @@ export default function Collection() {
     try {
       const genre = libraryData.find(g => g.id === newBook.genre_id);
       
+      // Silent Scout: Try to find an existing work for this title/author
+      let workId = null;
+      const { data: existingWork } = await supabase
+        .from('works')
+        .select('id')
+        .ilike('title', newBook.title)
+        .ilike('author', newBook.author)
+        .maybeSingle();
+      
+      if (existingWork) {
+        workId = existingWork.id;
+        console.log(`[Silent Scout] Found existing master record for "${newBook.title}":`, workId);
+      }
+
       const { data: lastBook } = await supabase
         .from('books')
         .select('book_index')
@@ -434,6 +448,7 @@ export default function Collection() {
       const { data, error } = await supabase.from('books').insert({
         title: newBook.title,
         author: newBook.author,
+        work_id: workId, // Linked immediately if found
         genre_id: newBook.genre_id,
         genre_name: genre.name,
         color: genre.color,
