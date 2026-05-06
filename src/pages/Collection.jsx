@@ -217,7 +217,12 @@ export default function Collection() {
         let bookAuthor = '';
 
         // Fetch basic info first to ensure we have title/author for the scout
-        const { data: legacyRef } = await supabase.from('books').select('work_id, title, author, publisher').eq('id', id).single();
+        const { data: legacyRef } = await supabase
+          .from('books')
+          .select('work_id, title, author, publisher, genre_id, genre_name, color, badge, badge_label')
+          .eq('id', id)
+          .single();
+        
         bookTitle = legacyRef?.title || '';
         bookAuthor = legacyRef?.author || '';
 
@@ -269,7 +274,12 @@ export default function Collection() {
               work_id: workId,
               publisher: legacyRef?.publisher || 'Unknown Publisher',
               format: 'Hardcover',
-              isbn: null // Explicitly generic
+              isbn: null, // Explicitly generic
+              genre_id: legacyRef?.genre_id,
+              genre_name: legacyRef?.genre_name,
+              color: legacyRef?.color || '#1a1a1a',
+              badge: legacyRef?.badge,
+              badge_label: legacyRef?.badge_label
             }).select().single();
             editionId = newEd.id;
           }
