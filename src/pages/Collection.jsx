@@ -223,14 +223,30 @@ export default function Collection() {
         let bookAuthor = '';
 
         // Fetch basic info first to ensure we have title/author for the scout
-        const { data: legacyRef } = await supabase
+        const { data: legacyRef, error: fetchErr } = await supabase
           .from('books')
-          .select('work_id, title, author, publisher, genre_id, genre_name, color, badge, badge_label, edition_id')
+          .select('work_id, title, author, publisher, genre_id, genre_name, color, badge, badge_label')
           .eq('id', id)
           .single();
         
-        bookTitle = legacyRef?.title || '';
-        bookAuthor = legacyRef?.author || '';
+        if (fetchErr || !legacyRef) {
+          console.error("Critical: Could not find book record for ID", id, fetchErr);
+          // Rollback UI
+          setOwnedBooks(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          return;
+        }
+
+        bookTitle = legacyRef.title;
+        bookAuthor = legacyRef.author;
+
+        if (!bookTitle) {
+          console.error("Critical: Book has no title, aborting work creation.");
+          return;
+        }
 
         // Prioritize existing work_id from books table
         if (legacyRef?.work_id) {
@@ -288,8 +304,8 @@ export default function Collection() {
             }).select().single();
             editionId = newEd.id;
           }
-          // Update legacy record with the found/created work_id and edition_id
-          await supabase.from('books').update({ work_id: workId, edition_id: editionId }).eq('id', id);
+          // Update legacy record with the found/created work_id
+          await supabase.from('books').update({ work_id: workId }).eq('id', id);
         }
 
         // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
