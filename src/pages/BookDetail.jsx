@@ -401,13 +401,25 @@ export default function BookDetail() {
                                     const gId = work.primaryGenre?.id || 'modern_post2000';
                                     const gName = work.primaryGenre?.name || 'Modern Fiction (Post-2000)';
                                     
+                                    // Calculate next book_index
+                                    const { data: maxBook } = await supabase
+                                      .from('books')
+                                      .select('book_index')
+                                      .order('book_index', { ascending: false })
+                                      .limit(1)
+                                      .single();
+                                    const nextIndex = (maxBook?.book_index || 0) + 1;
+
                                     const { error: insErr } = await supabase.from('books').insert({
                                       title: s.works.title,
                                       author: s.works.author,
                                       work_id: s.work_id,
                                       genre_id: gId,
                                       genre_name: gName,
-                                      color: '#1a1a1a',
+                                      color: work.primaryEdition?.color || '#1a1a1a',
+                                      badge: work.primaryEdition?.badge || 'badge-black',
+                                      badge_label: work.primaryEdition?.badge_label || 'Modern Fiction',
+                                      book_index: nextIndex,
                                       note: `Saga volume added from ${series?.name}`
                                     });
 
