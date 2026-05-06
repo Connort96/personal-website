@@ -198,32 +198,56 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         workId = newWork.id;
       }
 
-      // 2. Create Edition
-      const { data: newEdition } = await supabase
+      // 2. GET OR CREATE EDITION (Intelligent Merger)
+      // Check if a "Generic" edition (no ISBN) already exists for this work
+      const { data: genericEd } = await supabase
         .from('editions')
-        .insert({
-          work_id: workId,
-          isbn: bookData.isbn,
-          publisher: bookData.publisher,
-          cover_image_url: bookData.cover,
-          format: bookData.format || 'Hardcover',
-          page_count: bookData.pages,
-          genre_id: safeGenreId,
-          genre_name: genreMeta.genre_name,
-          color: genreMeta.color,
-          publication_date: bookData.full_date
-        })
-        .select().single();
+        .select('id')
+        .eq('work_id', workId)
+        .is('isbn', null)
+        .maybeSingle();
 
-      // 3. Sync to legacy 'books' table
-      const { data: genreBooks } = await supabase.from('books')
-        .select('book_index')
-        .eq('genre_name', genreMeta.genre_name)
-        .order('book_index', { ascending: false })
-        .limit(1);
-      const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+      let editionId;
+      const editionPayload = {
+        work_id: workId,
+        isbn: bookData.isbn,
+        publisher: bookData.publisher,
+        cover_image_url: bookData.cover,
+        cover_url: bookData.cover,
+        format: bookData.format || 'Hardcover',
+        page_count: bookData.pages,
+        genre_id: safeGenreId,
+        genre_name: genreMeta.genre_name,
+        color: genreMeta.color,
+        publication_date: bookData.full_date
+      };
 
-      const { data: legacyBook } = await supabase.from('books').insert({
+      if (genericEd) {
+        console.log(`[ISBN Scanner] Found generic edition ${genericEd.id}. Overwriting...`);
+        const { data: updatedEd } = await supabase
+          .from('editions')
+          .update(editionPayload)
+          .eq('id', genericEd.id)
+          .select().single();
+        editionId = updatedEd.id;
+      } else {
+        const { data: newEdition } = await supabase
+          .from('editions')
+          .insert(editionPayload)
+          .select().single();
+        editionId = newEdition.id;
+      }
+
+      // 3. SYNC TO LEGACY 'BOOKS' TABLE (Intelligent Merger)
+      // Check if a legacy record for this work exists with no ISBN (Wishlisted from roadmap)
+      const { data: genericBook } = await supabase
+        .from('books')
+        .select('id, book_index')
+        .eq('work_id', workId)
+        .is('isbn', null)
+        .maybeSingle();
+
+      const legacyPayload = {
         title: bookData.title,
         author: bookData.author,
         publisher: bookData.publisher,
@@ -233,16 +257,35 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         genre_name: genreMeta.genre_name,
         color: genreMeta.color,
         page_count: bookData.pages,
-        book_index: nextIndex,
         publication_date: bookData.full_date,
-        note: bookData.description
-      }).select().single();
+        note: bookData.description || `Scanned via ISBN Scanner on ${new Date().toLocaleDateString()}`,
+        work_id: workId
+      };
+
+      if (genericBook) {
+        console.log(`[ISBN Scanner] Found generic legacy book ${genericBook.id}. Updating...`);
+        await supabase.from('books')
+          .update(legacyPayload)
+          .eq('id', genericBook.id);
+      } else {
+        const { data: genreBooks } = await supabase.from('books')
+          .select('book_index')
+          .eq('genre_name', genreMeta.genre_name)
+          .order('book_index', { ascending: false })
+          .limit(1);
+        const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+        
+        await supabase.from('books').insert({
+          ...legacyPayload,
+          book_index: nextIndex
+        });
+      }
 
       // 4. Link to User Archive (Ensuring it's marked as Owned)
       const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
       const wEdIds = (workEds || []).map(e => e.id);
       
-      const { data: wReview } = await supabase
+      const { data: workReview } = await supabase
         .from('user_books')
         .select('rating, review, status')
         .eq('user_id', targetUserId)
@@ -251,7 +294,16 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         .limit(1)
         .maybeSingle();
 
-      if (saveErr) throw saveErr;
+      const { error: ubError } = await supabase.from('user_books').upsert({
+        user_id: targetUserId,
+        edition_id: editionId,
+        status: workReview?.status || 'unread',
+        rating: workReview?.rating || 0,
+        review: workReview?.review || '',
+        owned_at: new Date().toISOString()
+      }, { onConflict: 'user_id, edition_id' });
+
+      if (ubError) throw ubError;
 
       // 4.5. CHECKLIST HANDSHAKE: Sync with legacy 'books' checklist
       console.log("[Scanner Sync] Checking for checklist items to fulfill...");

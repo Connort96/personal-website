@@ -255,14 +255,21 @@ export default function Collection() {
           }
 
           // Create a Generic Edition for this work if one doesn't exist
-          const { data: existingGeneric } = await supabase.from('editions').select('id').eq('work_id', workId).eq('format', 'Hardcover').maybeSingle();
+          const { data: existingGeneric } = await supabase
+            .from('editions')
+            .select('id')
+            .eq('work_id', workId)
+            .is('isbn', null)
+            .maybeSingle();
+
           if (existingGeneric) {
             editionId = existingGeneric.id;
           } else {
             const { data: newEd } = await supabase.from('editions').insert({
               work_id: workId,
               publisher: legacyRef?.publisher || 'Unknown Publisher',
-              format: 'Hardcover'
+              format: 'Hardcover',
+              isbn: null // Explicitly generic
             }).select().single();
             editionId = newEd.id;
           }

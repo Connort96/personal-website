@@ -188,8 +188,17 @@ export default function Admin() {
         workId = newWork.id;
       }
 
-      // 3. Create Edition
-      const { data: editionData, error: editionError } = await supabase.from('editions').insert({
+      // 3. GET OR CREATE EDITION (Intelligent Merger)
+      // Check if a "Generic" edition (no ISBN) already exists for this work
+      const { data: genericEd } = await supabase
+        .from('editions')
+        .select('id')
+        .eq('work_id', workId)
+        .is('isbn', null)
+        .maybeSingle();
+
+      let editionData;
+      const editionPayload = {
         work_id: workId,
         cover_url: formData.cover_url || null,
         publisher: formData.publisher || null,
@@ -203,8 +212,25 @@ export default function Admin() {
         badge: genreMeta.badge,
         badge_label: genreMeta.badge_label,
         book_index: nextIndex
-      }).select().single();
-      if (editionError) throw editionError;
+      };
+
+      if (genericEd) {
+        console.log(`[Admin] Found generic edition ${genericEd.id}. Overwriting...`);
+        const { data: updatedEd, error: editionError } = await supabase
+          .from('editions')
+          .update(editionPayload)
+          .eq('id', genericEd.id)
+          .select().single();
+        if (editionError) throw editionError;
+        editionData = updatedEd;
+      } else {
+        const { data: newEdition, error: editionError } = await supabase
+          .from('editions')
+          .insert(editionPayload)
+          .select().single();
+        if (editionError) throw editionError;
+        editionData = newEdition;
+      }
 
       // 4. Automatically add to User's Archive (prevent phantom records)
       // Check for existing review of this work to inherit
@@ -235,14 +261,14 @@ export default function Admin() {
         .limit(1)
         .maybeSingle();
 
-      const { error: ubError } = await supabase.from('user_books').insert({
+      const { error: ubError } = await supabase.from('user_books').upsert({
         user_id: user.id,
         edition_id: editionData.id,
         status: workReview?.status || 'unread',
         rating: workReview?.rating || 0,
         review: workReview?.review || '',
         owned_at: new Date().toISOString()
-      });
+      }, { onConflict: 'user_id, edition_id' });
       if (ubError) throw ubError;
 
       setFormStatus({ type: 'success', message: `"${formData.title}" added to catalog and your archive!` });
