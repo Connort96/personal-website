@@ -225,26 +225,26 @@ export default function Collection() {
         // Fetch basic info first to ensure we have title/author for the scout
         const { data: legacyRef } = await supabase
           .from('books')
-          .select('work_id, title, author, publisher, genre_id, genre_name, color, badge, badge_label')
+          .select('work_id, title, author, publisher, genre_id, genre_name, color, badge, badge_label, edition_id')
           .eq('id', id)
           .single();
         
         bookTitle = legacyRef?.title || '';
         bookAuthor = legacyRef?.author || '';
 
-        const { data: edMatch } = await supabase
-          .from('editions')
-          .select('id, work_id')
-          .eq('id', id)
-          .maybeSingle();
+        // Prioritize existing work_id from books table
+        if (legacyRef?.work_id) {
+          workId = legacyRef.work_id;
+          // Also try to find an edition for this work
+          const { data: edMatch } = await supabase
+            .from('editions')
+            .select('id')
+            .eq('work_id', workId)
+            .maybeSingle();
+          if (edMatch) editionId = edMatch.id;
+        }
 
-        if (edMatch) {
-          editionId = edMatch.id;
-          workId = edMatch.work_id;
-        } else {
-          if (legacyRef?.work_id) {
-            workId = legacyRef.work_id;
-          } else {
+        if (!editionId) {
             const { data: workMatch } = await supabase
               .from('works')
               .select('id')
@@ -289,6 +289,8 @@ export default function Collection() {
             }).select().single();
             editionId = newEd.id;
           }
+          // Update legacy record with the found/created work_id and edition_id
+          await supabase.from('books').update({ work_id: workId, edition_id: editionId }).eq('id', id);
         }
 
         // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
