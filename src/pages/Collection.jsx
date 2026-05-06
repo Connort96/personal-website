@@ -213,6 +213,13 @@ export default function Collection() {
         // 1. Get the correct Work ID and existing Edition ID
         let editionId;
         let workId;
+        let bookTitle = '';
+        let bookAuthor = '';
+
+        // Fetch basic info first to ensure we have title/author for the scout
+        const { data: legacyRef } = await supabase.from('books').select('work_id, title, author, publisher').eq('id', id).single();
+        bookTitle = legacyRef?.title || '';
+        bookAuthor = legacyRef?.author || '';
 
         const { data: edMatch } = await supabase
           .from('editions')
@@ -224,17 +231,14 @@ export default function Collection() {
           editionId = edMatch.id;
           workId = edMatch.work_id;
         } else {
-          // Check if the legacy record already has a work_id
-          const { data: legacyRef } = await supabase.from('books').select('work_id, title, author').eq('id', id).single();
-          
           if (legacyRef?.work_id) {
             workId = legacyRef.work_id;
           } else {
             const { data: workMatch } = await supabase
               .from('works')
               .select('id')
-              .ilike('title', legacyRef?.title || '')
-              .ilike('author', legacyRef?.author || '')
+              .ilike('title', bookTitle)
+              .ilike('author', bookAuthor)
               .maybeSingle();
             
             if (workMatch) {
@@ -242,7 +246,7 @@ export default function Collection() {
             } else {
               const { data: newWork } = await supabase
                 .from('works')
-                .insert({ title: legacyRef?.title, author: legacyRef?.author })
+                .insert({ title: bookTitle, author: bookAuthor })
                 .select().single();
               workId = newWork.id;
             }
@@ -264,12 +268,12 @@ export default function Collection() {
           }
         }
 
-        // 3. AUTO-SAGA & METADATA SCOUT: When ticking a book, discover its saga and rich metadata
+        // 3. AUTO-SAGA & METADATA SCOUT: Unconditional Discovery
         console.log("[Checklist Scout] Scanning for saga and archival metadata...");
         try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(legacyRef?.title || '')}&author=${encodeURIComponent(legacyRef?.author || '')}`);
+          const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookTitle)}&author=${encodeURIComponent(bookAuthor)}`);
           const searchData = await searchRes.json();
-          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(legacyRef?.title?.toLowerCase()));
+          const firstDoc = searchData.docs?.find(d => d.title?.toLowerCase().includes(bookTitle.toLowerCase()));
 
           if (firstDoc) {
             // Update Work description if missing
