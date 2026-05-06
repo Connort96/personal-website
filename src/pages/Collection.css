@@ -387,3 +387,118 @@
     padding: var(--space-4) var(--space-6);
   }
 }
+
+/* Quick Add Form Styling */
+.collection-admin-actions {
+  margin-bottom: var(--space-8);
+  display: flex;
+  justify-content: center;
+}
+
+.quick-add-toggle-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: all 0.2s ease;
+}
+
+.quick-add-toggle-btn .icon {
+  color: var(--accent-primary);
+  font-size: var(--text-lg);
+}
+
+.quick-add-toggle-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 15px rgba(200, 168, 75, 0.1);
+}
+
+.quick-add-form {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 800px;
+  box-shadow: var(--shadow-lg);
+}
+
+.quick-add-form .form-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .quick-add-form .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quick-add-form input,
+.quick-add-form select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.quick-add-form input:focus,
+.quick-add-form select:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(200, 168, 75, 0.1);
+}
+
+.quick-add-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.quick-add-form .cancel-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.quick-add-form .submit-btn {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-add-form .submit-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.quick-add-form .submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-add-form .error-msg {
+  color: #ff4d4d;
+  font-size: var(--text-xs);
+  margin-top: var(--space-2);
+  text-align: right;
+}

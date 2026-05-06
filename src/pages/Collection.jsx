@@ -42,10 +42,11 @@ export default function Collection() {
   const [ownedBooks, setOwnedBooks] = useState(new Set());
   const [openGenres, setOpenGenres] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
-  const [categorySort, setCategorySort] = useState('alphabetical'); // 'alphabetical' | 'count'
-  const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '' });
+  const [addStatus, setAddStatus] = useState(null); // 'saving', 'success', 'error'
+  const isAdmin = user?.email === 'theconison96@gmail.com';
 
   // Load Catalog and Owned Books
   useEffect(() => {
@@ -438,8 +439,72 @@ export default function Collection() {
       }
     });
   }, [libraryData, categorySort]);
+  const handleQuickAdd = async (e) => {
+    e.preventDefault();
+    if (!newBook.title || !newBook.author || !newBook.genre_id) return;
+    
+    setAddStatus('saving');
+    try {
+      const genre = libraryData.find(g => g.id === newBook.genre_id);
+      
+      const { data: lastBook } = await supabase
+        .from('books')
+        .select('book_index')
+        .eq('genre_id', newBook.genre_id)
+        .order('book_index', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      const nextIndex = (lastBook?.book_index || 0) + 1;
 
-  const lowerSearch = searchQuery.toLowerCase();
+      const { data, error } = await supabase.from('books').insert({
+        title: newBook.title,
+        author: newBook.author,
+        genre_id: newBook.genre_id,
+        genre_name: genre.name,
+        color: genre.color,
+        badge: genre.badge,
+        badge_label: genre.badgeLabel,
+        book_index: nextIndex
+      }).select().single();
+
+      if (error) throw error;
+
+      setAddStatus('success');
+      setNewBook({ title: '', author: '', genre_id: '' });
+      
+      // Update local state to show the new book immediately
+      setLibraryData(prev => prev.map(g => {
+        if (g.id === newBook.genre_id) {
+          const newEntry = {
+            id: data.id,
+            ids: new Set([data.id]),
+            t: data.title,
+            a: data.author,
+            publisher: data.publisher,
+            pages: data.page_count,
+            genre_id: data.genre_id,
+            genre_name: data.genre_name,
+            color: data.color,
+            badge: data.badge,
+            badgeLabel: data.badge_label
+          };
+          return { ...g, books: [...g.books, newEntry].sort((a,b) => a.t.localeCompare(b.t)) };
+        }
+        return g;
+      }));
+
+      setTimeout(() => {
+        setAddStatus(null);
+        setIsAddingNew(false);
+      }, 2000);
+
+    } catch (err) {
+      console.error("Quick add failed:", err);
+      setAddStatus('error');
+    }
+  };
+const lowerSearch = searchQuery.toLowerCase();
 
   return (
     <div className="collection-page container container--narrow animate-fade-in">
@@ -448,6 +513,63 @@ export default function Collection() {
         
         {isSyncing && <div className="collection-sync-badge">Syncing with scriptorium...</div>}
         
+      </div>
+
+      {isAdmin && (
+        <div className="collection-admin-actions">
+          {!isAddingNew ? (
+            <motion.button 
+              className="quick-add-toggle-btn"
+              onClick={() => setIsAddingNew(true)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <span className="icon">+</span> Add New Masterpiece to Checklist
+            </motion.button>
+          ) : (
+            <motion.form 
+              className="quick-add-form"
+              onSubmit={handleQuickAdd}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="form-row">
+                <input 
+                  type="text" 
+                  placeholder="Title (e.g. Chamber of Secrets)"
+                  value={newBook.title}
+                  onChange={e => setNewBook(prev => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+                <input 
+                  type="text" 
+                  placeholder="Author (e.g. J.K. Rowling)"
+                  value={newBook.author}
+                  onChange={e => setNewBook(prev => ({ ...prev, author: e.target.value }))}
+                  required
+                />
+                <select 
+                  value={newBook.genre_id}
+                  onChange={e => setNewBook(prev => ({ ...prev, genre_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Select Genre...</option>
+                  {libraryData.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="cancel-btn" onClick={() => setIsAddingNew(false)}>Cancel</button>
+                <button type="submit" className="submit-btn" disabled={addStatus === 'saving'}>
+                  {addStatus === 'saving' ? 'Archiving...' : addStatus === 'success' ? 'Success!' : 'Add to Checklist'}
+                </button>
+              </div>
+              {addStatus === 'error' && <div className="error-msg">Failed to add. Please try again.</div>}
+            </motion.form>
+          )}
+        </div>
+      )}
         <div className="collection-stats">
           <div className="collection-stat-box">
             <div className="collection-stat-val">{stats.owned}</div>
