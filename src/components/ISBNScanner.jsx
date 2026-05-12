@@ -100,14 +100,14 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
       // SAGA SCOUT: Check for series info
       let seriesInfo = null;
-      const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
+      const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,series,series_name,series_position,cover_i,subject`);
       const searchData = await searchRes.json();
       const firstDoc = searchData.docs?.[0];
 
-      if (firstDoc?.series?.[0]) {
+      if (firstDoc?.series_name?.[0]) {
         seriesInfo = {
-          name: firstDoc.series[0],
-          sequence: parseInt(firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
+          name: firstDoc.series_name[0],
+          sequence: parseInt(firstDoc.series_position?.[0] || firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
         };
       }
 
@@ -398,6 +398,16 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         }
 
         // 4. Link to User Archive
+        // First, find the legacy book_id from the books table (needed for PK constraint)
+        const { data: legacyBookRow } = await supabase
+          .from('books')
+          .select('id')
+          .eq('work_id', workId)
+          .limit(1)
+          .maybeSingle();
+        
+        const legacyBookId = legacyBookRow?.id;
+
         const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
         const wEdIds = (workEds || []).map(e => e.id);
         
@@ -410,14 +420,17 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           .limit(1)
           .maybeSingle();
 
-        await supabase.from('user_books').upsert({
-          user_id: targetUserId,
-          edition_id: editionId,
-          status: workReview?.status || 'unread',
-          rating: workReview?.rating || 0,
-          review: workReview?.review || '',
-          owned_at: new Date().toISOString()
-        }, { onConflict: 'user_id, edition_id' });
+        if (legacyBookId) {
+          await supabase.from('user_books').upsert({
+            user_id: targetUserId,
+            book_id: legacyBookId,
+            edition_id: editionId,
+            status: workReview?.status || 'unread',
+            rating: workReview?.rating || 0,
+            review: workReview?.review || '',
+            owned_at: new Date().toISOString()
+          }, { onConflict: 'user_id, book_id' });
+        }
 
         // 4.5. Checklist Handshake
         await supabase.from('books')
