@@ -109,6 +109,21 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           name: firstDoc.series_name[0],
           sequence: parseInt(firstDoc.series_position?.[0] || firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
         };
+      } else if (bookData.title && bookData.author) {
+        // Fallback: If ISBN specifically lacked series metadata, search broadly by Title + Author
+        try {
+          const fallbackRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookData.title)}&author=${encodeURIComponent(bookData.author)}&fields=title,series_name,series_position&limit=5`);
+          const fallbackData = await fallbackRes.json();
+          const docWithSeries = fallbackData.docs?.find(d => d.series_name?.[0]);
+          if (docWithSeries) {
+            seriesInfo = {
+              name: docWithSeries.series_name[0],
+              sequence: parseInt(docWithSeries.series_position?.[0] || docWithSeries.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
+            };
+          }
+        } catch (fbErr) {
+          console.warn("[Batch Scanner] Fallback series search failed:", fbErr);
+        }
       }
 
       // TRIPLE-HUNT FALLBACK for covers

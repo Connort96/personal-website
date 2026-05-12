@@ -68,9 +68,9 @@ const GENRE_RULES = [
   { match: /\bgraphic novel\b|\bcomics?\b/i,                     genre_id: 'comics' },
 
   // Genre fiction (specific before broad)
+  { match: /\bfantasy\b/i,                                       genre_id: 'fantasy' },
   { match: /\bscience fiction\b|\bsci-fi\b|\bsci fi\b/i,         genre_id: 'scifi' },
   { match: /\bspeculative fiction\b/i,                            genre_id: 'speculative_scifi_new' },
-  { match: /\bfantasy\b/i,                                       genre_id: 'fantasy' },
   { match: /\bhorror\b/i,                                        genre_id: 'horror' },
   { match: /\bgothic\b|\bsupernatural\b|\bweird fiction\b/i,     genre_id: 'gothic_supernatural' },
   { match: /\bcrime\b|\bmystery\b|\bthriller\b|\bdetective\b/i,  genre_id: 'crime' },
