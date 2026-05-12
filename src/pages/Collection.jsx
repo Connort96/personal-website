@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { detectGenre, GENRE_META } from '../lib/genreMap';
 import './Collection.css';
 
 // Minimal Circular Progress Component
@@ -312,7 +313,7 @@ export default function Collection() {
         // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
         console.log(`[Checklist Scout] Scanning for "${bookTitle}" metadata...`);
         try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent('"' + bookTitle + '"')}+author:${encodeURIComponent('"' + bookAuthor + '"')}&limit=1`);
+          const searchRes = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent('"' + bookTitle + '"')}+author:${encodeURIComponent('"' + bookAuthor + '"')}&limit=1&fields=title,author_name,series_name,series_position,number_of_pages_median,publisher,isbn,first_publish_year,cover_i,subject`);
           const searchData = await searchRes.json();
           const firstDoc = searchData.docs?.[0];
 
@@ -355,6 +356,29 @@ export default function Collection() {
                 const olCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
                 updates.cover_image_url = olCover;
                 updates.cover_url = olCover;
+              }
+
+              // Genre auto-detection from Search API subjects
+              const searchSubjects = (firstDoc.subject || []).map(s => ({ name: s }));
+              const detected = detectGenre(searchSubjects, []);
+              if (detected) {
+                const genreMeta = GENRE_META[detected.genre_id];
+                if (genreMeta) {
+                  updates.genre_id = detected.genre_id;
+                  updates.genre_name = genreMeta.genre_name;
+                  updates.color = genreMeta.color;
+                  
+                  // Cascade genre to legacy books table
+                  await supabase.from('books')
+                    .update({ 
+                      genre_id: detected.genre_id, 
+                      genre_name: genreMeta.genre_name, 
+                      color: genreMeta.color 
+                    })
+                    .eq('id', id);
+                  
+                  console.log(`[Checklist Scout] Auto-detected genre: ${genreMeta.genre_name}`);
+                }
               }
               
               if (Object.keys(updates).length > 0) {
@@ -503,7 +527,7 @@ export default function Collection() {
     
     setIsSearching(true);
     try {
-      const res = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent(val)}&limit=5&fields=title,author_name,cover_i,first_publish_year`);
+      const res = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent(val)}&limit=5&fields=title,author_name,cover_i,first_publish_year,subject`);
       const data = await res.json();
       setSearchSuggestions(data.docs || []);
     } catch (err) {
@@ -514,10 +538,14 @@ export default function Collection() {
   };
 
   const selectSuggestion = (s) => {
+    // Auto-detect genre from the selected book's subjects
+    const subjects = (s.subject || []).map(subj => ({ name: subj }));
+    const detected = detectGenre(subjects, []);
+    
     setNewBook({
       title: s.title,
       author: s.author_name?.[0] || 'Unknown Author',
-      genre_id: newBook.genre_id // Keep existing genre if selected
+      genre_id: detected?.genre_id || newBook.genre_id // Use detected genre, or keep existing
     });
     setSearchSuggestions([]);
   };

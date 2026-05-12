@@ -117,9 +117,12 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       }
 
       // Auto-detect genre from API subjects
+      // Combine subjects from BOTH the Books API and the Search API for best coverage
       const olSubjects = olInfo?.subjects || [];
+      const searchSubjects = (firstDoc?.subject || []).map(s => typeof s === 'string' ? { name: s } : s);
+      const combinedSubjects = [...olSubjects, ...searchSubjects];
       const gbCategories = gbInfo?.categories || [];
-      const detectedGenre = detectGenre(olSubjects, gbCategories);
+      const detectedGenre = detectGenre(combinedSubjects, gbCategories);
 
       return {
         title: olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title',
