@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { detectGenre, GENRE_META } from '../lib/genreMap';
+import { runSagaScout } from '../lib/sagaScout';
 import './Collection.css';
 
 // Minimal Circular Progress Component
@@ -344,6 +345,16 @@ export default function Collection() {
                   work_id: workId,
                   sequence_order: sequence
                 }, { onConflict: 'series_id, work_id' });
+
+                // Run robust Saga Scout
+                try {
+                  const { newWorks } = await runSagaScout(supabase, sId, seriesName, sequence);
+                  if (newWorks > 0) {
+                    console.log(`[Checklist Scout] Discovered ${newWorks} missing books in ${seriesName} saga!`);
+                  }
+                } catch (sagaErr) {
+                  console.error(`[Checklist Scout] Saga Expansion failed for ${seriesName}`, sagaErr);
+                }
               }
 
               const updates = {};
