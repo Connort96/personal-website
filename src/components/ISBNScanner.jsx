@@ -495,7 +495,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
           // NEW: Automated Saga Expansion using robust utility
           try {
-            const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence);
+            const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence, bookData.author);
             if (newWorks > 0) {
               showToast(`Discovered ${newWorks} missing books in ${bookData.series.name} saga!`, 'success');
             }

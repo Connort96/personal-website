@@ -369,7 +369,7 @@ export default function BookDetail() {
                       onClick={async () => {
                         try {
                           setIsSyncingSaga(true);
-                          const { newWorks } = await runSagaScout(supabase, work.saga.id, work.saga.name, work.saga.sequence);
+                          const { newWorks } = await runSagaScout(supabase, work.saga.id, work.saga.name, work.saga.sequence, work.author);
                           if (newWorks > 0) {
                             alert(`Found ${newWorks} missing volumes!`);
                             loadBookData(); // Reload to show them

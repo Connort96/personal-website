@@ -348,7 +348,7 @@ export default function Collection() {
 
                 // Run robust Saga Scout
                 try {
-                  const { newWorks } = await runSagaScout(supabase, sId, seriesName, sequence);
+                  const { newWorks } = await runSagaScout(supabase, sId, seriesName, sequence, bookAuthor);
                   if (newWorks > 0) {
                     console.log(`[Checklist Scout] Discovered ${newWorks} missing books in ${seriesName} saga!`);
                   }
