@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { GENRE_META } from '../lib/genreMap';
 import './SlideOverPanel.css';
 
 const statusLabels = {
@@ -66,6 +67,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const [needsReview, setNeedsReview] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editAuthor, setEditAuthor] = useState('');
+  const [editGenre, setEditGenre] = useState('');
 
   useEffect(() => {
     setStatus(book.status || 'unread');
@@ -78,6 +80,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setNeedsReview(book.needs_review || false);
     setEditTitle(book.title || '');
     setEditAuthor(book.author || '');
+    setEditGenre(book.primaryGenre?.id || '');
   }, [book]);
 
   const [fetchingArt, setFetchingArt] = useState(null); // ID of edition being fetched
@@ -181,6 +184,32 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
         }
       }
 
+      // Propagate genre override to all editions if changed
+      const originalGenre = book.primaryGenre?.id;
+      if (editGenre && editGenre !== originalGenre) {
+        const genreData = GENRE_META[editGenre];
+        if (genreData) {
+          if (editionIds.length > 0) {
+            await supabase.from('editions')
+              .update({ 
+                genre_id: editGenre, 
+                genre_name: genreData.genre_name, 
+                color: genreData.color 
+              })
+              .in('id', editionIds);
+          }
+          
+          // Legacy books sync
+          await supabase.from('books')
+            .update({ 
+              genre_id: editGenre, 
+              genre_name: genreData.genre_name, 
+              color: genreData.color 
+            })
+            .eq('work_id', book.id);
+        }
+      }
+
       // Pass all edits (global and edition-specific) to the controller
       await onSave(
         book.id,
@@ -246,6 +275,22 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
       </div>
 
       <div className="slideover-body">
+        {isAdmin && (
+          <div className="slideover-section">
+            <label className="slideover-label">Primary Genre</label>
+            <select 
+              className="slideover-genre-select"
+              value={editGenre}
+              onChange={(e) => setEditGenre(e.target.value)}
+            >
+              <option value="">Select a Genre...</option>
+              {Object.entries(GENRE_META).map(([id, meta]) => (
+                <option key={id} value={id}>{meta.genre_name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Needs Review Toggle */}
         {isAdmin && (
           <div className={`slideover-review-toggle ${needsReview ? 'active' : ''}`}>

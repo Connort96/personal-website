@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { detectGenre, GENRE_META, getGenreMeta } from '../lib/genreMap';
+import { runSagaScout } from '../lib/sagaScout';
 import './ISBNScanner.css';
 
 const MISSING_COVER_URL = '/missing-cover.svg';
@@ -492,61 +493,11 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             sequence_order: bookData.series.sequence
           }, { onConflict: 'series_id, work_id' });
 
-          // NEW: Automated Saga Expansion (Discover missing siblings)
+          // NEW: Automated Saga Expansion using robust utility
           try {
-            console.log(`[Batch Scanner] Auto-Saga Scout for: ${bookData.series.name}`);
-            const sagaRes = await fetch(`https://openlibrary.org/search.json?q=series:("${encodeURIComponent(bookData.series.name)}")`);
-            const sagaData = await sagaRes.json();
-            
-            const uniqueVolumes = new Map();
-            sagaData.docs?.forEach(doc => {
-              if (doc.series_name?.some(n => n.toLowerCase().includes(bookData.series.name.toLowerCase())) && doc.series_position?.[0]) {
-                const pos = parseInt(doc.series_position[0]);
-                if (pos !== bookData.series.sequence && !uniqueVolumes.has(pos)) {
-                  uniqueVolumes.set(pos, {
-                    title: doc.title,
-                    author: doc.author_name?.[0] || bookData.author
-                  });
-                }
-              }
-            });
-
-            if (uniqueVolumes.size > 0) {
-              console.log(`[Batch Scanner] Found ${uniqueVolumes.size} missing siblings for ${bookData.series.name}`);
-              
-              for (const [seq, data] of uniqueVolumes) {
-                const { data: existingLink } = await supabase
-                  .from('series_works')
-                  .select('work_id')
-                  .eq('series_id', sId)
-                  .eq('sequence_order', seq)
-                  .maybeSingle();
-                
-                if (existingLink) continue;
-
-                let { data: siblingWork } = await supabase
-                  .from('works')
-                  .select('id')
-                  .ilike('title', data.title)
-                  .ilike('author', data.author)
-                  .maybeSingle();
-                
-                if (!siblingWork) {
-                  const { data: newW } = await supabase
-                    .from('works')
-                    .insert({ title: data.title, author: data.author })
-                    .select('id')
-                    .single();
-                  siblingWork = newW;
-                }
-
-                await supabase.from('series_works').upsert({
-                  series_id: sId,
-                  work_id: siblingWork.id,
-                  sequence_order: seq
-                }, { onConflict: 'series_id, work_id' });
-              }
-              showToast(`Discovered ${uniqueVolumes.size} missing books in ${bookData.series.name} saga!`, 'success');
+            const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence);
+            if (newWorks > 0) {
+              showToast(`Discovered ${newWorks} missing books in ${bookData.series.name} saga!`, 'success');
             }
           } catch (sagaErr) {
             console.error(`[Batch Scanner] Saga Expansion failed for ${bookData.series.name}`, sagaErr);

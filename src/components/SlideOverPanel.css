@@ -654,3 +654,20 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+.slideover-genre-select {
+  width: 100%;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  margin-top: 5px;
+}
+.slideover-genre-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+

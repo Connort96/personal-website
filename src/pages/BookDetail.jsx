@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { runSagaScout } from '../lib/sagaScout';
 import SlideOverPanel from '../components/SlideOverPanel';
 import './BookDetail.css';
 
@@ -31,6 +32,7 @@ export default function BookDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSyncingSaga, setIsSyncingSaga] = useState(false);
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
@@ -355,10 +357,46 @@ export default function BookDetail() {
             {work.saga && (
               <section className="book-detail-saga-nav">
                 <div className="saga-nav-header">
-                  <h3 className="saga-nav-title">The Saga: {work.saga.name}</h3>
-                  <div className="saga-nav-progress-text">
-                    {work.saga.siblings.filter(s => s.isOwned).length} of {work.saga.siblings.length} volumes collected
+                  <div>
+                    <h3 className="saga-nav-title">The Saga: {work.saga.name}</h3>
+                    <div className="saga-nav-progress-text">
+                      {work.saga.siblings.filter(s => s.isOwned).length} of {work.saga.siblings.length} volumes collected
+                    </div>
                   </div>
+                  {isAdmin && (
+                    <button 
+                      className="saga-sync-btn"
+                      onClick={async () => {
+                        try {
+                          setIsSyncingSaga(true);
+                          const { newWorks } = await runSagaScout(supabase, work.saga.id, work.saga.name, work.saga.sequence);
+                          if (newWorks > 0) {
+                            alert(`Found ${newWorks} missing volumes!`);
+                            loadBookData(); // Reload to show them
+                          } else {
+                            alert("No new missing volumes found.");
+                          }
+                        } catch (err) {
+                          alert("Failed to sync saga: " + err.message);
+                        } finally {
+                          setIsSyncingSaga(false);
+                        }
+                      }}
+                      disabled={isSyncingSaga}
+                      style={{
+                        padding: '6px 12px',
+                        background: 'var(--accent-color)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        opacity: isSyncingSaga ? 0.7 : 1
+                      }}
+                    >
+                      {isSyncingSaga ? 'Scouting...' : 'Sync Missing Volumes'}
+                    </button>
+                  )}
                 </div>
 
                 <div className="saga-roadmap">
