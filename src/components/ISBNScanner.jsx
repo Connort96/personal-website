@@ -397,10 +397,13 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           needs_review: isDraft,
         };
 
+        let legacyBookId;
         if (genericBook) {
-          await supabase.from('books')
+          const { data: updatedBook } = await supabase.from('books')
             .update(legacyPayload)
-            .eq('id', genericBook.id);
+            .eq('id', genericBook.id)
+            .select('id').single();
+          legacyBookId = updatedBook?.id;
         } else {
           const { data: genreBooks } = await supabase.from('books')
             .select('book_index')
@@ -409,22 +412,14 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             .limit(1);
           const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
           
-          await supabase.from('books').insert({
+          const { data: insertedBook } = await supabase.from('books').insert({
             ...legacyPayload,
             book_index: nextIndex
-          });
+          }).select('id').single();
+          legacyBookId = insertedBook?.id;
         }
 
         // 4. Link to User Archive
-        // First, find the legacy book_id from the books table (needed for PK constraint)
-        const { data: legacyBookRow } = await supabase
-          .from('books')
-          .select('id')
-          .eq('work_id', workId)
-          .limit(1)
-          .maybeSingle();
-        
-        const legacyBookId = legacyBookRow?.id;
 
         const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
         const wEdIds = (workEds || []).map(e => e.id);
@@ -481,6 +476,66 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             work_id: workId,
             sequence_order: bookData.series.sequence
           }, { onConflict: 'series_id, work_id' });
+
+          // NEW: Automated Saga Expansion (Discover missing siblings)
+          try {
+            console.log(`[Batch Scanner] Auto-Saga Scout for: ${bookData.series.name}`);
+            const sagaRes = await fetch(`https://openlibrary.org/search.json?q=series:("${encodeURIComponent(bookData.series.name)}")`);
+            const sagaData = await sagaRes.json();
+            
+            const uniqueVolumes = new Map();
+            sagaData.docs?.forEach(doc => {
+              if (doc.series_name?.some(n => n.toLowerCase().includes(bookData.series.name.toLowerCase())) && doc.series_position?.[0]) {
+                const pos = parseInt(doc.series_position[0]);
+                if (pos !== bookData.series.sequence && !uniqueVolumes.has(pos)) {
+                  uniqueVolumes.set(pos, {
+                    title: doc.title,
+                    author: doc.author_name?.[0] || bookData.author
+                  });
+                }
+              }
+            });
+
+            if (uniqueVolumes.size > 0) {
+              console.log(`[Batch Scanner] Found ${uniqueVolumes.size} missing siblings for ${bookData.series.name}`);
+              
+              for (const [seq, data] of uniqueVolumes) {
+                const { data: existingLink } = await supabase
+                  .from('series_works')
+                  .select('work_id')
+                  .eq('series_id', sId)
+                  .eq('sequence_order', seq)
+                  .maybeSingle();
+                
+                if (existingLink) continue;
+
+                let { data: siblingWork } = await supabase
+                  .from('works')
+                  .select('id')
+                  .ilike('title', data.title)
+                  .ilike('author', data.author)
+                  .maybeSingle();
+                
+                if (!siblingWork) {
+                  const { data: newW } = await supabase
+                    .from('works')
+                    .insert({ title: data.title, author: data.author })
+                    .select('id')
+                    .single();
+                  siblingWork = newW;
+                }
+
+                await supabase.from('series_works').upsert({
+                  series_id: sId,
+                  work_id: siblingWork.id,
+                  sequence_order: seq
+                }, { onConflict: 'series_id, work_id' });
+              }
+              showToast(`Discovered ${uniqueVolumes.size} missing books in ${bookData.series.name} saga!`, 'success');
+            }
+          } catch (sagaErr) {
+            console.error(`[Batch Scanner] Saga Expansion failed for ${bookData.series.name}`, sagaErr);
+          }
         }
         } catch (bookErr) {
           console.error(`[Batch Scanner] Error archiving "${bookData.title}":`, bookErr);
