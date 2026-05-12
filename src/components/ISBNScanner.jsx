@@ -279,20 +279,38 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       const targetUserId = adminSettings?.admin_user_id || user.id;
 
       for (const bookData of sessionQueue) {
+        try {
         const isDraft = bookData.status === 'draft';
-        const genreId = bookData.genre_id;
-        const genreMeta = genreId ? (getGenreMeta(genreId) || { genre_name: 'Uncategorized', color: '#1a1a1a' }) : { genre_name: 'Uncategorized', color: '#1a1a1a' };
+        const genreId = bookData.genre_id || 'modern_post2000'; // Never null — books table requires NOT NULL
+        const genreMeta = getGenreMeta(genreId) || { genre_name: 'Modern Fiction (Post-2000)', color: '#4A8A8A' };
 
-        // 0. Prevent Duplicate ISBNs
+        // 0. Prevent Duplicate ISBNs — but still ensure ownership link exists
         if (bookData.isbn) {
           const { data: existingEd } = await supabase
             .from('editions')
-            .select('id')
+            .select('id, work_id')
             .eq('isbn', bookData.isbn.trim())
             .maybeSingle();
           
           if (existingEd) {
-            console.log(`[Batch Scanner] Skipping duplicate ISBN: ${bookData.isbn}`);
+            // Edition exists — just ensure the user_books link is there
+            const { data: legacyRow } = await supabase
+              .from('books')
+              .select('id')
+              .eq('work_id', existingEd.work_id)
+              .limit(1)
+              .maybeSingle();
+            
+            if (legacyRow) {
+              await supabase.from('user_books').upsert({
+                user_id: targetUserId,
+                book_id: legacyRow.id,
+                edition_id: existingEd.id,
+                status: 'unread',
+                owned_at: new Date().toISOString()
+              }, { onConflict: 'user_id, book_id' });
+            }
+            console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
             continue;
           }
         }
@@ -463,6 +481,11 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             work_id: workId,
             sequence_order: bookData.series.sequence
           }, { onConflict: 'series_id, work_id' });
+        }
+        } catch (bookErr) {
+          console.error(`[Batch Scanner] Error archiving "${bookData.title}":`, bookErr);
+          showToast(`Error: ${bookData.title} — ${bookErr.message}`, 'error');
+          // Continue with next book instead of aborting the entire batch
         }
       }
 
