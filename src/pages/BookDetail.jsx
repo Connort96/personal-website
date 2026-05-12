@@ -33,6 +33,7 @@ export default function BookDetail() {
   const [error, setError] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSyncingSaga, setIsSyncingSaga] = useState(false);
+  const [isDetectingAI, setIsDetectingAI] = useState(false);
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
@@ -249,6 +250,54 @@ export default function BookDetail() {
     }
   };
 
+  const handleAIDetection = async () => {
+    if (!isAdmin || !work) return;
+    try {
+      setIsDetectingAI(true);
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('saga-scout', {
+        body: { title: work.title, author: work.author }
+      });
+      
+      if (aiError) throw aiError;
+      
+      if (aiData?.series_name) {
+        // AI found a series! Let's link it.
+        let { data: existingSeries } = await supabase
+          .from('series')
+          .select('id')
+          .ilike('name', aiData.series_name)
+          .maybeSingle();
+        
+        let sId;
+        if (existingSeries) {
+          sId = existingSeries.id;
+        } else {
+          const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+          sId = newS.id;
+        }
+
+        const sequence = parseInt(aiData.sequence || 1);
+        await supabase.from('series_works').upsert({
+          series_id: sId,
+          work_id: work.id,
+          sequence_order: sequence
+        }, { onConflict: 'series_id, work_id' });
+
+        alert(`AI identified series: ${aiData.series_name} (Book ${sequence}). Now scouting for missing volumes...`);
+        
+        // Auto-run saga scout
+        await runSagaScout(supabase, sId, aiData.series_name, sequence, work.author);
+        await loadBookData(); // Reload to show everything
+      } else {
+        alert("The AI Librarian could not identify a series for this book.");
+      }
+    } catch (err) {
+      alert("AI Detection failed: " + err.message);
+    } finally {
+      setIsDetectingAI(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="book-detail-error">
@@ -280,9 +329,21 @@ export default function BookDetail() {
           </Link>
 
           {isAdmin && (
-            <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
-              Edit Archive
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {!work.saga && (
+                <button 
+                  className="book-detail-edit-btn" 
+                  onClick={handleAIDetection}
+                  disabled={isDetectingAI}
+                  style={{ background: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: 'white' }}
+                >
+                  {isDetectingAI ? 'Detecting...' : '✨ AI Series Detect'}
+                </button>
+              )}
+              <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
+                Edit Archive
+              </button>
+            </div>
           )}
         </div>
 
@@ -365,7 +426,7 @@ export default function BookDetail() {
                   </div>
                   {isAdmin && (
                     <button 
-                      className="saga-sync-btn"
+                      className="book-detail-edit-btn"
                       onClick={async () => {
                         try {
                           setIsSyncingSaga(true);
@@ -383,15 +444,13 @@ export default function BookDetail() {
                         }
                       }}
                       disabled={isSyncingSaga}
-                      style={{
-                        padding: '6px 12px',
-                        background: 'var(--accent-color)',
+                      style={{ 
+                        opacity: isSyncingSaga ? 0.7 : 1,
+                        background: 'var(--accent-color)', 
+                        borderColor: 'var(--accent-color)', 
                         color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        opacity: isSyncingSaga ? 0.7 : 1
+                        marginTop: '10px',
+                        display: 'block'
                       }}
                     >
                       {isSyncingSaga ? 'Scouting...' : 'Sync Missing Volumes'}

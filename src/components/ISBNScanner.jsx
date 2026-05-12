@@ -99,21 +99,30 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       
       let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
 
-      // SAGA SCOUT: Check for series info
-      let seriesInfo = null;
+      // TRIPLE-HUNT FALLBACK for covers
       const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,series,series_name,series_position,cover_i,subject`);
       const searchData = await searchRes.json();
       const firstDoc = searchData.docs?.[0];
+
+      if (!bestCover && firstDoc?.cover_i) {
+        bestCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
+      }
+
+      const finalTitle = olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title';
+      const finalAuthor = olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || searchData?.docs?.[0]?.author_name?.[0] || 'Unknown Author';
+
+      // SAGA SCOUT: Check for series info
+      let seriesInfo = null;
 
       if (firstDoc?.series_name?.[0]) {
         seriesInfo = {
           name: firstDoc.series_name[0],
           sequence: parseInt(firstDoc.series_position?.[0] || firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
         };
-      } else if (bookData.title && bookData.author) {
-        // Fallback: If ISBN specifically lacked series metadata, search broadly by Title + Author
+      } else if (finalTitle !== 'Unknown Title' && finalAuthor !== 'Unknown Author') {
+        // Fallback 1: Broad Title + Author search
         try {
-          const fallbackRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(bookData.title)}&author=${encodeURIComponent(bookData.author)}&fields=title,series_name,series_position&limit=5`);
+          const fallbackRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(finalTitle)}&author=${encodeURIComponent(finalAuthor)}&fields=title,series_name,series_position&limit=5`);
           const fallbackData = await fallbackRes.json();
           const docWithSeries = fallbackData.docs?.find(d => d.series_name?.[0]);
           if (docWithSeries) {
@@ -125,11 +134,25 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         } catch (fbErr) {
           console.warn("[Batch Scanner] Fallback series search failed:", fbErr);
         }
-      }
 
-      // TRIPLE-HUNT FALLBACK for covers
-      if (!bestCover && firstDoc?.cover_i) {
-        bestCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
+        // Fallback 2: AI Librarian Edge Function
+        if (!seriesInfo) {
+          try {
+            console.log(`[Batch Scanner] APIs failed. Pinging AI Librarian for: ${finalTitle}`);
+            const { data: aiData, error: aiError } = await supabase.functions.invoke('saga-scout', {
+              body: { title: finalTitle, author: finalAuthor }
+            });
+            if (!aiError && aiData?.series_name) {
+              console.log(`[Batch Scanner] AI Librarian found series:`, aiData);
+              seriesInfo = {
+                name: aiData.series_name,
+                sequence: parseInt(aiData.sequence || 1)
+              };
+            }
+          } catch (aiErr) {
+            console.warn("[Batch Scanner] AI Librarian failed:", aiErr);
+          }
+        }
       }
 
       // Auto-detect genre from API subjects
@@ -141,9 +164,9 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       const detectedGenre = detectGenre(combinedSubjects, gbCategories);
 
       return {
-        title: olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title',
+        title: finalTitle,
         subtitle: olInfo?.subtitle || gbInfo?.subtitle || '',
-        author: olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || searchData?.docs?.[0]?.author_name?.[0] || 'Unknown Author',
+        author: finalAuthor,
         publisher: olInfo?.publishers?.[0]?.name || gbInfo?.publisher || 'Unknown Publisher',
         year: olInfo?.publish_date || gbInfo?.publishedDate || 'Unknown',
         full_date: (olInfo?.publish_date || gbInfo?.publishedDate)?.match(/\d{4}/) 
