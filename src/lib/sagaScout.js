@@ -2,13 +2,31 @@
  * Robust Saga Scout
  * Searches OpenLibrary to find and map missing volumes for a given series.
  */
+import { KNOWN_SAGAS } from './knownSagas.js';
 
 export async function runSagaScout(supabase, seriesId, seriesName, knownSequence, defaultAuthor = 'Unknown Author') {
   try {
     console.log(`[Saga Scout] Initiating deep scout for series: ${seriesName}`);
     const uniqueVolumes = new Map();
 
-    // 1. Phase 1: HIDDEN SERIES API (The Triple-Threat)
+    // 0. Phase 0: The Local Mega-Registry
+    console.log(`[Saga Scout] Phase 0: Checking Local Mega-Registry for ${seriesName}`);
+    const knownMatch = KNOWN_SAGAS.find(s => s.name.toLowerCase() === seriesName.toLowerCase());
+    if (knownMatch) {
+      console.log(`[Saga Scout] Mega-Registry hit! Found perfect mapping for ${seriesName}`);
+      knownMatch.books.forEach(b => {
+        if (b.sequence !== knownSequence) {
+          uniqueVolumes.set(b.sequence, {
+            title: b.title,
+            author: defaultAuthor
+          });
+        }
+      });
+    }
+
+    // Only hit APIs if the Mega-Registry didn't have the answer
+    if (uniqueVolumes.size === 0) {
+      // 1. Phase 1: HIDDEN SERIES API (The Triple-Threat)
     console.log(`[Saga Scout] Phase 1: Checking hidden Series API for ${seriesName}`);
     try {
       const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(seriesName)}&limit=3`);
@@ -84,8 +102,7 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
         }
       });
     }
-    
-
+    } // End of API block
 
     if (uniqueVolumes.size === 0) {
       console.log(`[Saga Scout] No missing siblings found for ${seriesName}.`);

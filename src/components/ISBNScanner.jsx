@@ -134,25 +134,6 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         } catch (fbErr) {
           console.warn("[Batch Scanner] Fallback series search failed:", fbErr);
         }
-
-        // Fallback 2: AI Librarian Edge Function
-        if (!seriesInfo) {
-          try {
-            console.log(`[Batch Scanner] APIs failed. Pinging AI Librarian for: ${finalTitle}`);
-            const { data: aiData, error: aiError } = await supabase.functions.invoke('saga-scout', {
-              body: { title: finalTitle, author: finalAuthor }
-            });
-            if (!aiError && aiData?.series_name) {
-              console.log(`[Batch Scanner] AI Librarian found series:`, aiData);
-              seriesInfo = {
-                name: aiData.series_name,
-                sequence: parseInt(aiData.sequence || 1)
-              };
-            }
-          } catch (aiErr) {
-            console.warn("[Batch Scanner] AI Librarian failed:", aiErr);
-          }
-        }
       }
 
       // Auto-detect genre from API subjects
