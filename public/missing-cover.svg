@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1816"/>
+      <stop offset="100%" stop-color="#12100e"/>
+    </linearGradient>
+    <pattern id="linen" patternUnits="userSpaceOnUse" width="6" height="6">
+      <rect width="6" height="6" fill="transparent"/>
+      <rect x="0" y="0" width="1" height="1" fill="rgba(200,168,75,0.04)"/>
+      <rect x="3" y="3" width="1" height="1" fill="rgba(200,168,75,0.04)"/>
+    </pattern>
+    <linearGradient id="spine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(200,168,75,0.12)"/>
+      <stop offset="50%" stop-color="rgba(200,168,75,0.06)"/>
+      <stop offset="100%" stop-color="rgba(200,168,75,0.12)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="300" height="450" fill="url(#bg)"/>
+  <rect width="300" height="450" fill="url(#linen)"/>
+
+  <!-- Spine accent -->
+  <rect x="0" y="0" width="8" height="450" fill="url(#spine)"/>
+
+  <!-- Top and bottom decorative lines -->
+  <line x1="30" y1="40" x2="270" y2="40" stroke="rgba(200,168,75,0.15)" stroke-width="0.5"/>
+  <line x1="30" y1="410" x2="270" y2="410" stroke="rgba(200,168,75,0.15)" stroke-width="0.5"/>
+
+  <!-- Book icon -->
+  <g transform="translate(150,180)" opacity="0.25">
+    <path d="M-30,-35 L-30,35 Q0,25 30,35 L30,-35 Q0,-25 -30,-35 Z"
+          fill="none" stroke="rgba(200,168,75,1)" stroke-width="1.5"/>
+    <path d="M0,-28 L0,30"
+          fill="none" stroke="rgba(200,168,75,1)" stroke-width="1"/>
+    <!-- Page lines -->
+    <line x1="-18" y1="-18" x2="-6" y2="-20" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+    <line x1="-18" y1="-10" x2="-6" y2="-12" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+    <line x1="-18" y1="-2" x2="-6" y2="-4" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+    <line x1="18" y1="-18" x2="6" y2="-20" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+    <line x1="18" y1="-10" x2="6" y2="-12" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+    <line x1="18" y1="-2" x2="6" y2="-4" stroke="rgba(200,168,75,0.6)" stroke-width="0.75"/>
+  </g>
+
+  <!-- Text -->
+  <text x="150" y="260" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="13" letter-spacing="0.15em"
+        fill="rgba(200,168,75,0.35)">
+    NO COVER
+  </text>
+
+  <text x="150" y="285" text-anchor="middle"
+        font-family="'Courier New', monospace"
+        font-size="8" letter-spacing="0.2em"
+        fill="rgba(200,168,75,0.2)">
+    AWAITING ARTWORK
+  </text>
+
+  <!-- Corner accents -->
+  <path d="M25,25 L25,35 M25,25 L35,25" fill="none" stroke="rgba(200,168,75,0.12)" stroke-width="0.75"/>
+  <path d="M275,25 L275,35 M275,25 L265,25" fill="none" stroke="rgba(200,168,75,0.12)" stroke-width="0.75"/>
+  <path d="M25,425 L25,415 M25,425 L35,425" fill="none" stroke="rgba(200,168,75,0.12)" stroke-width="0.75"/>
+  <path d="M275,425 L275,415 M275,425 L265,425" fill="none" stroke="rgba(200,168,75,0.12)" stroke-width="0.75"/>
+</svg>

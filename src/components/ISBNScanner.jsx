@@ -1,21 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { detectGenre, GENRE_META, getGenreMeta } from '../lib/genreMap';
 import './ISBNScanner.css';
+
+const MISSING_COVER_URL = '/missing-cover.svg';
+const COOLDOWN_MS = 2000;
 
 const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   const { user } = useAuth();
-  const [scanner, setScanner] = useState(null);
-  const [scannedIsbn, setScannedIsbn] = useState('');
-  const [bookData, setBookData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [status, setStatus] = useState('scanning'); // scanning, confirming, saving
-  const [genres, setGenres] = useState([]);
-  const [selectedGenre, setSelectedGenre] = useState('uncategorized');
+  const scannerRef = useRef(null);
+  const lastScannedRef = useRef('');
+  const cooldownActiveRef = useRef(false);
+  const cooldownTimerRef = useRef(null);
 
+  const [sessionQueue, setSessionQueue] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [committing, setCommitting] = useState(false);
+  const [flashActive, setFlashActive] = useState(false);
+  const [genres, setGenres] = useState([]);
+  const [cameraError, setCameraError] = useState('');
+
+  // Load genre list from DB on mount
   useEffect(() => {
     async function loadGenres() {
       const { data } = await supabase.from('books').select('genre_id, genre_name, color').order('genre_name');
@@ -31,51 +39,24 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     loadGenres();
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      const html5QrCode = new Html5Qrcode("reader");
-      setScanner(html5QrCode);
-      
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-      
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-      ).catch(err => {
-        console.error("Camera start error:", err);
-        setError("Could not access camera. Please check permissions.");
-      });
+  // Toast helper
+  const showToast = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3500);
+  }, []);
 
-      return () => {
-        if (html5QrCode.isScanning) {
-          html5QrCode.stop().catch(e => console.log("Stop error", e));
-        }
-      };
-    }
-  }, [isOpen]);
+  // Flash viewport gold on successful scan
+  const triggerFlash = useCallback(() => {
+    setFlashActive(true);
+    setTimeout(() => setFlashActive(false), 600);
+  }, []);
 
-  const onScanSuccess = async (decodedText) => {
-    // Basic ISBN validation (10 or 13 digits)
-    const isbn = decodedText.replace(/[-\s]/g, '');
-    if (isbn.length !== 10 && isbn.length !== 13) return;
-
-    setScannedIsbn(isbn);
-    setStatus('confirming');
-    
-    // Stop scanner once found
-    if (scanner) {
-      await scanner.stop();
-    }
-
-    fetchBookMetadata(isbn);
-  };
-
-  const fetchBookMetadata = async (isbn) => {
-    setLoading(true);
-    setError('');
+  // Fetch book metadata from APIs
+  const fetchBookMetadata = useCallback(async (isbn) => {
     try {
-      // Parallel fetch from Open Library and Google Books for better cover/metadata coverage
       const [olRes, gbRes] = await Promise.all([
         fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`),
         fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
@@ -88,7 +69,27 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       const gbInfo = gbData.items?.[0]?.volumeInfo;
 
       if (!olInfo && !gbInfo) {
-        throw new Error("Book not found in primary archives.");
+        // Draft state — API returned nothing
+        return {
+          title: 'Unknown Book',
+          subtitle: '',
+          author: 'Unknown Author',
+          publisher: 'Unknown Publisher',
+          year: 'Unknown',
+          full_date: null,
+          cover: MISSING_COVER_URL,
+          pages: 0,
+          isbn: isbn,
+          description: '',
+          format: 'Hardcover',
+          series: null,
+          status: 'draft',
+          genre_id: null,
+          genre_name: null,
+          genre_color: null,
+          subjects: [],
+          categories: [],
+        };
       }
 
       // Prefer Google Books for cover art
@@ -99,7 +100,6 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
       // SAGA SCOUT: Check for series info
       let seriesInfo = null;
-      console.log("[Saga Scout] Searching for series metadata...");
       const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
       const searchData = await searchRes.json();
       const firstDoc = searchData.docs?.[0];
@@ -107,18 +107,21 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       if (firstDoc?.series?.[0]) {
         seriesInfo = {
           name: firstDoc.series[0],
-          // Try to extract sequence if possible (often in 'series' string or title)
           sequence: parseInt(firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
         };
-        console.log("[Saga Scout] Series Detected:", seriesInfo.name);
       }
 
-      // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs
+      // TRIPLE-HUNT FALLBACK for covers
       if (!bestCover && firstDoc?.cover_i) {
         bestCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
       }
 
-      setBookData({
+      // Auto-detect genre from API subjects
+      const olSubjects = olInfo?.subjects || [];
+      const gbCategories = gbInfo?.categories || [];
+      const detectedGenre = detectGenre(olSubjects, gbCategories);
+
+      return {
         title: olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title',
         subtitle: olInfo?.subtitle || gbInfo?.subtitle || '',
         author: olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || searchData?.docs?.[0]?.author_name?.[0] || 'Unknown Author',
@@ -127,48 +130,144 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         full_date: (olInfo?.publish_date || gbInfo?.publishedDate)?.match(/\d{4}/) 
           ? `${(olInfo?.publish_date || gbInfo?.publishedDate).match(/\d{4}/)[0]}-01-01` 
           : null,
-        cover: bestCover,
+        cover: bestCover || MISSING_COVER_URL,
         pages: olInfo?.number_of_pages || gbInfo?.pageCount || 0,
         isbn: isbn,
         description: olInfo?.description || gbInfo?.description || olInfo?.notes || '',
         format: 'Hardcover',
-        series: seriesInfo
-      });
+        series: seriesInfo,
+        status: 'identified',
+        genre_id: detectedGenre?.genre_id || null,
+        genre_name: detectedGenre?.genre_name || null,
+        genre_color: detectedGenre?.color || null,
+        subjects: olSubjects.map(s => s.name || s),
+        categories: gbCategories,
+      };
     } catch (err) {
-      console.error("Fetch error:", err);
-      setError(err.message || "Could not retrieve book details.");
-      setStatus('scanning');
-      // Restart scanner on error
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-      scanner?.start({ facingMode: "environment" }, config, onScanSuccess);
-    } finally {
-      setLoading(false);
+      console.error("[Batch Scanner] Fetch error:", err);
+      return {
+        title: 'Unknown Book',
+        subtitle: '',
+        author: 'Unknown Author',
+        publisher: 'Unknown Publisher',
+        year: 'Unknown',
+        full_date: null,
+        cover: MISSING_COVER_URL,
+        pages: 0,
+        isbn: isbn,
+        description: '',
+        format: 'Hardcover',
+        series: null,
+        status: 'draft',
+        genre_id: null,
+        genre_name: null,
+        genre_color: null,
+        subjects: [],
+        categories: [],
+      };
     }
-  };
+  }, []);
 
-  const handleAddToArchive = async () => {
-    if (!bookData || !user) return;
-    setStatus('saving');
-    setLoading(true);
+  // Handle a successful barcode scan
+  const onScanSuccess = useCallback(async (decodedText) => {
+    const isbn = decodedText.replace(/[-\s]/g, '');
+    if (isbn.length !== 10 && isbn.length !== 13) return;
+
+    // Debounce: ignore if same barcode within cooldown
+    if (cooldownActiveRef.current && lastScannedRef.current === isbn) return;
+    // Ignore if this ISBN is already in the queue
+    if (sessionQueue.some(item => item.isbn === isbn)) {
+      showToast(`ISBN ${isbn} already in queue`, 'warning');
+      return;
+    }
+
+    // Activate cooldown
+    lastScannedRef.current = isbn;
+    cooldownActiveRef.current = true;
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+    cooldownTimerRef.current = setTimeout(() => {
+      cooldownActiveRef.current = false;
+    }, COOLDOWN_MS);
+
+    // Visual feedback
+    triggerFlash();
+    showToast(`Scanning ISBN: ${isbn}...`, 'info');
+
+    // Fetch metadata asynchronously
+    const bookData = await fetchBookMetadata(isbn);
+    
+    // Add a unique queue ID
+    bookData._queueId = `${isbn}-${Date.now()}`;
+
+    setSessionQueue(prev => [...prev, bookData]);
+
+    if (bookData.status === 'draft') {
+      showToast(`ISBN not found — added as draft`, 'warning');
+    } else {
+      const genreHint = bookData.genre_name ? ` → ${bookData.genre_name}` : '';
+      showToast(`${bookData.title}${genreHint}`, 'success');
+    }
+  }, [sessionQueue, fetchBookMetadata, showToast, triggerFlash]);
+
+  // We need a stable ref for onScanSuccess since html5-qrcode holds the callback
+  const onScanSuccessRef = useRef(onScanSuccess);
+  useEffect(() => {
+    onScanSuccessRef.current = onScanSuccess;
+  }, [onScanSuccess]);
+
+  // Start/stop camera when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setCameraError('');
+    const html5QrCode = new Html5Qrcode("reader");
+    scannerRef.current = html5QrCode;
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => onScanSuccessRef.current(decodedText)
+    ).catch(err => {
+      console.error("Camera start error:", err);
+      setCameraError("Could not access camera. Please check permissions.");
+    });
+
+    return () => {
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(e => console.log("Stop error", e));
+      }
+      scannerRef.current = null;
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+    };
+  }, [isOpen]);
+
+  // Remove item from queue
+  const removeFromQueue = useCallback((queueId) => {
+    setSessionQueue(prev => prev.filter(item => item._queueId !== queueId));
+  }, []);
+
+  // Update genre for a specific queue item
+  const updateQueueGenre = useCallback((queueId, genreId) => {
+    setSessionQueue(prev => prev.map(item => {
+      if (item._queueId !== queueId) return item;
+      const meta = getGenreMeta(genreId);
+      return {
+        ...item,
+        genre_id: genreId === 'uncategorized' ? null : genreId,
+        genre_name: meta?.genre_name || 'Uncategorized',
+        genre_color: meta?.color || '#1a1a1a',
+      };
+    }));
+  }, []);
+
+  // ── COMMIT: Write all queued books to Supabase ──
+  const handleCommitAll = async () => {
+    if (!user || sessionQueue.length === 0) return;
+    setCommitting(true);
 
     try {
-      // 0. Prevent Duplicate ISBNs
-      if (bookData.isbn) {
-        const { data: existingEd } = await supabase
-          .from('editions')
-          .select('id')
-          .eq('isbn', bookData.isbn.trim())
-          .maybeSingle();
-        
-        if (existingEd) {
-          setError("This edition is already in your archive.");
-          setLoading(false);
-          setStatus('confirming');
-          return;
-        }
-      }
-
-      // 1. Fetch the Admin ID to ensure visibility in the library grid
       const { data: adminSettings } = await supabase
         .from('admin_settings')
         .select('admin_user_id')
@@ -176,332 +275,343 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       
       const targetUserId = adminSettings?.admin_user_id || user.id;
 
-      const genreMeta = genres.find(g => g.genre_id === selectedGenre) || { genre_name: 'Uncategorized', color: '#1a1a1a' };
-      const safeGenreId = selectedGenre === 'uncategorized' ? null : selectedGenre;
+      for (const bookData of sessionQueue) {
+        const isDraft = bookData.status === 'draft';
+        const genreId = bookData.genre_id;
+        const genreMeta = genreId ? (getGenreMeta(genreId) || { genre_name: 'Uncategorized', color: '#1a1a1a' }) : { genre_name: 'Uncategorized', color: '#1a1a1a' };
 
-      // 1. Get or Create Work
-      let workId;
-      const { data: existingWork } = await supabase
-        .from('works')
-        .select('id')
-        .ilike('title', bookData.title)
-        .ilike('author', bookData.author)
-        .maybeSingle();
-
-      if (existingWork) {
-        workId = existingWork.id;
-      } else {
-        const { data: newWork } = await supabase
-          .from('works')
-          .insert({ title: bookData.title, author: bookData.author })
-          .select().single();
-        workId = newWork.id;
-      }
-
-      // 2. GET OR CREATE EDITION (Intelligent Merger)
-      // Check if a "Generic" edition (no ISBN) already exists for this work
-      const { data: genericEd } = await supabase
-        .from('editions')
-        .select('id')
-        .eq('work_id', workId)
-        .is('isbn', null)
-        .maybeSingle();
-
-      let editionId;
-      const editionPayload = {
-        work_id: workId,
-        isbn: bookData.isbn,
-        publisher: bookData.publisher,
-        cover_image_url: bookData.cover,
-        cover_url: bookData.cover,
-        format: bookData.format || 'Hardcover',
-        page_count: bookData.pages,
-        genre_id: safeGenreId,
-        genre_name: genreMeta.genre_name,
-        color: genreMeta.color,
-        publication_date: bookData.full_date
-      };
-
-      if (genericEd) {
-        console.log(`[ISBN Scanner] Found generic edition ${genericEd.id}. Overwriting...`);
-        const { data: updatedEd } = await supabase
-          .from('editions')
-          .update(editionPayload)
-          .eq('id', genericEd.id)
-          .select().single();
-        editionId = updatedEd.id;
-      } else {
-        const { data: newEdition } = await supabase
-          .from('editions')
-          .insert(editionPayload)
-          .select().single();
-        editionId = newEdition.id;
-      }
-
-      // 3. SYNC TO LEGACY 'BOOKS' TABLE (Intelligent Merger)
-      // Check if a legacy record for this work exists with no ISBN (Wishlisted from roadmap)
-      const { data: genericBook } = await supabase
-        .from('books')
-        .select('id, book_index')
-        .eq('work_id', workId)
-        .is('isbn', null)
-        .maybeSingle();
-
-      const legacyPayload = {
-        title: bookData.title,
-        author: bookData.author,
-        publisher: bookData.publisher,
-        cover_url: bookData.cover,
-        isbn: bookData.isbn,
-        genre_id: safeGenreId,
-        genre_name: genreMeta.genre_name,
-        color: genreMeta.color,
-        page_count: bookData.pages,
-        publication_date: bookData.full_date,
-        note: bookData.description || `Scanned via ISBN Scanner on ${new Date().toLocaleDateString()}`,
-        work_id: workId
-      };
-
-      if (genericBook) {
-        console.log(`[ISBN Scanner] Found generic legacy book ${genericBook.id}. Updating...`);
-        await supabase.from('books')
-          .update(legacyPayload)
-          .eq('id', genericBook.id);
-      } else {
-        const { data: genreBooks } = await supabase.from('books')
-          .select('book_index')
-          .eq('genre_name', genreMeta.genre_name)
-          .order('book_index', { ascending: false })
-          .limit(1);
-        const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-        
-        await supabase.from('books').insert({
-          ...legacyPayload,
-          book_index: nextIndex
-        });
-      }
-
-      // 4. Link to User Archive (Ensuring it's marked as Owned)
-      const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
-      const wEdIds = (workEds || []).map(e => e.id);
-      
-      const { data: workReview } = await supabase
-        .from('user_books')
-        .select('rating, review, status')
-        .eq('user_id', targetUserId)
-        .in('edition_id', wEdIds)
-        .order('review', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const { error: ubError } = await supabase.from('user_books').upsert({
-        user_id: targetUserId,
-        edition_id: editionId,
-        status: workReview?.status || 'unread',
-        rating: workReview?.rating || 0,
-        review: workReview?.review || '',
-        owned_at: new Date().toISOString()
-      }, { onConflict: 'user_id, edition_id' });
-
-      if (ubError) throw ubError;
-
-      // 4.5. CHECKLIST HANDSHAKE: Sync with legacy 'books' checklist
-      console.log("[Scanner Sync] Checking for checklist items to fulfill...");
-      await supabase.from('books')
-        .update({ work_id: workId }) // Ensure link exists
-        .ilike('title', bookData.title)
-        .ilike('author', bookData.author);
-
-      // 5. AUTO-SAGA: Map to series if detected
-      if (bookData.series) {
-        console.log("[Saga Auto] Processing Series:", bookData.series.name);
-        
-        // Find or Create Series
-        let { data: existingSeries } = await supabase
-          .from('series')
-          .select('id')
-          .ilike('name', bookData.series.name)
-          .maybeSingle();
-        
-        let sId;
-        if (existingSeries) {
-          sId = existingSeries.id;
-        } else {
-          const { data: newS } = await supabase
-            .from('series')
-            .insert({ name: bookData.series.name, description: `The ${bookData.series.name} series.` })
+        // 0. Prevent Duplicate ISBNs
+        if (bookData.isbn) {
+          const { data: existingEd } = await supabase
+            .from('editions')
             .select('id')
-            .single();
-          sId = newS.id;
+            .eq('isbn', bookData.isbn.trim())
+            .maybeSingle();
+          
+          if (existingEd) {
+            console.log(`[Batch Scanner] Skipping duplicate ISBN: ${bookData.isbn}`);
+            continue;
+          }
         }
 
-        // Link Work to Series
-        await supabase.from('series_works').upsert({
-          series_id: sId,
+        // 1. Get or Create Work
+        let workId;
+        const { data: existingWork } = await supabase
+          .from('works')
+          .select('id')
+          .ilike('title', bookData.title)
+          .ilike('author', bookData.author)
+          .maybeSingle();
+
+        if (existingWork) {
+          workId = existingWork.id;
+        } else {
+          const { data: newWork } = await supabase
+            .from('works')
+            .insert({ title: bookData.title, author: bookData.author })
+            .select().single();
+          workId = newWork.id;
+        }
+
+        // 2. Get or Create Edition (Intelligent Merger)
+        const { data: genericEd } = await supabase
+          .from('editions')
+          .select('id')
+          .eq('work_id', workId)
+          .is('isbn', null)
+          .maybeSingle();
+
+        let editionId;
+        const editionPayload = {
           work_id: workId,
-          sequence_order: bookData.series.sequence
-        }, { onConflict: 'series_id, work_id' });
+          isbn: bookData.isbn,
+          publisher: bookData.publisher,
+          cover_image_url: bookData.cover,
+          cover_url: bookData.cover,
+          format: bookData.format || 'Hardcover',
+          page_count: bookData.pages,
+          genre_id: genreId,
+          genre_name: genreMeta.genre_name,
+          color: genreMeta.color,
+          publication_date: bookData.full_date,
+          needs_review: isDraft,
+        };
+
+        if (genericEd) {
+          const { data: updatedEd } = await supabase
+            .from('editions')
+            .update(editionPayload)
+            .eq('id', genericEd.id)
+            .select().single();
+          editionId = updatedEd.id;
+        } else {
+          const { data: newEdition } = await supabase
+            .from('editions')
+            .insert(editionPayload)
+            .select().single();
+          editionId = newEdition.id;
+        }
+
+        // 3. Sync to Legacy 'books' Table
+        const { data: genericBook } = await supabase
+          .from('books')
+          .select('id, book_index')
+          .eq('work_id', workId)
+          .is('isbn', null)
+          .maybeSingle();
+
+        const legacyPayload = {
+          title: bookData.title,
+          author: bookData.author,
+          publisher: bookData.publisher,
+          cover_url: bookData.cover,
+          isbn: bookData.isbn,
+          genre_id: genreId,
+          genre_name: genreMeta.genre_name,
+          color: genreMeta.color,
+          page_count: bookData.pages,
+          publication_date: bookData.full_date,
+          note: bookData.description || `Scanned via Batch Scanner on ${new Date().toLocaleDateString()}`,
+          work_id: workId,
+          needs_review: isDraft,
+        };
+
+        if (genericBook) {
+          await supabase.from('books')
+            .update(legacyPayload)
+            .eq('id', genericBook.id);
+        } else {
+          const { data: genreBooks } = await supabase.from('books')
+            .select('book_index')
+            .eq('genre_name', genreMeta.genre_name)
+            .order('book_index', { ascending: false })
+            .limit(1);
+          const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+          
+          await supabase.from('books').insert({
+            ...legacyPayload,
+            book_index: nextIndex
+          });
+        }
+
+        // 4. Link to User Archive
+        const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
+        const wEdIds = (workEds || []).map(e => e.id);
         
-        console.log("[Saga Auto] Linked Work to Series.");
+        const { data: workReview } = await supabase
+          .from('user_books')
+          .select('rating, review, status')
+          .eq('user_id', targetUserId)
+          .in('edition_id', wEdIds)
+          .order('review', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        await supabase.from('user_books').upsert({
+          user_id: targetUserId,
+          edition_id: editionId,
+          status: workReview?.status || 'unread',
+          rating: workReview?.rating || 0,
+          review: workReview?.review || '',
+          owned_at: new Date().toISOString()
+        }, { onConflict: 'user_id, edition_id' });
+
+        // 4.5. Checklist Handshake
+        await supabase.from('books')
+          .update({ work_id: workId })
+          .ilike('title', bookData.title)
+          .ilike('author', bookData.author);
+
+        // 5. Auto-Saga: Map to series if detected
+        if (bookData.series) {
+          let { data: existingSeries } = await supabase
+            .from('series')
+            .select('id')
+            .ilike('name', bookData.series.name)
+            .maybeSingle();
+          
+          let sId;
+          if (existingSeries) {
+            sId = existingSeries.id;
+          } else {
+            const { data: newS } = await supabase
+              .from('series')
+              .insert({ name: bookData.series.name, description: `The ${bookData.series.name} series.` })
+              .select('id')
+              .single();
+            sId = newS.id;
+          }
+
+          await supabase.from('series_works').upsert({
+            series_id: sId,
+            work_id: workId,
+            sequence_order: bookData.series.sequence
+          }, { onConflict: 'series_id, work_id' });
+        }
       }
 
-      if (onComplete) onComplete(bookData);
+      // All done — clear queue and close
+      setSessionQueue([]);
+      if (onComplete) onComplete();
       onClose();
     } catch (err) {
-      console.error("Save error:", err);
-      setError(`Failed to save to archive: ${err.message}`);
-      setStatus('confirming');
+      console.error("[Batch Scanner] Commit error:", err);
+      showToast(`Archive error: ${err.message}`, 'error');
     } finally {
-      setLoading(false);
+      setCommitting(false);
     }
   };
 
-  const restartScanner = () => {
-    setBookData(null);
-    setError('');
-    setStatus('scanning');
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    scanner?.start({ facingMode: "environment" }, config, onScanSuccess);
+  const handleClose = () => {
+    if (sessionQueue.length > 0 && !confirm(`You have ${sessionQueue.length} book(s) in the queue. Close without archiving?`)) {
+      return;
+    }
+    setSessionQueue([]);
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="isbn-scanner-overlay">
-      <div className="scanner-container">
+      <div className="scanner-container scanner-container--batch">
+        {/* Header */}
         <div className="scanner-header">
-          <button className="scanner-close" onClick={onClose}>×</button>
-          <h2>Digitize Volume</h2>
+          <h2>Batch Scanner</h2>
+          <div className="scanner-header-meta">
+            {sessionQueue.length > 0 && (
+              <span className="scanner-queue-count">{sessionQueue.length} queued</span>
+            )}
+            <button className="scanner-close" onClick={handleClose}>×</button>
+          </div>
         </div>
 
-        <div className="scanner-viewport">
-          <div id="reader" className="scanner-reader"></div>
-          
-          {status === 'scanning' && (
+        <div className="scanner-body">
+          {/* Camera viewport */}
+          <div className={`scanner-viewport ${flashActive ? 'scanner-viewport--flash' : ''}`}>
+            <div id="reader" className="scanner-reader"></div>
+            
             <div className="scanner-ui-overlay">
               <div className="scanner-target">
                 <div className="scanner-laser"></div>
               </div>
-              <p className="scanner-hint">Align barcode within the gold frame</p>
+              <p className="scanner-hint">
+                {sessionQueue.length === 0 
+                  ? 'Align barcode within the gold frame' 
+                  : `${sessionQueue.length} scanned — keep going`}
+              </p>
             </div>
-          )}
 
-          {status === 'confirming' && (
-            <motion.div 
-              className="scanner-confirmation-card"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-            >
-              {loading ? (
-                <div className="scanner-loading">
-                  <div className="spinner"></div>
-                  <span>Identifying Book...</span>
-                </div>
-              ) : error ? (
-                <div className="scanner-error">
-                  <p>{error}</p>
-                  <button onClick={restartScanner} className="scanner-btn-retry">Try Again</button>
-                </div>
-              ) : (
-                  <div className="confirmation-content">
-                    <div className="book-preview-grid">
-                      <div className="book-preview-art">
-                        {bookData.cover ? (
-                          <img src={bookData.cover} alt="Cover" />
-                        ) : (
-                          <div className="cover-placeholder">No Cover Found</div>
-                        )}
-                      </div>
-                      
-                      <div className="book-preview-form">
-                        <div className="scanner-field-group">
-                          <label>Title</label>
-                          <input 
-                            type="text" 
-                            value={bookData.title}
-                            onChange={(e) => setBookData({ ...bookData, title: e.target.value })}
-                          />
-                          {bookData.series && (
-                            <div className="scanner-series-tag">
-                              Saga Detected: {bookData.series.name} (Vol {bookData.series.sequence})
-                            </div>
-                          )}
-                        </div>
+            {cameraError && (
+              <div className="scanner-camera-error">
+                <p>{cameraError}</p>
+              </div>
+            )}
+          </div>
 
-                        <div className="scanner-field-row">
-                          <div className="scanner-field-group">
-                            <label>Author</label>
-                            <input 
-                              type="text" 
-                              value={bookData.author}
-                              onChange={(e) => setBookData({ ...bookData, author: e.target.value })}
-                            />
-                          </div>
-                          <div className="scanner-field-group">
-                            <label>Publisher</label>
-                            <input 
-                              type="text" 
-                              value={bookData.publisher}
-                              onChange={(e) => setBookData({ ...bookData, publisher: e.target.value })}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="scanner-field-row">
-                          <div className="scanner-field-group">
-                            <label>Format</label>
-                            <select 
-                              value={bookData.format || 'Hardcover'}
-                              onChange={(e) => setBookData({ ...bookData, format: e.target.value })}
-                            >
-                              <option value="Hardcover">Hardcover</option>
-                              <option value="Paperback">Paperback</option>
-                              <option value="Audiobook">Audiobook</option>
-                              <option value="Digital">Digital</option>
-                              <option value="Kindle">Kindle</option>
-                            </select>
-                          </div>
-                          <div className="scanner-field-group">
-                            <label>Pages</label>
-                            <input 
-                              type="number" 
-                              value={bookData.pages}
-                              onChange={(e) => setBookData({ ...bookData, pages: parseInt(e.target.value) || 0 })}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="scanner-field-group">
-                          <label>Primary Category</label>
-                          <select 
-                            value={selectedGenre} 
-                            onChange={(e) => setSelectedGenre(e.target.value)}
-                            className="genre-select"
-                          >
-                            <option value="uncategorized">Uncategorized</option>
-                            {genres.map(g => (
-                              <option key={g.genre_id} value={g.genre_id}>{g.genre_name}</option>
-                            ))}
-                          </select>
-                        </div>
+          {/* Session Queue */}
+          {sessionQueue.length > 0 && (
+            <div className="scanner-queue">
+              <div className="scanner-queue-header">
+                <span className="scanner-queue-label">Scan Queue</span>
+              </div>
+              <div className="scanner-queue-list">
+                {sessionQueue.map((item) => (
+                  <div 
+                    key={item._queueId} 
+                    className={`queue-item ${item.status === 'draft' ? 'queue-item--draft' : ''}`}
+                  >
+                    <div className="queue-item-cover">
+                      <img 
+                        src={item.cover || MISSING_COVER_URL} 
+                        alt={item.title}
+                        onError={(e) => { e.target.src = MISSING_COVER_URL; }}
+                      />
+                    </div>
+                    <div className="queue-item-info">
+                      <div className="queue-item-title">{item.title}</div>
+                      <div className="queue-item-author">{item.author}</div>
+                      {item.status === 'draft' && (
+                        <span className="queue-item-draft-badge">Draft — Needs Review</span>
+                      )}
+                      <div className="queue-item-genre-row">
+                        <select
+                          className="queue-item-genre-select"
+                          value={item.genre_id || 'uncategorized'}
+                          onChange={(e) => updateQueueGenre(item._queueId, e.target.value)}
+                        >
+                          <option value="uncategorized">Uncategorized</option>
+                          {genres.map(g => (
+                            <option key={g.genre_id} value={g.genre_id}>{g.genre_name}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                    <div className="confirmation-actions">
-                      <button onClick={handleAddToArchive} className="scanner-btn-add">Archive Volume</button>
-                      <button onClick={restartScanner} className="scanner-btn-cancel">Rescan</button>
-                    </div>
+                    <button
+                      className="queue-item-remove"
+                      onClick={() => removeFromQueue(item._queueId)}
+                      title="Remove from queue"
+                    >
+                      ×
+                    </button>
                   </div>
-              )}
-            </motion.div>
-          )}
-
-          {status === 'saving' && (
-            <div className="scanner-saving-overlay">
-              <div className="spinner"></div>
-              <span>Archiving to Library...</span>
+                ))}
+              </div>
             </div>
           )}
         </div>
+
+        {/* Commit Bar */}
+        {sessionQueue.length > 0 && (
+          <div className="scanner-commit-bar">
+            <button 
+              className="scanner-commit-btn"
+              onClick={handleCommitAll}
+              disabled={committing}
+            >
+              {committing ? (
+                <>
+                  <div className="spinner spinner--small"></div>
+                  Archiving...
+                </>
+              ) : (
+                `Archive ${sessionQueue.length} Book${sessionQueue.length !== 1 ? 's' : ''}`
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Committing overlay */}
+        {committing && (
+          <div className="scanner-committing-overlay">
+            <div className="spinner"></div>
+            <span>Writing to archive...</span>
+            <span className="scanner-commit-progress">
+              {sessionQueue.length} volume{sessionQueue.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Toast notifications */}
+      <div className="scanner-toast-container">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              className={`scanner-toast scanner-toast--${toast.type}`}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+            >
+              {toast.type === 'success' && '✓ '}
+              {toast.type === 'warning' && '⚠ '}
+              {toast.type === 'error' && '✕ '}
+              {toast.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

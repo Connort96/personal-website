@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../lib/supabase';
 import './SlideOverPanel.css';
 
 const statusLabels = {
@@ -62,6 +63,9 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const [hoverRating, setHoverRating] = useState(0);
   const [editingEditionId, setEditingEditionId] = useState(null);
   const [editionEdits, setEditionEdits] = useState({});
+  const [needsReview, setNeedsReview] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editAuthor, setEditAuthor] = useState('');
 
   useEffect(() => {
     setStatus(book.status || 'unread');
@@ -71,6 +75,9 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setCurrentPage(book.currentPage || 0);
     setEditingEditionId(null);
     setEditionEdits({});
+    setNeedsReview(book.needs_review || false);
+    setEditTitle(book.title || '');
+    setEditAuthor(book.author || '');
   }, [book]);
 
   const [fetchingArt, setFetchingArt] = useState(null); // ID of edition being fetched
@@ -142,6 +149,38 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setSaving(true);
     
     try {
+      // Update work-level title and author if changed
+      const titleChanged = editTitle.trim() !== book.title;
+      const authorChanged = editAuthor.trim() !== book.author;
+      if (titleChanged || authorChanged) {
+        const workUpdates = {};
+        if (titleChanged) workUpdates.title = editTitle.trim();
+        if (authorChanged) workUpdates.author = editAuthor.trim();
+        await supabase.from('works').update(workUpdates).eq('id', book.id);
+        
+        // Mirror to legacy books table
+        await supabase.from('books')
+          .update(workUpdates)
+          .ilike('title', book.title)
+          .ilike('author', book.author);
+      }
+
+      // Propagate needs_review to all editions of this work
+      const editionIds = (book.editions || []).map(ed => ed.id);
+      if (editionIds.length > 0) {
+        await supabase.from('editions')
+          .update({ needs_review: needsReview })
+          .in('id', editionIds);
+        
+        // Mirror to legacy books table
+        const isbnList = (book.editions || []).map(ed => ed.isbn).filter(Boolean);
+        if (isbnList.length > 0) {
+          await supabase.from('books')
+            .update({ needs_review: needsReview })
+            .in('isbn', isbnList);
+        }
+      }
+
       // Pass all edits (global and edition-specific) to the controller
       await onSave(
         book.id,
@@ -176,11 +215,54 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
           </svg>
         </button>
 
-        <h1 className="slideover-parent-title">{book.title}</h1>
-        <p className="slideover-author">by {book.author}</p>
+        {isAdmin ? (
+          <>
+            <div className="slideover-edit-field">
+              <input
+                type="text"
+                className="slideover-title-input"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Title"
+              />
+            </div>
+            <div className="slideover-edit-field">
+              <span className="slideover-author-prefix">by </span>
+              <input
+                type="text"
+                className="slideover-author-input"
+                value={editAuthor}
+                onChange={(e) => setEditAuthor(e.target.value)}
+                placeholder="Author"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="slideover-parent-title">{book.title}</h1>
+            <p className="slideover-author">by {book.author}</p>
+          </>
+        )}
       </div>
 
       <div className="slideover-body">
+        {/* Needs Review Toggle */}
+        {isAdmin && (
+          <div className={`slideover-review-toggle ${needsReview ? 'active' : ''}`}>
+            <label className="review-toggle-label">
+              <input
+                type="checkbox"
+                checked={needsReview}
+                onChange={(e) => setNeedsReview(e.target.checked)}
+              />
+              <span className="review-toggle-switch"></span>
+              <span className="review-toggle-text">
+                {needsReview ? 'Needs Review' : 'Reviewed'}
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Progress Stat */}
         {status === 'reading' && (
           <div className="slideover-progress-stat">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
@@ -57,6 +57,7 @@ export default function Books() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState([]);
+  const [needsReviewFilter, setNeedsReviewFilter] = useState(false);
   const [viewMode, setViewMode] = useState(() => {
     const saved = localStorage.getItem('library-view');
     if (saved) return saved;
@@ -75,6 +76,8 @@ export default function Books() {
     setViewMode(newMode);
     localStorage.setItem('library-view', newMode);
   };
+
+  const loadDataRef = useRef(null);
 
   useEffect(() => {
     async function loadData() {
@@ -99,7 +102,7 @@ export default function Books() {
               user_id, book_id, edition_id, status, rating, review, current_page, owned_at,
               editions ( 
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
-                page_count, isbn, publication_date, translator, format,
+                page_count, isbn, publication_date, translator, format, needs_review,
                 works ( id, title, author ) 
               )
             `)
@@ -186,7 +189,8 @@ export default function Books() {
             publicationDate: primary.publication_date,
             translator: primary.translator,
             owned_at: latestOwnedAt || work.owned_at,
-            editions: work.editions
+            editions: work.editions,
+            needs_review: work.editions.some(e => e.needs_review === true),
           };
         });
 
@@ -199,12 +203,16 @@ export default function Books() {
         setLoading(false);
       }
     }
+    loadDataRef.current = loadData;
     loadData();
   }, [user]);
 
   const filteredBooks = useMemo(() => {
     return allBooks
-      .filter(b => activeTab === 'all' || b.status === activeTab)
+      .filter(b => {
+        if (needsReviewFilter) return b.needs_review === true;
+        return activeTab === 'all' || b.status === activeTab;
+      })
       .filter(b => selectedTag === 'all' || b.genres.has(selectedTag))
       .filter(b => {
         if (!searchTerm) return true;
@@ -216,7 +224,7 @@ export default function Books() {
         if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
         return (b.owned_at || 0) - (a.owned_at || 0);
       });
-  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag]);
+  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag, needsReviewFilter]);
 
   const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
 
@@ -272,13 +280,20 @@ export default function Books() {
               {Object.entries(STATUS_LABELS).map(([key, label]) => (
                 <button
                   key={key}
-                  className={`books-tab ${activeTab === key ? 'books-tab--active' : ''}`}
-                  onClick={() => setActiveTab(key)}
+                  className={`books-tab ${activeTab === key && !needsReviewFilter ? 'books-tab--active' : ''}`}
+                  onClick={() => { setActiveTab(key); setNeedsReviewFilter(false); }}
                 >
                   {STATUS_EMOJIS[key] && <span className="books-tab__emoji">{STATUS_EMOJIS[key]}</span>}
                   {label}
                 </button>
               ))}
+              <button
+                className={`books-tab books-tab--review ${needsReviewFilter ? 'books-tab--active books-tab--review-active' : ''}`}
+                onClick={() => setNeedsReviewFilter(prev => !prev)}
+              >
+                <span className="books-tab__emoji">⚠</span>
+                Needs Review
+              </button>
             </div>
 
             <div className="books-controls">
@@ -368,8 +383,8 @@ export default function Books() {
           isOpen={isScannerOpen}
           onClose={() => setIsScannerOpen(false)}
           onComplete={() => {
-            // Refresh library data after a successful scan
-            window.location.reload();
+            // Refresh library data after a successful batch scan
+            if (loadDataRef.current) loadDataRef.current();
           }}
         />
       </div>

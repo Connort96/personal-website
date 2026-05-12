@@ -122,6 +122,25 @@
   margin-bottom: var(--space-6);
 }
 
+/* ── Needs Review Banner ───────────────────────────────── */
+.book-detail-review-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(200, 152, 43, 0.08);
+  border: 1px solid rgba(200, 152, 43, 0.2);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #c8982b;
+  margin-bottom: var(--space-6);
+}
+
+.review-banner-icon {
+  font-size: 14px;
+}
+
 .book-detail-meta {
   display: flex;
   align-items: center;

@@ -158,6 +158,7 @@ export default function BookDetail() {
       }
 
       const coverImage = workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '';
+      const needsReview = primaryEdition?.needs_review === true;
 
       setWork({
         ...workData,
@@ -173,7 +174,8 @@ export default function BookDetail() {
         genres: allGenres,
         ownedAt: mainProgress.owned_at,
         pageCount: primaryEdition?.page_count || 0,
-        saga: sagaInfo
+        saga: sagaInfo,
+        needs_review: needsReview,
       });
     } catch (err) {
       console.error('Error loading book detail:', err);
@@ -186,6 +188,13 @@ export default function BookDetail() {
   useEffect(() => {
     loadBookData();
   }, [id, user]);
+
+  // Auto-open edit panel for admin on needs_review books
+  useEffect(() => {
+    if (work?.needs_review && isAdmin && !isEditOpen) {
+      setIsEditOpen(true);
+    }
+  }, [work?.needs_review, isAdmin]);
 
   const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}) => {
     if (!isAdmin) return;
@@ -305,6 +314,13 @@ export default function BookDetail() {
                 </div>
               )}
               <p className="book-detail-author">by {work.author}</p>
+
+              {work.needs_review && (
+                <div className="book-detail-review-banner">
+                  <span className="review-banner-icon">⚠</span>
+                  This book needs review — metadata may be incomplete.
+                </div>
+              )}
 
               <div className="book-detail-meta">
                 <div className="book-detail-stars">

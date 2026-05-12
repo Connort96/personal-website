@@ -134,6 +134,24 @@
   font-size: 14px;
 }
 
+/* ── Needs Review Tab ─────────────────────────────────────── */
+.books-tab--review {
+  border-color: rgba(200, 152, 43, 0.25);
+  color: rgba(200, 152, 43, 0.7);
+}
+
+.books-tab--review:hover {
+  border-color: rgba(200, 152, 43, 0.5);
+  color: #c8982b;
+}
+
+.books-tab--review-active {
+  background: rgba(200, 152, 43, 0.15);
+  border-color: #c8982b;
+  color: #c8982b;
+  font-weight: 700;
+}
+
 /* ── Virtualization Content ─────────────────────────────── */
 .books-content {
   margin-top: var(--space-4);
