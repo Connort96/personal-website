@@ -9,53 +9,85 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
   const navigate = useNavigate();
 
   useEffect(() => {
+    const bookId = parseInt(currentBookId);
+    if (isNaN(bookId)) {
+      console.warn('[RelatedWorks] Invalid currentBookId:', currentBookId);
+      setLoading(false);
+      return;
+    }
+
     async function fetchRelated() {
       setLoading(true);
+      console.log(`[RelatedWorks] Searching for books similar to #${bookId}`, { themes, vibes });
+      
       try {
         let results = [];
         
         // 1. Semantic Match (Themes/Vibes)
-        if (themes?.length || vibes?.length) {
-          const themeArr = (themes || []).map(t => `"${t}"`).join(',');
-          const vibeArr = (vibes || []).map(v => `"${v}"`).join(',');
+        const activeThemes = (themes || []).filter(t => t && t.trim() !== '');
+        const activeVibes = (vibes || []).filter(v => v && v.trim() !== '');
+
+        if (activeThemes.length || activeVibes.length) {
+          const themeArr = activeThemes.map(t => `"${t}"`).join(',');
+          const vibeArr = activeVibes.map(v => `"${v}"`).join(',');
           
           const orConditions = [];
-          if (themes?.length) orConditions.push(`motifs.ov.{${themeArr}}`);
-          if (vibes?.length) orConditions.push(`vibes.ov.{${vibeArr}}`);
+          if (activeThemes.length) orConditions.push(`motifs.ov.{${themeArr}}`);
+          if (activeVibes.length) orConditions.push(`vibes.ov.{${vibeArr}}`);
           
-          const { data } = await supabase
+          console.log('[RelatedWorks] Querying semantic match:', orConditions.join(','));
+          
+          const { data, error } = await supabase
             .from('works')
             .select('id, title, author, cover_image_url')
             .or(orConditions.join(','))
-            .neq('id', currentBookId)
+            .neq('id', bookId)
             .limit(4);
           
-          results = data || [];
+          if (error) {
+            console.error('[RelatedWorks] Semantic query error:', error);
+          } else {
+            results = data || [];
+            console.log(`[RelatedWorks] Semantic match found ${results.length} items.`);
+          }
         }
 
         // 2. Fallback: Same Author (if less than 2 semantic matches)
         if (results.length < 2) {
-          // Get author of current book
-          const { data: currentBook } = await supabase.from('works').select('author').eq('id', currentBookId).single();
-          if (currentBook?.author) {
-            const { data: authorMatches } = await supabase
+          console.log('[RelatedWorks] Results < 2, trying author fallback...');
+          const { data: currentBook, error: authFetchErr } = await supabase
+            .from('works')
+            .select('author')
+            .eq('id', bookId)
+            .single();
+
+          if (authFetchErr) {
+             console.error('[RelatedWorks] Failed to fetch current book author:', authFetchErr);
+          } else if (currentBook?.author) {
+            console.log(`[RelatedWorks] Current author: ${currentBook.author}. Searching for matches...`);
+            const { data: authorMatches, error: authErr } = await supabase
               .from('works')
               .select('id, title, author, cover_image_url')
               .eq('author', currentBook.author)
-              .neq('id', currentBookId)
+              .neq('id', bookId)
               .limit(4 - results.length);
             
-            // Add unique matches
-            const existingIds = new Set(results.map(r => r.id));
-            (authorMatches || []).forEach(am => {
-              if (!existingIds.has(am.id)) results.push(am);
-            });
+            if (authErr) {
+              console.error('[RelatedWorks] Author fallback error:', authErr);
+            } else {
+              // Add unique matches
+              const existingIds = new Set(results.map(r => r.id));
+              (authorMatches || []).forEach(am => {
+                if (!existingIds.has(am.id)) results.push(am);
+              });
+              console.log(`[RelatedWorks] Author fallback added ${authorMatches?.length || 0} items.`);
+            }
           }
         }
 
         setRelated(results.slice(0, 4));
       } catch (err) {
-        console.error('[RelatedWorks] Failed to fetch:', err);
+        console.error('[RelatedWorks] Critical fetch failure:', err);
       } finally {
         setLoading(false);
       }
