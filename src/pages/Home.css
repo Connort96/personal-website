@@ -119,7 +119,8 @@
 .hero-reading-card__cover {
   width: 85px;
   height: 125px;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-sm);
   box-shadow: 12px 12px 25px rgba(0, 0, 0, 0.5);
   transform: rotateY(-15deg); /* Physical object tilt */
@@ -269,7 +270,8 @@
 .shelf-item__cover {
   width: 100%;
   height: 210px;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
   transition: all 0.4s var(--ease-out);
