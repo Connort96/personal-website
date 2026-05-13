@@ -254,42 +254,57 @@ export default function BookDetail() {
     if (!isAdmin || !work) return;
     try {
       setIsDetectingAI(true);
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('saga-scout', {
-        body: { title: work.title, author: work.author }
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+        body: { title: work.title, author: work.author, provenance_string: null }
       });
       
       if (aiError) throw aiError;
       
-      if (aiData?.series_name) {
-        // AI found a series — link it
-        let { data: existingSeries } = await supabase
-          .from('series')
-          .select('id')
-          .ilike('name', aiData.series_name)
-          .maybeSingle();
+      if (aiData) {
+        // 1. Write literary metadata to works
+        const updates = { ai_enriched: true };
+        if (aiData.vibes?.length) updates.vibes = aiData.vibes;
+        if (aiData.motifs?.length) updates.motifs = aiData.motifs;
+        if (aiData.setting_era) updates.setting_era = aiData.setting_era;
+        if (aiData.setting_location) updates.setting_location = aiData.setting_location;
+
+        await supabase.from('works').update(updates).eq('id', work.id);
         
-        let sId;
-        if (existingSeries) {
-          sId = existingSeries.id;
-        } else {
-          const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
-          sId = newS.id;
+        let seriesMsg = '';
+
+        // 2. Link series if found
+        if (aiData.is_series && aiData.series_name) {
+          let { data: existingSeries } = await supabase
+            .from('series')
+            .select('id')
+            .ilike('name', aiData.series_name)
+            .maybeSingle();
+          
+          let sId;
+          if (existingSeries) {
+            sId = existingSeries.id;
+          } else {
+            const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+            sId = newS.id;
+          }
+
+          const sequence = parseInt(aiData.series_index || 1);
+          await supabase.from('series_works').upsert({
+            series_id: sId,
+            work_id: work.id,
+            sequence_order: sequence
+          }, { onConflict: 'series_id, work_id' });
+
+          seriesMsg = `\nSeries identified: ${aiData.series_name} (Book ${sequence}).`;
+          
+          // Auto-run saga scout to find siblings (non-blocking)
+          runSagaScout(supabase, sId, aiData.series_name, sequence, work.author).catch(e => console.warn(e));
         }
 
-        const sequence = parseInt(aiData.sequence || 1);
-        await supabase.from('series_works').upsert({
-          series_id: sId,
-          work_id: work.id,
-          sequence_order: sequence
-        }, { onConflict: 'series_id, work_id' });
-
-        alert(`AI identified series: ${aiData.series_name} (Book ${sequence}). Now scouting for missing volumes...`);
-        
-        // Auto-run saga scout to find siblings
-        await runSagaScout(supabase, sId, aiData.series_name, sequence, work.author);
+        alert(`AI Enrichment Complete!${seriesMsg}`);
         await loadBookData();
       } else {
-        alert("The AI Librarian could not identify a series for this book.");
+        alert("The AI Librarian returned no data.");
       }
     } catch (err) {
       // Graceful failure: inform the user but don't crash

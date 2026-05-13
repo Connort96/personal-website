@@ -444,6 +444,34 @@
   border: 1px solid rgba(255, 77, 77, 0.2);
 }
 
+.scanner-provenance {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.scanner-provenance-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  transition: all 0.2s ease;
+}
+
+.scanner-provenance-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(200, 168, 75, 0.2);
+}
+
+.scanner-provenance-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 640px) {
   .scanner-container--batch {

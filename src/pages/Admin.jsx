@@ -8,6 +8,7 @@ import GearAdmin from '../components/GearAdmin';
 import FilmsAdmin from '../components/FilmsAdmin';
 import MusicAdmin from '../components/MusicAdmin';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import './Admin.css';
 
 const ISBNScanner = React.lazy(() => import('../components/ISBNScanner'));
@@ -500,16 +501,25 @@ export default function Admin() {
         Logged in as: {user?.email}
       </div>
 
-      <div className="admin-global-actions">
+      <div className="admin-global-actions" style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', justifyContent: 'center' }}>
         <button 
           className="admin-action-card scanner-btn"
           onClick={() => setIsScannerOpen(true)}
-          style={{ width: '100%', maxWidth: '300px', margin: '0 auto' }}
+          style={{ width: '100%', maxWidth: '300px', margin: '0' }}
         >
           <div className="action-icon">📷</div>
           <div className="action-label">Start ISBN Scanner</div>
           <div className="action-desc">Tap to digitize books</div>
         </button>
+        <Link 
+          to="/admin/enrichment"
+          className="admin-action-card"
+          style={{ width: '100%', maxWidth: '300px', margin: '0', textDecoration: 'none' }}
+        >
+          <div className="action-icon">✨</div>
+          <div className="action-label">AI Enrichment</div>
+          <div className="action-desc">Process backlog metadata</div>
+        </Link>
       </div>
 
       <header className="page-header">

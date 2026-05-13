@@ -13,6 +13,7 @@ import Reviews from './pages/Reviews';
 import Collection from './pages/Collection';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
+import Enrichment from './pages/Enrichment';
 import Travel from './pages/Travel';
 import Now from './pages/Now';
 import About from './pages/About';
@@ -64,6 +65,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Admin />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/enrichment" 
+              element={
+                <ProtectedRoute>
+                  <Enrichment />
                 </ProtectedRoute>
               } 
             />

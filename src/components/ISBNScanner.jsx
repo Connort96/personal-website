@@ -23,6 +23,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   const [flashActive, setFlashActive] = useState(false);
   const [genres, setGenres] = useState([]);
   const [cameraError, setCameraError] = useState('');
+  const [provenanceNote, setProvenanceNote] = useState('');
 
   // Load genre list from DB on mount
   useEffect(() => {
@@ -529,6 +530,64 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             console.error(`[Batch Scanner] Saga Expansion failed for ${bookData.series.name}`, sagaErr);
           }
         }
+
+        // 6. AI Enrichment: fetch vibes, motifs, setting, provenance from Gemini
+        try {
+          await new Promise(r => setTimeout(r, 500)); // Concurrency stagger
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+            body: { title: bookData.title, author: bookData.author, provenance_string: provenanceNote || null }
+          });
+
+          if (!aiError && aiData) {
+            // Write literary metadata to works table
+            if (aiData.vibes?.length || aiData.motifs?.length || aiData.setting_location || aiData.setting_era) {
+              await supabase.from('works').update({
+                vibes: aiData.vibes || [],
+                motifs: aiData.motifs || [],
+                setting_era: aiData.setting_era || null,
+                setting_location: aiData.setting_location || null,
+                ai_enriched: true
+              }).eq('id', workId);
+            }
+
+            // Write provenance to editions table
+            if (aiData.provenance && editionId) {
+              const prov = aiData.provenance;
+              if (prov.condition || prov.defects?.length || prov.acquisition_source || prov.acquisition_year) {
+                await supabase.from('editions').update({
+                  condition: prov.condition || null,
+                  defects: prov.defects || [],
+                  acquisition_notes: prov.acquisition_source || null,
+                  acquisition_year: prov.acquisition_year || null
+                }).eq('id', editionId);
+              }
+            }
+
+            // If AI found series data and the scanner didn't, link it now
+            if (aiData.is_series && aiData.series_name && !bookData.series) {
+              let { data: existingSeries } = await supabase
+                .from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
+              let sId = existingSeries?.id;
+              if (!sId) {
+                const { data: newS } = await supabase.from('series')
+                  .insert({ name: aiData.series_name }).select('id').single();
+                sId = newS?.id;
+              }
+              if (sId) {
+                await supabase.from('series_works').upsert({
+                  series_id: sId, work_id: workId,
+                  sequence_order: aiData.series_index || 1
+                }, { onConflict: 'series_id, work_id' });
+                await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, bookData.author);
+              }
+            }
+
+            console.log(`[Batch Scanner] AI Enrichment complete for "${bookData.title}"`);
+          }
+        } catch (aiErr) {
+          // Non-blocking: book is already saved, enrichment is best-effort
+          console.warn(`[Batch Scanner] AI Enrichment failed (non-blocking):`, aiErr);
+        }
         } catch (bookErr) {
           console.error(`[Batch Scanner] Error archiving "${bookData.title}":`, bookErr);
           showToast(`Error: ${bookData.title} — ${bookErr.message}`, 'error');
@@ -593,6 +652,17 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                 <p>{cameraError}</p>
               </div>
             )}
+          </div>
+
+          {/* Provenance Note */}
+          <div className="scanner-provenance">
+            <input
+              type="text"
+              className="scanner-provenance-input"
+              placeholder="Quick Provenance Note (Optional) — e.g. 'Strand Bookstore 2022, slightly foxed'"
+              value={provenanceNote}
+              onChange={(e) => setProvenanceNote(e.target.value)}
+            />
           </div>
 
           {/* Session Queue */}
