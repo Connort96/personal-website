@@ -70,23 +70,17 @@ async function refreshLibrary() {
       try {
         console.log(`   - Analyzing: "${work.title}"`);
         
-        // Call the Edge Function
-        const response = await fetch(`${supabaseUrl}/functions/v1/fetch-enriched-metadata`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({
+        // Call the Edge Function using the supabase client (handles auth automatically)
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+          body: {
             title: work.title,
             author: work.author,
             existing_vibes: existingVibes,
             existing_motifs: existingMotifs
-          })
+          }
         });
 
-        if (!response.ok) throw new Error(`AI Call failed: ${response.statusText}`);
-        const aiData = await response.json();
+        if (aiError) throw aiError;
 
         if (aiData) {
           const updates = { 

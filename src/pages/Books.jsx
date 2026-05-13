@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
@@ -69,6 +69,10 @@ export default function Books() {
   });
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const themeFilter = searchParams.get('theme');
+  const vibeFilter = searchParams.get('vibe');
 
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
@@ -103,7 +107,7 @@ export default function Books() {
               editions ( 
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format, needs_review,
-                works ( id, title, author, synopsis ) 
+                works ( id, title, author, synopsis, motifs, vibes ) 
               )
             `)
             .eq('user_id', adminId)
@@ -192,6 +196,8 @@ export default function Books() {
             owned_at: latestOwnedAt || work.owned_at,
             editions: work.editions,
             needs_review: work.editions.some(e => e.needs_review === true),
+            motifs: primary.works?.motifs || [],
+            vibes: primary.works?.vibes || []
           };
         });
 
@@ -220,6 +226,14 @@ export default function Books() {
         const s = searchTerm.toLowerCase();
         return b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s);
       })
+      .filter(b => {
+        if (!themeFilter) return true;
+        return b.motifs.includes(themeFilter);
+      })
+      .filter(b => {
+        if (!vibeFilter) return true;
+        return b.vibes.includes(vibeFilter);
+      })
       .sort((a, b) => {
         if (sortBy === 'title') return a.title.localeCompare(b.title);
         if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
@@ -230,23 +244,31 @@ export default function Books() {
   const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
 
   const RowContent = useCallback((index, book) => (
-    <CollectionCard
-      key={book.id}
-      title={book.title}
-      subtitle={book.author}
-      genres={Array.from(book.genres)}
-      coverColor={book.coverColor}
-      coverUrl={book.coverUrl}
-      rating={book.rating}
-      status={book.status}
-      formats={book.formats}
-      notes={book.review}
-      synopsis={book.synopsis}
-      editionCount={book.editions?.length || 1}
-      viewMode={viewMode}
-      index={index}
-      onClick={() => navigate(`/book/${book.id}`)}
-    />
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.2 }}
+    >
+      <CollectionCard
+        key={book.id}
+        title={book.title}
+        subtitle={book.author}
+        genres={Array.from(book.genres)}
+        coverColor={book.coverColor}
+        coverUrl={book.coverUrl}
+        rating={book.rating}
+        status={book.status}
+        formats={book.formats}
+        notes={book.review}
+        synopsis={book.synopsis}
+        editionCount={book.editions?.length || 1}
+        viewMode={viewMode}
+        index={index}
+        onClick={() => navigate(`/book/${book.id}`)}
+      />
+    </motion.div>
   ), [viewMode, navigate]);
 
   return (
@@ -321,6 +343,26 @@ export default function Books() {
           </div>
         )}
 
+        {(themeFilter || vibeFilter) && (
+          <div className="books-active-filters">
+            <span className="active-filter-label">Filtered by:</span>
+            <div className="active-filter-tag">
+              {themeFilter ? `Theme: ${themeFilter}` : `Vibe: ${vibeFilter}`}
+              <button 
+                className="clear-filter-btn"
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('theme');
+                  newParams.delete('vibe');
+                  setSearchParams(newParams);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="books-content">
           {loading ? (
             <div className="books-loading">
@@ -331,26 +373,32 @@ export default function Books() {
             <div className="books-empty">
               <p>No volumes match your inquiry.</p>
             </div>
-          ) : viewMode === 'grid' ? (
-            <VirtuosoGrid
-              data={filteredBooks}
-              totalCount={filteredBooks.length}
-              components={{ List: GridList, Item: GridItem }}
-              itemContent={(index, book) => RowContent(index, book)}
-              useWindowScroll
-              overscan={800}
-            />
           ) : (
-            <Virtuoso
-              data={filteredBooks}
-              totalCount={filteredBooks.length}
-              useWindowScroll
-              itemContent={(index, book) => (
-                <div style={{ marginBottom: 'var(--space-4)' }}>
-                  {RowContent(index, book)}
-                </div>
+            <AnimatePresence mode="popLayout">
+              {viewMode === 'grid' ? (
+                <VirtuosoGrid
+                  key="grid"
+                  data={filteredBooks}
+                  totalCount={filteredBooks.length}
+                  components={{ List: GridList, Item: GridItem }}
+                  itemContent={(index, book) => RowContent(index, book)}
+                  useWindowScroll
+                  overscan={800}
+                />
+              ) : (
+                <Virtuoso
+                  key="list"
+                  data={filteredBooks}
+                  totalCount={filteredBooks.length}
+                  useWindowScroll
+                  itemContent={(index, book) => (
+                    <div style={{ marginBottom: 'var(--space-4)' }}>
+                      {RowContent(index, book)}
+                    </div>
+                  )}
+                />
               )}
-            />
+            </AnimatePresence>
           )}
         </div>
 

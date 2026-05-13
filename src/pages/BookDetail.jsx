@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +25,7 @@ const FormatIcon = ({ format }) => {
 };
 export default function BookDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [work, setWork] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -413,7 +414,11 @@ export default function BookDetail() {
                           <span className="meta-label">Vibes:</span>
                           <div className="meta-index-tags">
                             {work.vibes.map((v, i) => (
-                              <button key={v} className="meta-index-btn">
+                              <button 
+                                key={v} 
+                                className="meta-index-btn"
+                                onClick={() => navigate(`/books?vibe=${encodeURIComponent(v)}`)}
+                              >
                                 {v}{i < work.vibes.length - 1 && <span className="meta-separator">·</span>}
                               </button>
                             ))}
@@ -425,7 +430,11 @@ export default function BookDetail() {
                           <span className="meta-label">Themes:</span>
                           <div className="meta-index-tags">
                             {work.motifs.map((m, i) => (
-                              <button key={m} className="meta-index-btn">
+                              <button 
+                                key={m} 
+                                className="meta-index-btn"
+                                onClick={() => navigate(`/books?theme=${encodeURIComponent(m)}`)}
+                              >
                                 {m}{i < work.motifs.length - 1 && <span className="meta-separator">·</span>}
                               </button>
                             ))}
