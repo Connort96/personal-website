@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { runSagaScout } from '../lib/sagaScout';
 import SlideOverPanel from '../components/SlideOverPanel';
+import RelatedWorks from '../components/RelatedWorks';
 import './BookDetail.css';
 const FormatIcon = ({ format }) => {
   const f = format?.toLowerCase() || '';
@@ -622,6 +623,12 @@ export default function BookDetail() {
                 ))}
               </div>
             </section>
+            
+            <RelatedWorks 
+              currentBookId={work.id} 
+              themes={work.motifs || []} 
+              vibes={work.vibes || []} 
+            />
           </div>
         </div>
       </div>

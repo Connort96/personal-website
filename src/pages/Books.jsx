@@ -6,6 +6,7 @@ import CollectionCard from '../components/CollectionCard';
 import LibraryHero from '../components/LibraryHero';
 import ViewToggle from '../components/ViewToggle';
 import ISBNScanner from '../components/ISBNScanner';
+import LibraryFilters from '../components/LibraryFilters';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import './Books.css';
@@ -242,6 +243,18 @@ export default function Books() {
   }, [allBooks, activeTab, sortBy, searchTerm, selectedTag, needsReviewFilter, themeFilter, vibeFilter]);
 
   const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
+  
+  const allThemes = useMemo(() => {
+    const themes = new Set();
+    allBooks.forEach(b => b.motifs?.forEach(m => themes.add(m)));
+    return Array.from(themes);
+  }, [allBooks]);
+
+  const allVibes = useMemo(() => {
+    const vibes = new Set();
+    allBooks.forEach(b => b.vibes?.forEach(v => vibes.add(v)));
+    return Array.from(vibes);
+  }, [allBooks]);
 
   const RowContent = useCallback((index, book) => (
     <motion.div
@@ -283,6 +296,10 @@ export default function Books() {
 
         {!loading && currentlyReading && !searchTerm && selectedTag === 'all' && (
           <LibraryHero book={currentlyReading} isAdmin={isAdmin} onClick={() => navigate(`/book/${currentlyReading.id}`)} />
+        )}
+
+        {!loading && (
+          <LibraryFilters themes={allThemes} vibes={allVibes} />
         )}
 
         {!loading && (
