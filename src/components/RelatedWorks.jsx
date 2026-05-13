@@ -25,8 +25,8 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
         
         // Use .or with overlaps for both motifs and vibes
         const orConditions = [];
-        if (themes.length) orConditions.push(`motifs.overlaps.{${themeArr}}`);
-        if (vibes.length) orConditions.push(`vibes.overlaps.{${vibeArr}}`);
+        if (themes.length) orConditions.push(`motifs.ov.{${themeArr}}`);
+        if (vibes.length) orConditions.push(`vibes.ov.{${vibeArr}}`);
         
         const { data, error } = await query
           .or(orConditions.join(','))
