@@ -9,8 +9,21 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function refreshLibrary() {
   console.log("🚀 Starting Full Library Metadata Refresh...");
 
-  // 1. Reset all works
-  console.log("📝 Resetting vibes, motifs, and synopses for all works...");
+  // 1. Fetch owned IDs first
+  console.log("🔍 Identifying owned works...");
+  const { data: userBooks, error: userError } = await supabase
+    .from('user_books')
+    .select('editions(work_id)');
+  
+  if (userError) {
+    console.error("❌ Failed to fetch owned books:", userError);
+    return;
+  }
+
+  const ownedWorkIds = [...new Set(userBooks.map(ub => ub.editions?.work_id).filter(Boolean))];
+
+  // 2. Reset only owned works
+  console.log(`📝 Resetting vibes, motifs, and synopses for ${ownedWorkIds.length} owned works...`);
   const { error: resetError } = await supabase
     .from('works')
     .update({ 
@@ -19,17 +32,18 @@ async function refreshLibrary() {
       synopsis: null, 
       ai_enriched: false 
     })
-    .neq('title', ''); // Target all
+    .in('id', ownedWorkIds);
 
   if (resetError) {
     console.error("❌ Reset failed:", resetError);
     return;
   }
 
-  // 2. Fetch all works to re-process
+  // 3. Select works for processing
   const { data: works, error: fetchError } = await supabase
     .from('works')
     .select('id, title, author')
+    .in('id', ownedWorkIds)
     .order('title');
 
   if (fetchError) {
