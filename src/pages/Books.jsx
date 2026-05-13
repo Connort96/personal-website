@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import CollectionCard from '../components/CollectionCard';
 import LibraryHero from '../components/LibraryHero';
@@ -291,84 +291,108 @@ export default function Books() {
         )}
 
         {!loading && (
-          <LibraryFilters themes={allThemes} vibes={allVibes} />
-        )}
+          <div className="books-control-header">
+            {/* ROW 1: OMNI SEARCH & VIEW CONTROLS */}
+            <div className="books-omni-row">
+              <div className="books-omni-search">
+                <input
+                  type="text"
+                  placeholder="Search by title or author..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="books-search-input"
+                />
+                <div className="search-icon">🔍</div>
+              </div>
 
-        {!loading && (
-          <div className="books-omni-search">
-            <input
-              type="text"
-              placeholder="Search by title or author..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="books-search-input"
-            />
-            <div className="search-icon">🔍</div>
+              <div className="books-view-controls">
+                <div className="books-filter-group">
+                  <label>Sort:</label>
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="books-select">
+                    <option value="recent">Recent</option>
+                    <option value="rating">Rating</option>
+                    <option value="title">A-Z</option>
+                  </select>
+                </div>
+                <ViewToggle view={viewMode} onChange={handleViewChange} />
+              </div>
+            </div>
+
+            {/* ROW 2: STATUS & ADD FILTER */}
+            <div className="books-filter-row">
+              <div className="books-status-group">
+                <div className="books-tabs">
+                  {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                    <button
+                      key={key}
+                      className={`books-tab ${activeTab === key && !needsReviewFilter ? 'books-tab--active' : ''}`}
+                      onClick={() => { setActiveTab(key); setNeedsReviewFilter(false); }}
+                    >
+                      {STATUS_EMOJIS[key] && <span className="books-tab__emoji">{STATUS_EMOJIS[key]}</span>}
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    className={`books-tab books-tab--review ${needsReviewFilter ? 'books-tab--active books-tab--review-active' : ''}`}
+                    onClick={() => setNeedsReviewFilter(prev => !prev)}
+                  >
+                    <span className="books-tab__emoji">⚠</span>
+                    Needs Review
+                  </button>
+                </div>
+
+                <div className="books-filter-actions">
+                  <LibraryFilters 
+                    themes={allThemes} 
+                    vibes={allVibes} 
+                    collections={allTags}
+                    selectedCollection={selectedTag}
+                    onCollectionChange={setSelectedTag}
+                  />
+
+                  {/* ACTIVE FILTER PILLS (INLINE) */}
+                  {(themeFilter || vibeFilter || selectedTag !== 'all') && (
+                    <div className="books-active-pills">
+                      {selectedTag !== 'all' && (
+                        <div className="active-filter-pill">
+                          <span>{selectedTag}</span>
+                          <button onClick={() => setSelectedTag('all')}>✕</button>
+                        </div>
+                      )}
+                      {themeFilter && (
+                        <div className="active-filter-pill">
+                          <span>{themeFilter}</span>
+                          <button onClick={() => {
+                            const newParams = new URLSearchParams(searchParams);
+                            newParams.delete('theme');
+                            setSearchParams(newParams);
+                          }}>✕</button>
+                        </div>
+                      )}
+                      {vibeFilter && (
+                        <div className="active-filter-pill">
+                          <span>{vibeFilter}</span>
+                          <button onClick={() => {
+                            const newParams = new URLSearchParams(searchParams);
+                            newParams.delete('vibe');
+                            setSearchParams(newParams);
+                          }}>✕</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {!loading && (
-          <div className="books-toolbar">
-            <div className="books-tabs">
-              {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                <button
-                  key={key}
-                  className={`books-tab ${activeTab === key && !needsReviewFilter ? 'books-tab--active' : ''}`}
-                  onClick={() => { setActiveTab(key); setNeedsReviewFilter(false); }}
-                >
-                  {STATUS_EMOJIS[key] && <span className="books-tab__emoji">{STATUS_EMOJIS[key]}</span>}
-                  {label}
-                </button>
-              ))}
-              <button
-                className={`books-tab books-tab--review ${needsReviewFilter ? 'books-tab--active books-tab--review-active' : ''}`}
-                onClick={() => setNeedsReviewFilter(prev => !prev)}
-              >
-                <span className="books-tab__emoji">⚠</span>
-                Needs Review
-              </button>
-            </div>
 
-            <div className="books-controls">
-              <div className="books-filter-group">
-                <label>Collection:</label>
-                <select value={selectedTag} onChange={e => setSelectedTag(e.target.value)} className="books-select">
-                  <option value="all">All Tags</option>
-                  {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                </select>
-              </div>
 
-              <div className="books-filter-group">
-                <label>Sort:</label>
-                <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="books-select">
-                  <option value="recent">Recent</option>
-                  <option value="rating">Rating</option>
-                  <option value="title">A-Z</option>
-                </select>
-              </div>
-
-              <ViewToggle view={viewMode} onChange={handleViewChange} />
-            </div>
-          </div>
-        )}
-
-        {(themeFilter || vibeFilter) && (
-          <div className="books-active-filters">
-            <span className="active-filter-label">Filtered by:</span>
-            <div className="active-filter-tag">
-              {themeFilter ? `Theme: ${themeFilter}` : `Vibe: ${vibeFilter}`}
-              <button 
-                className="clear-filter-btn"
-                onClick={() => {
-                  const newParams = new URLSearchParams(searchParams);
-                  newParams.delete('theme');
-                  newParams.delete('vibe');
-                  setSearchParams(newParams);
-                }}
-              >
-                ✕
-              </button>
-            </div>
+        {error && (
+          <div className="books-error">
+            <p>{error}</p>
+            <button onClick={() => window.location.reload()}>Retry</button>
           </div>
         )}
 

@@ -29,7 +29,7 @@ const FormatBadge = ({ formats }) => {
 };
 
 export default function CollectionCard({
-  title, subtitle, year, genres, rating, coverColor, coverUrl,
+  title, subtitle, genres, rating, coverColor, coverUrl,
   notes, onClick, index = 0, status, formats, viewMode = 'grid',
   editionCount = 1, synopsis = null
 }) {

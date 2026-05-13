@@ -3,9 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import './LibraryFilters.css';
 
-export default function LibraryFilters({ themes = [], vibes = [] }) {
+export default function LibraryFilters({ themes = [], vibes = [], selectedCollection, onCollectionChange, collections = [] }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [openDropdown, setOpenDropdown] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
   const activeTheme = searchParams.get('theme');
@@ -15,7 +15,7 @@ export default function LibraryFilters({ themes = [], vibes = [] }) {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpenDropdown(null);
+        setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -32,93 +32,87 @@ export default function LibraryFilters({ themes = [], vibes = [] }) {
       newParams.delete('theme');
     }
     setSearchParams(newParams);
-    setOpenDropdown(null);
-  };
-
-  const clearFilters = () => {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.delete('theme');
-    newParams.delete('vibe');
-    setSearchParams(newParams);
+    setIsOpen(false);
   };
 
   return (
     <div className="library-filters" ref={containerRef}>
-      <div className="library-filters__dropdowns">
-        {/* Themes Dropdown */}
-        <div className="custom-dropdown">
-          <button 
-            className={`dropdown-trigger ${activeTheme ? 'dropdown-trigger--active' : ''}`}
-            onClick={() => setOpenDropdown(openDropdown === 'themes' ? null : 'themes')}
+      <button 
+        className={`add-filter-btn ${isOpen ? 'add-filter-btn--open' : ''} ${(activeTheme || activeVibe || selectedCollection !== 'all') ? 'add-filter-btn--active' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="add-filter-btn__icon">+</span>
+        <span>Add Filter</span>
+        { (activeTheme || activeVibe || selectedCollection !== 'all') && <span className="add-filter-indicator" /> }
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            className="unified-filter-dropdown"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <span>{activeTheme || 'THEMES'}</span>
-            <motion.span animate={{ rotate: openDropdown === 'themes' ? 180 : 0 }}>▾</motion.span>
-          </button>
-          
-          <AnimatePresence>
-            {openDropdown === 'themes' && (
-              <motion.div 
-                className="dropdown-menu"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className="dropdown-menu__scroll">
+            <div className="filter-dropdown-content">
+              {/* COLLECTIONS SECTION */}
+              <div className="filter-section">
+                <h4 className="filter-section-title">Collections</h4>
+                <div className="filter-options">
+                  <button 
+                    className={`filter-option ${selectedCollection === 'all' ? 'filter-option--active' : ''}`}
+                    onClick={() => { onCollectionChange('all'); setIsOpen(false); }}
+                  >
+                    All Collections
+                  </button>
+                  {collections.map(c => (
+                    <button 
+                      key={c}
+                      className={`filter-option ${selectedCollection === c ? 'filter-option--active' : ''}`}
+                      onClick={() => { onCollectionChange(c); setIsOpen(false); }}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* THEMES SECTION */}
+              <div className="filter-section">
+                <h4 className="filter-section-title">Themes</h4>
+                <div className="filter-options">
                   {themes.sort().map(theme => (
                     <button 
                       key={theme} 
-                      className={`dropdown-item ${activeTheme === theme ? 'dropdown-item--active' : ''}`}
+                      className={`filter-option ${activeTheme === theme ? 'filter-option--active' : ''}`}
                       onClick={() => handleSelect('theme', theme)}
                     >
                       {theme}
                     </button>
                   ))}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              </div>
 
-        {/* Vibes Dropdown */}
-        <div className="custom-dropdown">
-          <button 
-            className={`dropdown-trigger ${activeVibe ? 'dropdown-trigger--active' : ''}`}
-            onClick={() => setOpenDropdown(openDropdown === 'vibes' ? null : 'vibes')}
-          >
-            <span>{activeVibe || 'VIBES'}</span>
-            <motion.span animate={{ rotate: openDropdown === 'vibes' ? 180 : 0 }}>▾</motion.span>
-          </button>
-          
-          <AnimatePresence>
-            {openDropdown === 'vibes' && (
-              <motion.div 
-                className="dropdown-menu"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className="dropdown-menu__scroll">
+              {/* VIBES SECTION */}
+              <div className="filter-section">
+                <h4 className="filter-section-title">Vibes</h4>
+                <div className="filter-options">
                   {vibes.sort().map(vibe => (
                     <button 
                       key={vibe} 
-                      className={`dropdown-item ${activeVibe === vibe ? 'dropdown-item--active' : ''}`}
+                      className={`filter-option ${activeVibe === vibe ? 'filter-option--active' : ''}`}
                       onClick={() => handleSelect('vibe', vibe)}
                     >
                       {vibe}
                     </button>
                   ))}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {(activeTheme || activeVibe) && (
-        <button className="reset-filters-btn" onClick={clearFilters}>
-          Reset Filters
-        </button>
-      )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
