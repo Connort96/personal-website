@@ -83,12 +83,16 @@ serve(async (req) => {
     console.log(`[Enrichment AI] Analyzing: "${title}" by ${author}`);
 
     const taxonomyInstruction = `
-      I have provided arrays of existing_vibes and existing_motifs currently used in the database. 
+      For 'vibes' and 'motifs' (which we now call themes), you MUST act as a strict, traditional librarian. Use standard, high-level literary taxonomy (e.g., 'Dark Fantasy', 'Political Intrigue', 'Coming of Age').
+      
       EXISTING VIBES: ${JSON.stringify(existing_vibes)}
-      EXISTING MOTIFS: ${JSON.stringify(existing_motifs)}
-      You MUST prioritize selecting tags from these existing lists to maintain a standardized taxonomy. 
-      You may generate a maximum of ONE new vibe and ONE new motif only if the existing lists are insufficient. 
-      Keep tags concise (1-3 words max).
+      EXISTING MOTIFS/THEMES: ${JSON.stringify(existing_motifs)}
+      
+      CRITICAL CONSTRAINTS:
+      1. You MUST prioritize selecting tags from the existing lists above.
+      2. You may generate a maximum of ONE new vibe and ONE new motif only if the existing lists are insufficient. 
+      3. CRITICAL: No tag may exceed TWO words. Do not use poetic adjectives or flowery language.
+      4. Avoid redundant tags.
     `;
 
     const provenanceInstruction = provenance_string
@@ -101,7 +105,7 @@ ${taxonomyInstruction}
 
 ${provenanceInstruction}
 
-Generate a 2-sentence, objective, spoiler-free literary summary (synopsis) written in a formal, academic archival tone. Do NOT include marketing copy.
+For the 'synopsis' field: Return a strict 2-sentence, objective, spoiler-free literary summary written in a formal, academic archival tone. Do NOT include marketing copy, hook sentences, or praise.
 
 Return ONLY a valid JSON object matching this EXACT structure. No markdown, no backticks, no explanation:
 {
@@ -109,14 +113,14 @@ Return ONLY a valid JSON object matching this EXACT structure. No markdown, no b
   "series_name": string or null,
   "series_index": number or null,
   "synopsis": "Academic 2-sentence summary",
-  "vibes": ["selected from existing list where possible"],
-  "motifs": ["selected from existing list where possible"],
-  "setting_location": "Primary geographic or fictional location, e.g. 'Arrakis' or 'Victorian London'",
-  "setting_era": "Primary time period, e.g. 'Far future' or '1920s'",
+  "vibes": ["Strict librarian tags, max 2 words each"],
+  "motifs": ["Strict librarian themes, max 2 words each"],
+  "setting_location": "Primary geographic or fictional location",
+  "setting_era": "Primary time period",
   "provenance": {
     "condition": "Mint, Good, Fair, or Poor" or null,
-    "defects": ["specific defects like 'cracked spine', 'foxed pages'"] or [],
-    "acquisition_source": "extracted store/location name" or null,
+    "defects": ["specific defects"] or [],
+    "acquisition_source": string or null,
     "acquisition_year": number or null
   }
 }`;
