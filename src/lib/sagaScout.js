@@ -11,7 +11,11 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
 
     // 0. Phase 0: The Local Mega-Registry
     console.log(`[Saga Scout] Phase 0: Checking Local Mega-Registry for ${seriesName}`);
-    const knownMatch = KNOWN_SAGAS.find(s => s.name.toLowerCase() === seriesName.toLowerCase());
+    const knownMatch = KNOWN_SAGAS.find(s => 
+      s.name.toLowerCase() === seriesName.toLowerCase() ||
+      seriesName.toLowerCase().includes(s.name.toLowerCase()) ||
+      s.name.toLowerCase().includes(seriesName.toLowerCase())
+    );
     if (knownMatch) {
       console.log(`[Saga Scout] Mega-Registry hit! Found perfect mapping for ${seriesName}`);
       knownMatch.books.forEach(b => {

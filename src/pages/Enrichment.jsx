@@ -123,7 +123,8 @@ export default function Enrichment() {
                   series_id: sId, work_id: work.id,
                   sequence_order: aiData.series_index || 1
                 }, { onConflict: 'series_id, work_id' });
-                // We do NOT run auto-saga scout here to save rate limits
+                // Run auto-saga scout non-blocking so it populates missing books
+                runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, work.author).catch(e => console.warn(e));
               }
             }
 

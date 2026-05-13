@@ -115,12 +115,14 @@ export default function BookDetail() {
         name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
       };
 
-      // 3. Fetch Series Info
-      const { data: seriesLink } = await supabase
+      // 3. Fetch Series Info (use limit(1) instead of maybeSingle to avoid crash on duplicate mappings)
+      const { data: seriesLinks } = await supabase
         .from('series_works')
         .select('sequence_order, series(id, name, description)')
         .eq('work_id', numericId)
-        .maybeSingle();
+        .limit(1);
+
+      const seriesLink = seriesLinks?.[0];
 
       let sagaInfo = null;
       if (seriesLink?.series) {

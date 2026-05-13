@@ -33,7 +33,7 @@ export default function Home() {
               editions ( cover_url, works ( title, author ) ),
               books ( title, author, cover_url, page_count )
             `).eq('user_id', adminId).eq('status', 'reading').limit(1),
-            
+
             supabase.from('user_books').select(`
               book_id,
               editions ( id, work_id, cover_url, works ( id, title ) ),
@@ -41,7 +41,7 @@ export default function Home() {
             `).eq('user_id', adminId).order('owned_at', { ascending: false }).limit(10),
 
             supabase.from('posts').select('title, slug, excerpt, published_at').order('published_at', { ascending: false }).limit(1),
-            
+
             supabase.from('trips').select('title, location, cover_image_url, trip_photos ( url )').order('start_date', { ascending: false }).limit(1)
           ]);
 
@@ -65,15 +65,15 @@ export default function Home() {
             const additionsGrouped = additionsData.reduce((acc, item) => {
               const title = item.editions?.works?.title || item.books?.title;
               const author = item.editions?.works?.author || item.books?.author;
-              
+
               // Only merge if we have a valid title, otherwise treat as unique
-              const key = title 
+              const key = title
                 ? `${title.toLowerCase().trim()}--${author?.toLowerCase().trim() || 'unknown'}`
                 : `unique-${item.edition_id}`;
-                
+
               const currentCover = item.editions?.cover_url || item.books?.cover_url;
               const currentId = item.editions?.work_id || item.book_id;
-              
+
               if (!acc.has(key)) {
                 acc.set(key, {
                   id: currentId,
@@ -95,7 +95,7 @@ export default function Home() {
           }
 
           if (latestPostData?.[0]) setLatestPost(latestPostData[0]);
-          
+
           if (travelData?.[0]) {
             const trip = travelData[0];
             const cover = trip.cover_image_url || (trip.trip_photos && trip.trip_photos.length > 0 ? trip.trip_photos[0].url : null);
@@ -114,11 +114,11 @@ export default function Home() {
   return (
     <div className="home">
       <div className="home__noise-overlay"></div>
-      
+
       {/* Hero Section */}
       <section className="hero">
         <div className="hero__content container">
-          <motion.div 
+          <motion.div
             className="hero__text-wrapper"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -135,7 +135,7 @@ export default function Home() {
             </div>
 
             {currentlyReading && (
-              <motion.div 
+              <motion.div
                 className="hero-reading-card"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -156,13 +156,13 @@ export default function Home() {
                   <div className="hero-reading-card__info">
                     <h3 className="hero-reading-card__title">{currentlyReading.title}</h3>
                     <p className="hero-reading-card__author">by {currentlyReading.author}</p>
-                    
+
                     <div className="hero-reading-card__progress-meta">
                       <span className="hero-reading-card__percent">{Math.round(currentlyReading.progress)}%</span>
                       <span className="hero-reading-card__pages">{currentlyReading.currentPage} / {currentlyReading.pageCount} pp</span>
                     </div>
                     <div className="hero-reading-card__progress-track">
-                       <div className="hero-reading-card__progress-fill" style={{ width: `${currentlyReading.progress}%` }}></div>
+                      <div className="hero-reading-card__progress-fill" style={{ width: `${currentlyReading.progress}%` }}></div>
                     </div>
                     <Link to={`/book/${currentlyReading.id}`} className="hero-reading-card__edit-hint">Update progress →</Link>
                   </div>
@@ -180,10 +180,10 @@ export default function Home() {
             <h2 className="shelf-title">Recent Additions to the Shelf</h2>
             <Link to="/books" className="shelf-link">View Full Grid →</Link>
           </div>
-          
+
           <div className="shelf-row">
             {recentAdditions.map((book, i) => (
-              <motion.div 
+              <motion.div
                 key={book.id}
                 className="shelf-item"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -211,7 +211,7 @@ export default function Home() {
             <span className="footnotes-micro-tag">SECONDARY ENTRIES</span>
             <h2 className="footnotes-title">The Footnotes</h2>
           </div>
-          
+
           <div className="footnotes-grid">
             {/* Journal (Editorial Style) */}
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
