@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { detectGenre, GENRE_META, getGenreMeta } from '../lib/genreMap';
 import { runSagaScout } from '../lib/sagaScout';
+import { processAndUploadCover } from '../lib/imageProcessing';
 import './ISBNScanner.css';
 
 const MISSING_COVER_URL = '/missing-cover.svg';
@@ -377,6 +378,16 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           workId = newWork.id;
         }
 
+        // 1.5 Download, compress, and upload the cover image to our own Supabase Storage
+        let finalCoverUrl = bookData.cover;
+        if (bookData.cover && bookData.cover !== MISSING_COVER_URL && !bookData.cover.includes('supabase.co')) {
+          showToast(`Compressing & uploading cover for ${bookData.title}...`, 'info');
+          const uploadedUrl = await processAndUploadCover(bookData.cover, bookData.isbn);
+          if (uploadedUrl) {
+            finalCoverUrl = uploadedUrl;
+          }
+        }
+
         // 2. Get or Create Edition (Intelligent Merger)
         const { data: genericEd } = await supabase
           .from('editions')
@@ -390,8 +401,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           work_id: workId,
           isbn: bookData.isbn,
           publisher: bookData.publisher,
-          cover_image_url: bookData.cover,
-          cover_url: bookData.cover,
+          cover_image_url: finalCoverUrl,
+          cover_url: finalCoverUrl,
           format: bookData.format || 'Hardcover',
           page_count: bookData.pages,
           genre_id: genreId,
@@ -428,7 +439,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           title: bookData.title,
           author: bookData.author,
           publisher: bookData.publisher,
-          cover_url: bookData.cover,
+          cover_url: finalCoverUrl,
           isbn: bookData.isbn,
           genre_id: genreId,
           genre_name: genreMeta.genre_name,

@@ -15,6 +15,7 @@
     "@tiptap/pm": "^3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "browser-image-compression": "^2.0.2",
     "framer-motion": "^12.38.0",
     "html5-qrcode": "^2.3.8",
     "marked": "^18.0.3",
