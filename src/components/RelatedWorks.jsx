@@ -39,7 +39,7 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
           
           const { data, error } = await supabase
             .from('works')
-            .select('id, title, author, cover_image_url')
+            .select('id, title, author, editions(cover_image_url, cover_url)')
             .or(orConditions.join(','))
             .neq('id', bookId)
             .limit(4);
@@ -47,7 +47,15 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
           if (error) {
             console.error('[RelatedWorks] Semantic query error:', error);
           } else {
-            results = data || [];
+            // Process results to find the first valid cover across all editions
+            results = (data || []).map(work => {
+              const editions = work.editions || [];
+              const validEdition = editions.find(e => e.cover_image_url || e.cover_url);
+              return {
+                ...work,
+                cover_image_url: validEdition?.cover_image_url || validEdition?.cover_url
+              };
+            });
             console.log(`[RelatedWorks] Semantic match found ${results.length} items.`);
           }
         }
@@ -67,7 +75,7 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
             console.log(`[RelatedWorks] Current author: ${currentBook.author}. Searching for matches...`);
             const { data: authorMatches, error: authErr } = await supabase
               .from('works')
-              .select('id, title, author, cover_image_url')
+              .select('id, title, author, editions(cover_image_url, cover_url)')
               .eq('author', currentBook.author)
               .neq('id', bookId)
               .limit(4 - results.length);
@@ -75,9 +83,19 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
             if (authErr) {
               console.error('[RelatedWorks] Author fallback error:', authErr);
             } else {
+              // Flatten cover URLs for fallback results
+              const processedMatches = (authorMatches || []).map(work => {
+                const editions = work.editions || [];
+                const validEdition = editions.find(e => e.cover_image_url || e.cover_url);
+                return {
+                  ...work,
+                  cover_image_url: validEdition?.cover_image_url || validEdition?.cover_url
+                };
+              });
+
               // Add unique matches
               const existingIds = new Set(results.map(r => r.id));
-              (authorMatches || []).forEach(am => {
+              processedMatches.forEach(am => {
                 if (!existingIds.has(am.id)) results.push(am);
               });
               console.log(`[RelatedWorks] Author fallback added ${authorMatches?.length || 0} items.`);
