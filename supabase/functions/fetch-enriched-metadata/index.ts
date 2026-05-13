@@ -83,16 +83,23 @@ serve(async (req) => {
     console.log(`[Enrichment AI] Analyzing: "${title}" by ${author}`);
 
     const taxonomyInstruction = `
-      For 'vibes' and 'motifs' (which we now call themes), you MUST act as a strict, traditional librarian. Use standard, high-level literary taxonomy (e.g., 'Dark Fantasy', 'Political Intrigue', 'Coming of Age').
+      For 'vibes' and 'motifs' (Themes), you are a strict librarian. Use ONLY standard literary taxonomy.
+      
+      CRITICAL RULES:
+      1. MAXIMUM TWO WORDS PER TAG. This is a hard limit.
+      2. NO POETIC ADJECTIVES (e.g., do not use 'Bleak', 'Gritty', 'Impending', 'Dark', 'Lush').
+      3. USE NOUN-HEAVY TERMS (e.g., 'Political Intrigue', 'Civil War', 'Coming Age', 'Lost Innocence').
+      
+      EXAMPLES:
+      - BAD: "Bleak political machinations" (3 words + flowery)
+      - GOOD: "Political Intrigue" (2 words + objective)
+      - BAD: "Gritty medieval realism" (3 words)
+      - GOOD: "Medieval Realism" (2 words)
       
       EXISTING VIBES: ${JSON.stringify(existing_vibes)}
       EXISTING MOTIFS/THEMES: ${JSON.stringify(existing_motifs)}
       
-      CRITICAL CONSTRAINTS:
-      1. You MUST prioritize selecting tags from the existing lists above.
-      2. You may generate a maximum of ONE new vibe and ONE new motif only if the existing lists are insufficient. 
-      3. CRITICAL: No tag may exceed TWO words. Do not use poetic adjectives or flowery language.
-      4. Avoid redundant tags.
+      Prioritize selecting from existing lists ONLY if they follow the 2-word rule. If an existing tag is longer than 2 words, IGNORE IT and create a new, shorter one.
     `;
 
     const provenanceInstruction = provenance_string
@@ -162,6 +169,14 @@ Return ONLY a valid JSON object matching this EXACT structure. No markdown, no b
     // Ensure the provenance object exists even if the LLM omitted it
     if (!parsed.provenance) {
       parsed.provenance = NULL_RESPONSE.provenance;
+    }
+
+    // Programmatic 2-word enforcement for taxonomy
+    if (Array.isArray(parsed.vibes)) {
+      parsed.vibes = parsed.vibes.map(v => v.split(' ').slice(0, 2).join(' '));
+    }
+    if (Array.isArray(parsed.motifs)) {
+      parsed.motifs = parsed.motifs.map(m => m.split(' ').slice(0, 2).join(' '));
     }
 
     console.log(`[Enrichment AI] Result for "${title}":`, JSON.stringify(parsed).substring(0, 200));
