@@ -434,7 +434,7 @@ export default function BookDetail() {
                 )}
               </div>
               
-              {(work.ai_enrichment || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
+              {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
                 <div className="book-detail-archival-meta">
                   <h3 className="archival-meta-title">Archival Metadata</h3>
                   <div className={`archival-meta-grid ${!((work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes)) ? 'full-width' : ''}`}>
