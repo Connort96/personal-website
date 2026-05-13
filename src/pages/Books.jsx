@@ -257,31 +257,23 @@ export default function Books() {
   }, [allBooks]);
 
   const RowContent = useCallback((index, book) => (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.2 }}
-    >
-      <CollectionCard
-        key={book.id}
-        title={book.title}
-        subtitle={book.author}
-        genres={Array.from(book.genres)}
-        coverColor={book.coverColor}
-        coverUrl={book.coverUrl}
-        rating={book.rating}
-        status={book.status}
-        formats={book.formats}
-        notes={book.review}
-        synopsis={book.synopsis}
-        editionCount={book.editions?.length || 1}
-        viewMode={viewMode}
-        index={index}
-        onClick={() => navigate(`/book/${book.id}`)}
-      />
-    </motion.div>
+    <CollectionCard
+      key={book.id}
+      title={book.title}
+      subtitle={book.author}
+      genres={Array.from(book.genres)}
+      coverColor={book.coverColor}
+      coverUrl={book.coverUrl}
+      rating={book.rating}
+      status={book.status}
+      formats={book.formats}
+      notes={book.review}
+      synopsis={book.synopsis}
+      editionCount={book.editions?.length || 1}
+      viewMode={viewMode}
+      index={index}
+      onClick={() => navigate(`/book/${book.id}`)}
+    />
   ), [viewMode, navigate]);
 
   return (
@@ -391,7 +383,7 @@ export default function Books() {
               <p>No volumes match your inquiry.</p>
             </div>
           ) : (
-            <AnimatePresence mode="popLayout">
+            <>
               {viewMode === 'grid' ? (
                 <VirtuosoGrid
                   key="grid"
@@ -415,7 +407,7 @@ export default function Books() {
                   )}
                 />
               )}
-            </AnimatePresence>
+            </>
           )}
         </div>
 
