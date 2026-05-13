@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import { runSagaScout } from '../lib/sagaScout';
 import SlideOverPanel from '../components/SlideOverPanel';
 import './BookDetail.css';
-
 const FormatIcon = ({ format }) => {
   const f = format?.toLowerCase() || '';
   if (f.includes('audio')) {
@@ -24,7 +23,6 @@ const FormatIcon = ({ format }) => {
     </svg>
   );
 };
-
 export default function BookDetail() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -34,18 +32,14 @@ export default function BookDetail() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSyncingSaga, setIsSyncingSaga] = useState(false);
   const [isDetectingAI, setIsDetectingAI] = useState(false);
-
   const isAdmin = user?.email === 'theconison96@gmail.com';
-
   const loadBookData = async () => {
     setLoading(true);
     try {
       // 1. Fetch Work Metadata with Fallbacks
       let workData = null;
       let numericId = parseInt(id);
-
       const { data: directWork } = await supabase.from('works').select('*').eq('id', numericId).maybeSingle();
-
       if (directWork) {
         workData = directWork;
       } else {
@@ -65,19 +59,14 @@ export default function BookDetail() {
           }
         }
       }
-
       if (!workData) throw new Error('Work not found');
-
       // 2. Fetch User Archive & Editions for this Work
       const viewerId = user?.id || 'd01d61f6-334c-4d90-8bce-4b691eebf514';
-
       const { data: userBooksData, error: ubErr } = await supabase
         .from('user_books')
         .select('*, editions(*)')
         .eq('user_id', viewerId);
-
       if (ubErr) throw ubErr;
-
       const ownedEditions = userBooksData
         ?.filter(ub => ub.editions?.work_id === numericId)
         .map(ub => ({
@@ -88,14 +77,12 @@ export default function BookDetail() {
           rating: ub.rating,
           review: ub.review
         })) || [];
-
       let editions = [];
       let primaryEdition = {};
       let bestReview = '';
       let bestRating = 0;
       let allGenres = [];
       let mainProgress = { status: 'unread', current_page: 0 };
-
       if (ownedEditions.length > 0) {
         const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
         editions = [...ownedEditions].sort((a, b) => (formatPriority[a.format] || 5) - (formatPriority[b.format] || 5));
@@ -109,21 +96,17 @@ export default function BookDetail() {
         editions = allEditions || [];
         primaryEdition = editions[0] || {};
       }
-
       const primaryGenre = {
         id: primaryEdition?.genre_id || 'modern_post2000',
         name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
       };
-
       // 3. Fetch Series Info (use limit(1) instead of maybeSingle to avoid crash on duplicate mappings)
       const { data: seriesLinks } = await supabase
         .from('series_works')
         .select('sequence_order, series(id, name, description)')
         .eq('work_id', numericId)
         .limit(1);
-
       const seriesLink = seriesLinks?.[0];
-
       let sagaInfo = null;
       if (seriesLink?.series) {
         const { data: siblingWorks } = await supabase
@@ -131,27 +114,21 @@ export default function BookDetail() {
           .select('sequence_order, work_id, works(id, title, author, in_collection)')
           .eq('series_id', seriesLink.series.id)
           .order('sequence_order', { ascending: true });
-
         const { data: ownedWorks } = await supabase
           .from('user_books')
           .select('editions!inner(work_id)')
           .eq('user_id', viewerId);
-        
         const ownedWorkIds = new Set(ownedWorks?.map(ow => ow.editions?.work_id));
-
         const { data: checklistWorks } = await supabase
           .from('books')
           .select('work_id')
           .not('work_id', 'is', null);
-        
         const checklistWorkIds = new Set(checklistWorks?.map(cw => cw.work_id));
-
         const siblingsWithStatus = siblingWorks.map(sw => ({
           ...sw,
           isOwned: ownedWorkIds.has(sw.work_id),
           isWishlisted: checklistWorkIds.has(sw.work_id)
         }));
-
         const currentIndex = siblingsWithStatus.findIndex(sw => sw.work_id === numericId);
         sagaInfo = {
           ...seriesLink.series,
@@ -161,10 +138,8 @@ export default function BookDetail() {
           next: siblingsWithStatus[currentIndex + 1]
         };
       }
-
       const coverImage = workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '';
       const needsReview = primaryEdition?.needs_review === true;
-
       setWork({
         ...workData,
         editions,
@@ -189,18 +164,15 @@ export default function BookDetail() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     loadBookData();
   }, [id, user]);
-
   // Auto-open edit panel for admin on needs_review books
   useEffect(() => {
     if (work?.needs_review && isAdmin && !isEditOpen) {
       setIsEditOpen(true);
     }
   }, [work?.needs_review, isAdmin]);
-
   const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}) => {
     if (!isAdmin) return;
     try {
@@ -212,20 +184,16 @@ export default function BookDetail() {
           .eq('user_id', user.id)
           .in('edition_id', editionIds);
       }
-
       // 2. Update global cover if provided
       if (globalCoverUrl !== undefined && globalCoverUrl !== null) {
         await supabase.from('editions').update({ cover_image_url: globalCoverUrl }).eq('work_id', workId);
       }
-
       // 3. Process individual edition updates with legacy mirroring
       for (const [id, edits] of Object.entries(editionUpdates)) {
         const { data: currentEd } = await supabase.from('editions').select('*').eq('id', id).single();
         if (!currentEd) continue;
-
         // Update the modern 'editions' table
         await supabase.from('editions').update(edits).eq('id', id);
-
         // Mirror to legacy 'books' table for grid visibility
         const searchIsbn = edits.isbn || currentEd.isbn;
         if (searchIsbn) {
@@ -235,7 +203,6 @@ export default function BookDetail() {
             isbn: edits.isbn || currentEd.isbn,
             page_count: edits.page_count || currentEd.page_count
           };
-
           await supabase.from('books').update(legacyUpdates).eq('isbn', searchIsbn);
         } else {
           // Fallback to title/author sync if no ISBN
@@ -245,23 +212,19 @@ export default function BookDetail() {
             .ilike('author', work.author);
         }
       }
-
       await loadBookData();
     } catch (err) {
       console.error('Failed to save archive updates:', err);
     }
   };
-
   const handleAIDetection = async () => {
     if (!isAdmin || !work) return;
     try {
       setIsDetectingAI(true);
-
       // Fetch existing taxonomy for standardization
       const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
       const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
       const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
-
       const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
         body: { 
           title: work.title, 
@@ -271,9 +234,7 @@ export default function BookDetail() {
           existing_motifs: existingMotifs
         }
       });
-      
       if (aiError) throw aiError;
-      
       if (aiData) {
         // 1. Write literary metadata and synopsis to works
         const updates = { ai_enriched: true };
@@ -282,11 +243,8 @@ export default function BookDetail() {
         if (aiData.setting_era) updates.setting_era = aiData.setting_era;
         if (aiData.setting_location) updates.setting_location = aiData.setting_location;
         if (aiData.synopsis) updates.synopsis = aiData.synopsis;
-
         await supabase.from('works').update(updates).eq('id', work.id);
-        
         let seriesMsg = '';
-
         // 2. Link series if found
         if (aiData.is_series && aiData.series_name) {
           let { data: existingSeries } = await supabase
@@ -294,7 +252,6 @@ export default function BookDetail() {
             .select('id')
             .ilike('name', aiData.series_name)
             .maybeSingle();
-          
           let sId;
           if (existingSeries) {
             sId = existingSeries.id;
@@ -302,20 +259,16 @@ export default function BookDetail() {
             const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
             sId = newS.id;
           }
-
           const sequence = parseInt(aiData.series_index || 1);
           await supabase.from('series_works').upsert({
             series_id: sId,
             work_id: work.id,
             sequence_order: sequence
           }, { onConflict: 'series_id, work_id' });
-
           seriesMsg = `\nSeries identified: ${aiData.series_name} (Book ${sequence}).`;
-          
           // Auto-run saga scout to find siblings (non-blocking)
           runSagaScout(supabase, sId, aiData.series_name, sequence, work.author).catch(e => console.warn(e));
         }
-
         alert(`AI Enrichment Complete!${seriesMsg}`);
         await loadBookData();
       } else {
@@ -329,7 +282,6 @@ export default function BookDetail() {
       setIsDetectingAI(false);
     }
   };
-
   if (error) {
     return (
       <div className="book-detail-error">
@@ -339,7 +291,6 @@ export default function BookDetail() {
       </div>
     );
   }
-
   if (loading || !work) {
     return (
       <div className="book-detail-loading">
@@ -348,7 +299,6 @@ export default function BookDetail() {
       </div>
     );
   }
-
   return (
     <div className="book-detail-page">
       <div className="container">
@@ -359,7 +309,6 @@ export default function BookDetail() {
             </svg>
             Back to Library
           </Link>
-
           {isAdmin && (
             <div style={{ display: 'flex', gap: '10px' }}>
               {!work.saga && (
@@ -378,7 +327,6 @@ export default function BookDetail() {
             </div>
           )}
         </div>
-
         <div className="book-detail-grid">
           <div className="book-detail-art-column">
             <div className="sticky-art-wrapper">
@@ -399,7 +347,6 @@ export default function BookDetail() {
               </motion.div>
             </div>
           </div>
-
           <div className="book-detail-content-column">
             <header className="book-detail-header">
               <h1 className="book-detail-title">{work.title}</h1>
@@ -409,14 +356,12 @@ export default function BookDetail() {
                 </div>
               )}
               <p className="book-detail-author">by {work.author}</p>
-
               {work.needs_review && (
                 <div className="book-detail-review-banner">
                   <span className="review-banner-icon">⚠</span>
                   This book needs review — metadata may be incomplete.
                 </div>
               )}
-
               <div className="book-detail-meta">
                 <div className="book-detail-stars">
                   {'★'.repeat(work.rating)}{'☆'.repeat(5 - work.rating)}
@@ -435,7 +380,6 @@ export default function BookDetail() {
                 )}
               </div>
             </header>
-
             <div className="book-detail-review-section">
               <div className="book-detail-review-body">
                 {work.review ? (
@@ -446,21 +390,17 @@ export default function BookDetail() {
                   <p className="no-review">No reflection has been logged for this work yet.</p>
                 )}
               </div>
-              
                {work.synopsis && (
                  <div className="book-detail-synopsis">
-                   <h3 className="archival-meta-title">Archival Synopsis</h3>
                    <p className="synopsis-text">{work.synopsis}</p>
                  </div>
                )}
-
               {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
                 <div className="book-detail-archival-meta">
-                  <h3 className="archival-meta-title">Archival Metadata</h3>
+                  <h3 className="archival-meta-title">CATALOG RECORD</h3>
                   <div className={`archival-meta-grid ${!((work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes)) ? 'full-width' : ''}`}>
                     <div className="archival-meta-column">
                       <h4 className="archival-meta-subtitle">Literary Elements</h4>
-                      
                       {(work.setting_era || work.setting_location) && (
                         <p className="archival-meta-setting">
                           {work.setting_era && !work.setting_location && `Set in the ${work.setting_era}.`}
@@ -468,7 +408,6 @@ export default function BookDetail() {
                           {work.setting_era && work.setting_location && `Set in the ${work.setting_era}, primarily in ${work.setting_location}.`}
                         </p>
                       )}
-
                       {work.vibes && work.vibes.length > 0 && (
                         <div className="meta-index-row">
                           <span className="meta-label">Vibes:</span>
@@ -481,10 +420,9 @@ export default function BookDetail() {
                           </div>
                         </div>
                       )}
-
                       {work.motifs && work.motifs.length > 0 && (
                         <div className="meta-index-row">
-                          <span className="meta-label">Motifs:</span>
+                          <span className="meta-label">Themes:</span>
                           <div className="meta-index-tags">
                             {work.motifs.map((m, i) => (
                               <button key={m} className="meta-index-btn">
@@ -495,7 +433,6 @@ export default function BookDetail() {
                         </div>
                       )}
                     </div>
-                    
                     {(work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes) && (
                       <div className="archival-meta-column">
                         <h4 className="archival-meta-subtitle">Physical Provenance</h4>
@@ -528,7 +465,6 @@ export default function BookDetail() {
                 </div>
               )}
             </div>
-            
             {work.saga && (
               <section className="book-detail-saga-nav">
                 <div className="saga-nav-header">
@@ -563,9 +499,6 @@ export default function BookDetail() {
                     </button>
                   )}
                 </div>
-
-
-
                 <div className="saga-roadmap">
                   {work.saga.siblings.map((s, i) => (
                     <div 
@@ -576,7 +509,6 @@ export default function BookDetail() {
                         <div className="saga-roadmap-dot" />
                         {i < work.saga.siblings.length - 1 && <div className="saga-roadmap-line" />}
                       </div>
-                      
                       <div className="saga-roadmap-content">
                         <div className="saga-roadmap-meta">
                           Vol {s.sequence_order} • {s.works?.in_collection === false ? 'Ghost Entry (Missing)' : (!s.isOwned ? 'Uncollected' : 'In Collection')}
@@ -599,11 +531,9 @@ export default function BookDetail() {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   console.log("[Checklist Add] Adding missing volume:", s.works.title);
-                                  
                                   try {
                                     const gId = work.primaryGenre?.id || 'modern_post2000';
                                     const gName = work.primaryGenre?.name || 'Modern Fiction (Post-2000)';
-                                    
                                     // Calculate next book_index
                                     const { data: maxBook } = await supabase
                                       .from('books')
@@ -612,7 +542,6 @@ export default function BookDetail() {
                                       .limit(1)
                                       .maybeSingle(); 
                                     const nextIndex = (maxBook?.book_index || 0) + 1;
-
                                     const { error: insErr } = await supabase.from('books').insert({
                                       title: s.works.title,
                                       author: s.works.author,
@@ -625,13 +554,11 @@ export default function BookDetail() {
                                       book_index: nextIndex,
                                       note: `Saga volume added from ${work.saga?.name}`
                                     });
-
                                     if (insErr) {
                                       console.error("Checklist add failed:", insErr);
                                       alert(`Failed to add: ${insErr.message} (${insErr.details || 'No details'})`);
                                       return;
                                     }
-
                                     // Update local state instantly
                                     setWork(prev => ({
                                       ...prev,
@@ -642,7 +569,6 @@ export default function BookDetail() {
                                         )
                                       }
                                     }));
-
                                     alert(`" ${s.works.title} " added to your Collection Checklist!`);
                                   } catch (err) {
                                     console.error("Checklist add failed:", err);
@@ -661,8 +587,6 @@ export default function BookDetail() {
                 </div>
               </section>
             )}
-
-
             <section className="book-detail-holdings">
               <h3 className="holdings-title">Editions in Archive</h3>
               <div className="holdings-grid">
@@ -692,7 +616,6 @@ export default function BookDetail() {
           </div>
         </div>
       </div>
-
       <SlideOverPanel
         book={work}
         isOpen={isEditOpen}

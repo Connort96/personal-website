@@ -190,10 +190,16 @@
 
 .synopsis-text {
   font-family: 'Crimson Pro', var(--font-serif);
-  font-size: var(--text-lg);
-  line-height: 1.7;
-  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--text-muted);
   max-width: 65ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  opacity: 0.8;
 }
 
 .book-detail-archival-meta {
