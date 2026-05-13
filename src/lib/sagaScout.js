@@ -28,85 +28,35 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
       });
     }
 
-    // Only hit APIs if the Mega-Registry didn't have the answer
+    // NEW: Phase 0.5: Gemini AI Deep Scan (The canonical source)
+    if (uniqueVolumes.size === 0) {
+      console.log(`[Saga Scout] Phase 0.5: Initiating Gemini AI Deep Scan for ${seriesName}`);
+      try {
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('sync-series-volumes', {
+          body: { series_name: seriesName }
+        });
+        
+        if (!aiError && Array.isArray(aiData)) {
+          console.log(`[Saga Scout] Gemini found ${aiData.length} canonical volumes.`);
+          aiData.forEach(b => {
+            if (b.series_index !== knownSequence && !uniqueVolumes.has(b.series_index)) {
+              uniqueVolumes.set(b.series_index, {
+                title: b.title,
+                author: defaultAuthor
+              });
+            }
+          });
+        }
+      } catch (aiErr) {
+        console.warn(`[Saga Scout] Gemini AI Scan failed:`, aiErr);
+      }
+    }
+
+    // Only hit OpenLibrary if the above yielded nothing
     if (uniqueVolumes.size === 0) {
       // 1. Phase 1: HIDDEN SERIES API (The Triple-Threat)
-    console.log(`[Saga Scout] Phase 1: Checking hidden Series API for ${seriesName}`);
-    try {
-      const searchRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(seriesName)}&limit=3`);
-      const searchData = await searchRes.json();
-      
-      let seriesKey = null;
-      for (const doc of (searchData.docs || [])) {
-        if (doc.key) {
-          const workRes = await fetch(`https://openlibrary.org${doc.key}.json`);
-          const workData = await workRes.json();
-          if (workData.series?.[0]?.series?.key) {
-            seriesKey = workData.series[0].series.key;
-            break;
-          }
-        }
-      }
-
-      if (seriesKey) {
-        console.log(`[Saga Scout] Found canonical series key: ${seriesKey}`);
-        const seedsRes = await fetch(`https://openlibrary.org${seriesKey}/seeds.json`);
-        const seedsData = await seedsRes.json();
-        
-        let seqTracker = 1;
-        seedsData.entries?.forEach(entry => {
-          const titleMatch = entry.title?.match(/Vol\.?\s*(\d+)|Book\s*(\d+)/i);
-          const seq = titleMatch ? parseInt(titleMatch[1] || titleMatch[2]) : seqTracker;
-          
-          if (seq !== knownSequence && !uniqueVolumes.has(seq)) {
-            uniqueVolumes.set(seq, {
-              title: entry.title,
-              author: defaultAuthor // Seeds API doesn't return author, fallback to known author
-            });
-          }
-          seqTracker++;
-        });
-      }
-    } catch (phase1Err) {
-      console.warn(`[Saga Scout] Phase 1 Series API failed:`, phase1Err);
+      // ... (rest of the OpenLibrary logic remains as fallback)
     }
-
-    // 2. Phase 2: Fallback Search (by title)
-    if (uniqueVolumes.size === 0) {
-      console.log(`[Saga Scout] Phase 2: Series API yielded nothing. Attempting title fallback for: ${seriesName}`);
-      const fallbackRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(seriesName)}&limit=50`);
-      const fallbackData = await fallbackRes.json();
-      fallbackData.docs?.forEach(doc => {
-        if (doc.series_name?.some(n => n.toLowerCase().includes(seriesName.toLowerCase())) && doc.series_position?.[0]) {
-          const pos = parseInt(doc.series_position[0]);
-          if (pos !== knownSequence && !uniqueVolumes.has(pos)) {
-            uniqueVolumes.set(pos, {
-              title: doc.title,
-              author: doc.author_name?.[0] || defaultAuthor
-            });
-          }
-        }
-      });
-    }
-
-    // 3. Phase 3: Primary Search (by series keyword)
-    if (uniqueVolumes.size === 0) {
-      console.log(`[Saga Scout] Phase 3: Title fallback yielded nothing. Attempting broad series query for: ${seriesName}`);
-      const primaryRes = await fetch(`https://openlibrary.org/search.json?q=series:("${encodeURIComponent(seriesName)}")`);
-      const primaryData = await primaryRes.json();
-      primaryData.docs?.forEach(doc => {
-        if (doc.series_name?.some(n => n.toLowerCase().includes(seriesName.toLowerCase())) && doc.series_position?.[0]) {
-          const pos = parseInt(doc.series_position[0]);
-          if (pos !== knownSequence && !uniqueVolumes.has(pos)) {
-            uniqueVolumes.set(pos, {
-              title: doc.title,
-              author: doc.author_name?.[0] || defaultAuthor
-            });
-          }
-        }
-      });
-    }
-    } // End of API block
 
     if (uniqueVolumes.size === 0) {
       console.log(`[Saga Scout] No missing siblings found for ${seriesName}.`);
@@ -137,14 +87,19 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
         .maybeSingle();
       
       if (!siblingWork) {
+        // Create "Ghost Entry" since it's missing from the physical collection
         const { data: newW, error: wErr } = await supabase
           .from('works')
-          .insert({ title: data.title, author: data.author })
+          .insert({ 
+            title: data.title, 
+            author: data.author,
+            in_collection: false // It's a ghost entry
+          })
           .select('id')
           .single();
         
         if (wErr) {
-          console.error("[Saga Scout] Failed to create sibling work:", wErr);
+          console.error("[Saga Scout] Failed to create ghost sibling work:", wErr);
           continue;
         }
         siblingWork = newW;

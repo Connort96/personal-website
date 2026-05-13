@@ -43,6 +43,7 @@ const NULL_RESPONSE = {
   is_series: false,
   series_name: null,
   series_index: null,
+  synopsis: null,
   vibes: [],
   motifs: [],
   setting_location: null,
@@ -61,7 +62,7 @@ serve(async (req) => {
   }
 
   try {
-    const { title, author, provenance_string } = await req.json();
+    const { title, author, provenance_string, existing_vibes = [], existing_motifs = [] } = await req.json();
 
     if (!title || !author) {
       return new Response(
@@ -81,21 +82,35 @@ serve(async (req) => {
 
     console.log(`[Enrichment AI] Analyzing: "${title}" by ${author}`);
 
+    const taxonomyInstruction = `
+      I have provided arrays of existing_vibes and existing_motifs currently used in the database. 
+      EXISTING VIBES: ${JSON.stringify(existing_vibes)}
+      EXISTING MOTIFS: ${JSON.stringify(existing_motifs)}
+      You MUST prioritize selecting tags from these existing lists to maintain a standardized taxonomy. 
+      You may generate a maximum of ONE new vibe and ONE new motif only if the existing lists are insufficient. 
+      Keep tags concise (1-3 words max).
+    `;
+
     const provenanceInstruction = provenance_string
       ? `The user has provided these provenance notes about their physical copy: "${provenance_string}". Parse this to extract condition, defects, acquisition source, and acquisition year.`
       : `No provenance notes were provided. Return null for all provenance fields.`;
 
     const prompt = `You are an expert literary archivist and metadata specialist. Analyze the book "${title}" by "${author}" and return a comprehensive metadata profile.
 
+${taxonomyInstruction}
+
 ${provenanceInstruction}
+
+Generate a 2-sentence, objective, spoiler-free literary summary (synopsis) written in a formal, academic archival tone. Do NOT include marketing copy.
 
 Return ONLY a valid JSON object matching this EXACT structure. No markdown, no backticks, no explanation:
 {
   "is_series": boolean,
   "series_name": string or null,
   "series_index": number or null,
-  "vibes": ["3 highly specific atmospheric/tonal tags, e.g. 'sun-bleached melancholy', 'claustrophobic dread', 'wry imperial satire'"],
-  "motifs": ["3 to 5 narrative tropes or literary devices, e.g. 'unreliable narrator', 'chosen one', 'corrupted utopia'"],
+  "synopsis": "Academic 2-sentence summary",
+  "vibes": ["selected from existing list where possible"],
+  "motifs": ["selected from existing list where possible"],
   "setting_location": "Primary geographic or fictional location, e.g. 'Arrakis' or 'Victorian London'",
   "setting_era": "Primary time period, e.g. 'Far future' or '1920s'",
   "provenance": {

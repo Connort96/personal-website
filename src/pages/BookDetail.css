@@ -180,7 +180,22 @@
   font-style: italic;
 }
 
-/* ── Archival Metadata ───────────────────────────────────── */
+/* ── Synopsis & Archival Metadata ────────────────────────── */
+.book-detail-synopsis {
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-12);
+  padding-bottom: var(--space-8);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.synopsis-text {
+  font-family: 'Crimson Pro', var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 65ch;
+}
+
 .book-detail-archival-meta {
   margin-top: var(--space-12);
   padding: 0;
@@ -291,6 +306,21 @@
 .archival-meta-divider {
   margin-top: var(--space-12);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.saga-roadmap-item.ghost {
+  opacity: 0.4;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+
+.saga-roadmap-item.ghost .saga-roadmap-dot {
+  background: transparent;
+  border: 1px dashed var(--border-medium);
+}
+
+.saga-roadmap-item.ghost .saga-roadmap-title {
+  font-weight: 400;
 }
 
 @media (max-width: 768px) {

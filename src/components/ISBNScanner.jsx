@@ -545,18 +545,31 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         // 6. AI Enrichment: fetch vibes, motifs, setting, provenance from Gemini
         try {
           await new Promise(r => setTimeout(r, 500)); // Concurrency stagger
+
+          // NEW: Dynamic Taxonomy - fetch existing tags to maintain standardization
+          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+          const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+          const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+
           const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-            body: { title: bookData.title, author: bookData.author, provenance_string: provenanceNote || null }
+            body: { 
+              title: bookData.title, 
+              author: bookData.author, 
+              provenance_string: provenanceNote || null,
+              existing_vibes: existingVibes,
+              existing_motifs: existingMotifs
+            }
           });
 
           if (!aiError && aiData) {
-            // Write literary metadata to works table
-            if (aiData.vibes?.length || aiData.motifs?.length || aiData.setting_location || aiData.setting_era) {
+            // Write literary metadata and synopsis to works table
+            if (aiData.vibes?.length || aiData.motifs?.length || aiData.setting_location || aiData.setting_era || aiData.synopsis) {
               await supabase.from('works').update({
                 vibes: aiData.vibes || [],
                 motifs: aiData.motifs || [],
                 setting_era: aiData.setting_era || null,
                 setting_location: aiData.setting_location || null,
+                synopsis: aiData.synopsis || null,
                 ai_enriched: true
               }).eq('id', workId);
             }

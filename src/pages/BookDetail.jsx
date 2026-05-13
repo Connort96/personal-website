@@ -128,7 +128,7 @@ export default function BookDetail() {
       if (seriesLink?.series) {
         const { data: siblingWorks } = await supabase
           .from('series_works')
-          .select('sequence_order, work_id, works(id, title, author)')
+          .select('sequence_order, work_id, works(id, title, author, in_collection)')
           .eq('series_id', seriesLink.series.id)
           .order('sequence_order', { ascending: true });
 
@@ -434,6 +434,13 @@ export default function BookDetail() {
                 )}
               </div>
               
+               {work.synopsis && (
+                 <div className="book-detail-synopsis">
+                   <h3 className="archival-meta-title">Archival Synopsis</h3>
+                   <p className="synopsis-text">{work.synopsis}</p>
+                 </div>
+               )}
+
               {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
                 <div className="book-detail-archival-meta">
                   <h3 className="archival-meta-title">Archival Metadata</h3>
@@ -552,11 +559,13 @@ export default function BookDetail() {
                   )}
                 </div>
 
+
+
                 <div className="saga-roadmap">
                   {work.saga.siblings.map((s, i) => (
                     <div 
                       key={s.work_id} 
-                      className={`saga-roadmap-item ${s.work_id === work.id ? 'active' : ''} ${!s.isOwned ? 'missing' : ''}`}
+                      className={`saga-roadmap-item ${s.work_id === work.id ? 'active' : ''} ${!s.isOwned ? 'missing' : ''} ${s.works?.in_collection === false ? 'ghost' : ''}`}
                     >
                       <div className="saga-roadmap-dot-track">
                         <div className="saga-roadmap-dot" />
@@ -565,7 +574,7 @@ export default function BookDetail() {
                       
                       <div className="saga-roadmap-content">
                         <div className="saga-roadmap-meta">
-                          Vol {s.sequence_order} • {!s.isOwned ? 'Missing from Archive' : 'In Collection'}
+                          Vol {s.sequence_order} • {s.works?.in_collection === false ? 'Ghost Entry (Missing)' : (!s.isOwned ? 'Uncollected' : 'In Collection')}
                         </div>
                         {s.isOwned ? (
                           <Link to={`/book/${s.work_id}`} className="saga-roadmap-title">
