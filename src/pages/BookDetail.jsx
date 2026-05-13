@@ -433,6 +433,61 @@ export default function BookDetail() {
                   <p className="no-review">No reflection has been logged for this work yet.</p>
                 )}
               </div>
+              
+              {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
+                <div className="book-detail-archival-meta">
+                  <h3 className="archival-meta-title">Archival Metadata</h3>
+                  <div className="archival-meta-grid">
+                    <div className="archival-meta-column">
+                      <h4 className="archival-meta-subtitle">Literary Elements</h4>
+                      {work.setting_era && <p><span className="meta-label">Era:</span> {work.setting_era}</p>}
+                      {work.setting_location && <p><span className="meta-label">Location:</span> {work.setting_location}</p>}
+                      {work.vibes && work.vibes.length > 0 && (
+                        <div className="meta-tags-container">
+                          <span className="meta-label">Vibes:</span>
+                          <div className="meta-tags">
+                            {work.vibes.map(v => <span key={v} className="meta-tag">{v}</span>)}
+                          </div>
+                        </div>
+                      )}
+                      {work.motifs && work.motifs.length > 0 && (
+                        <div className="meta-tags-container">
+                          <span className="meta-label">Motifs:</span>
+                          <div className="meta-tags">
+                            {work.motifs.map(m => <span key={m} className="meta-tag">{m}</span>)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="archival-meta-column">
+                      <h4 className="archival-meta-subtitle">Physical Provenance</h4>
+                      {work.primaryEdition?.condition && <p><span className="meta-label">Condition:</span> <span className="meta-value">{work.primaryEdition.condition}</span></p>}
+                      {work.primaryEdition?.defects && work.primaryEdition.defects.length > 0 && (
+                         <div className="meta-tags-container">
+                          <span className="meta-label">Defects:</span>
+                          <div className="meta-tags">
+                            {work.primaryEdition.defects.map(d => <span key={d} className="meta-tag defect-tag">{d}</span>)}
+                          </div>
+                        </div>
+                      )}
+                      {(work.primaryEdition?.acquisition_notes || work.primaryEdition?.acquisition_year) && (
+                        <p>
+                          <span className="meta-label">Acquisition:</span> 
+                          <span className="meta-value">
+                            {work.primaryEdition?.acquisition_notes} 
+                            {work.primaryEdition?.acquisition_year && ` (${work.primaryEdition.acquisition_year})`}
+                          </span>
+                        </p>
+                      )}
+                      {(!work.primaryEdition?.condition && (!work.primaryEdition?.defects || work.primaryEdition.defects.length === 0) && !work.primaryEdition?.acquisition_notes) && (
+                        <p className="no-review">No physical provenance recorded.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             
             {work.saga && (
               <section className="book-detail-saga-nav">
@@ -572,7 +627,7 @@ export default function BookDetail() {
                 </div>
               </section>
             )}
-            </div>
+
 
             <section className="book-detail-holdings">
               <h3 className="holdings-title">Editions in Archive</h3>

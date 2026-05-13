@@ -79,11 +79,11 @@
 .book-detail-primary-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--radius-sm);
   box-shadow: 20px 20px 40px rgba(0, 0, 0, 0.4);
   transform: rotateY(-12deg) rotateX(2deg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: none;
 }
 
 .cover-placeholder {
@@ -178,6 +178,90 @@
 .no-review {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* ── Archival Metadata ───────────────────────────────────── */
+.book-detail-archival-meta {
+  margin-top: var(--space-12);
+  padding: var(--space-8);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.archival-meta-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.archival-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-10);
+}
+
+.archival-meta-column h4 {
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-muted);
+  padding-bottom: var(--space-2);
+}
+
+.archival-meta-column p {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  margin-bottom: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.meta-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: var(--space-2);
+}
+
+.meta-value {
+  color: var(--text-primary);
+}
+
+.meta-tags-container {
+  margin-bottom: var(--space-4);
+}
+
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.meta-tag {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.defect-tag {
+  color: #ff8a80;
+  border-color: rgba(255, 138, 128, 0.2);
+  background: rgba(255, 138, 128, 0.05);
+}
+
+@media (max-width: 768px) {
+  .archival-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Holdings Section ───────────────────────────────────── */
