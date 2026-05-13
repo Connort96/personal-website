@@ -23,15 +23,45 @@ export default function Enrichment() {
 
   const loadPendingWorks = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('works')
-      .select('id, title, author')
-      .eq('ai_enriched', false)
-      .order('id', { ascending: false });
-    
-    if (!error && data) {
-      setWorks(data.map(w => ({ ...w, status: 'pending' })));
+
+    try {
+      // 1. Fetch all user books to get owned work IDs
+      const { data: userBooks, error: userError } = await supabase
+        .from('user_books')
+        .select(`
+          editions (work_id),
+          books (work_id)
+        `)
+        .eq('user_id', user.id);
+
+      if (userError) throw userError;
+
+      // Extract unique work IDs
+      const ownedWorkIds = [...new Set(
+        (userBooks || []).map(ub => ub.editions?.work_id || ub.books?.work_id).filter(Boolean)
+      )];
+
+      if (ownedWorkIds.length === 0) {
+        setWorks([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch works that are owned and not enriched
+      const { data, error } = await supabase
+        .from('works')
+        .select('id, title, author')
+        .in('id', ownedWorkIds)
+        .eq('ai_enriched', false)
+        .order('id', { ascending: false });
+      
+      if (!error && data) {
+        setWorks(data.map(w => ({ ...w, status: 'pending' })));
+      }
+    } catch (err) {
+      console.error('Failed to load pending works:', err);
     }
+
     setLoading(false);
   };
 
