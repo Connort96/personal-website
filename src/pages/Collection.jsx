@@ -401,6 +401,29 @@ export default function Collection() {
           console.error("[Saga Scout] Metadata scout failed:", sErr);
         }
 
+        // 4. AI ENRICHMENT: Fetch vibes, motifs, setting from Gemini
+        try {
+          console.log(`[Checklist Scout] Running AI Enrichment for "${bookTitle}"...`);
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+            body: { title: bookTitle, author: bookAuthor, provenance_string: null }
+          });
+
+          if (!aiError && aiData) {
+            const updates = { ai_enriched: true };
+            if (aiData.vibes?.length) updates.vibes = aiData.vibes;
+            if (aiData.motifs?.length) updates.motifs = aiData.motifs;
+            if (aiData.setting_era) updates.setting_era = aiData.setting_era;
+            if (aiData.setting_location) updates.setting_location = aiData.setting_location;
+
+            if (Object.keys(updates).length > 1) { // More than just ai_enriched
+              await supabase.from('works').update(updates).eq('id', workId);
+              console.log(`[Checklist Scout] AI Enrichment complete for "${bookTitle}"`);
+            }
+          }
+        } catch (aiErr) {
+          console.warn(`[Checklist Scout] AI Enrichment failed (non-blocking):`, aiErr);
+        }
+
         await supabase.from('user_books').upsert({ 
           user_id: user.id, 
           book_id: id,
