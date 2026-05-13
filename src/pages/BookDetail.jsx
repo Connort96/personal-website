@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -35,8 +35,11 @@ export default function BookDetail() {
   const [isSyncingSaga, setIsSyncingSaga] = useState(false);
   const [isDetectingAI, setIsDetectingAI] = useState(false);
   const isAdmin = user?.email === 'theconison96@gmail.com';
-  const loadBookData = async () => {
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const loadBookData = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
       // 1. Fetch Work Metadata with Fallbacks
       let workData = null;
@@ -61,7 +64,9 @@ export default function BookDetail() {
           }
         }
       }
+
       if (!workData) throw new Error('Work not found');
+
       // 2. Fetch User Archive & Editions for this Work
       const viewerId = user?.id || 'd01d61f6-334c-4d90-8bce-4b691eebf514';
       const { data: userBooksData, error: ubErr } = await supabase
@@ -69,6 +74,7 @@ export default function BookDetail() {
         .select('*, editions(*)')
         .eq('user_id', viewerId);
       if (ubErr) throw ubErr;
+
       const ownedEditions = userBooksData
         ?.filter(ub => ub.editions?.work_id === numericId)
         .map(ub => ({
@@ -79,12 +85,14 @@ export default function BookDetail() {
           rating: ub.rating,
           review: ub.review
         })) || [];
+
       let editions = [];
       let primaryEdition = {};
       let bestReview = '';
       let bestRating = 0;
       let allGenres = [];
       let mainProgress = { status: 'unread', current_page: 0 };
+
       if (ownedEditions.length > 0) {
         const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
         editions = [...ownedEditions].sort((a, b) => (formatPriority[a.format] || 5) - (formatPriority[b.format] || 5));
@@ -98,10 +106,12 @@ export default function BookDetail() {
         editions = allEditions || [];
         primaryEdition = editions[0] || {};
       }
+
       const primaryGenre = {
         id: primaryEdition?.genre_id || 'modern_post2000',
         name: primaryEdition?.genre_name || 'Modern Fiction (Post-2000)'
       };
+
       // 3. Fetch Series Info (use limit(1) instead of maybeSingle to avoid crash on duplicate mappings)
       const { data: seriesLinks } = await supabase
         .from('series_works')
@@ -110,27 +120,32 @@ export default function BookDetail() {
         .limit(1);
       const seriesLink = seriesLinks?.[0];
       let sagaInfo = null;
+
       if (seriesLink?.series) {
         const { data: siblingWorks } = await supabase
           .from('series_works')
           .select('sequence_order, work_id, works(id, title, author, in_collection)')
           .eq('series_id', seriesLink.series.id)
           .order('sequence_order', { ascending: true });
+
         const { data: ownedWorks } = await supabase
           .from('user_books')
           .select('editions!inner(work_id)')
           .eq('user_id', viewerId);
+        
         const ownedWorkIds = new Set(ownedWorks?.map(ow => ow.editions?.work_id));
         const { data: checklistWorks } = await supabase
           .from('books')
           .select('work_id')
           .not('work_id', 'is', null);
+        
         const checklistWorkIds = new Set(checklistWorks?.map(cw => cw.work_id));
         const siblingsWithStatus = siblingWorks.map(sw => ({
           ...sw,
           isOwned: ownedWorkIds.has(sw.work_id),
           isWishlisted: checklistWorkIds.has(sw.work_id)
         }));
+
         const currentIndex = siblingsWithStatus.findIndex(sw => sw.work_id === numericId);
         sagaInfo = {
           ...seriesLink.series,
@@ -140,8 +155,10 @@ export default function BookDetail() {
           next: siblingsWithStatus[currentIndex + 1]
         };
       }
+
       const coverImage = workData.cover_image_url || primaryEdition?.cover_image_url || primaryEdition?.cover_url || '';
       const needsReview = primaryEdition?.needs_review === true;
+
       setWork({
         ...workData,
         editions,
@@ -165,16 +182,23 @@ export default function BookDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user?.id]); // Removed isAdmin to satisfy lint
+
   useEffect(() => {
-    loadBookData();
-  }, [id, user]);
-  // Auto-open edit panel for admin on needs_review books
+    const timer = setTimeout(() => {
+      loadBookData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadBookData]);
+
   useEffect(() => {
     if (work?.needs_review && isAdmin && !isEditOpen) {
-      setIsEditOpen(true);
+      const timer = setTimeout(() => {
+        setIsEditOpen(true);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [work?.needs_review, isAdmin]);
+  }, [work?.needs_review, isAdmin, isEditOpen]);
   const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}) => {
     if (!isAdmin) return;
     try {

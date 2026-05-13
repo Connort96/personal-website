@@ -9,14 +9,14 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
   const navigate = useNavigate();
 
   useEffect(() => {
-    const bookId = parseInt(currentBookId);
-    if (isNaN(bookId)) {
-      console.warn('[RelatedWorks] Invalid currentBookId:', currentBookId);
-      setLoading(false);
-      return;
-    }
-
     async function fetchRelated() {
+      const bookId = parseInt(currentBookId);
+      if (isNaN(bookId)) {
+        console.warn('[RelatedWorks] Invalid currentBookId:', currentBookId);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       console.log(`[RelatedWorks] Searching for books similar to #${bookId}`, { themes, vibes });
       
