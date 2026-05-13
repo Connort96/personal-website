@@ -29,10 +29,13 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
     }
 
     // NEW: Phase 0.5: Gemini AI Deep Scan (The canonical source)
-    console.log(`[Saga Scout] Phase 0.5: Initiating Gemini AI Deep Scan for ${seriesName}`);
+    console.log(`[Saga Scout] Phase 0.5: Initiating Gemini AI Deep Scan for ${seriesName} by ${defaultAuthor}`);
     try {
       const { data: aiData, error: aiError } = await supabase.functions.invoke('sync-series-volumes', {
-        body: { series_name: seriesName }
+        body: { 
+          series_name: seriesName,
+          author: defaultAuthor
+        }
       });
       
       if (!aiError && Array.isArray(aiData)) {

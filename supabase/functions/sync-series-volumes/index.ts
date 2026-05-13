@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { series_name } = await req.json();
+    const { series_name, author } = await req.json();
 
     if (!series_name) {
       return new Response(
@@ -29,7 +29,7 @@ serve(async (req) => {
     }
 
     const prompt = `You are a world-class literary archivist and series specialist. 
-    List all the primary, mainline books in the sequence known as: "${series_name}". 
+    List all the primary, mainline books in the sequence known as: "${series_name}"${author ? ` by "${author}"` : ''}. 
     
     CRITICAL INSTRUCTIONS:
     1. Be exhaustive for the MAIN sequence. For example, if searching for 'Gormenghast', you MUST include 'Titus Groan', 'Gormenghast', and 'Titus Alone'.
