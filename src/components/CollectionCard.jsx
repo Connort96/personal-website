@@ -45,17 +45,22 @@ export default function CollectionCard({
         role={onClick ? 'button' : undefined}
         tabIndex={onClick ? 0 : undefined}
       >
-        <div
-          className="collection-card__cover collection-card__cover--list"
-          style={{
-            backgroundColor: coverColor || '#2a2a3a',
-            backgroundImage: coverUrl ? `url(${coverUrl})` : 'none',
-            backgroundSize: 'contain',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center'
-          }}
-        >
-          {!coverUrl && <div className="collection-card__cover-pattern" />}
+        <div className="collection-card__cover collection-card__cover--list">
+          {coverUrl ? (
+            <img 
+              src={coverUrl} 
+              alt={title} 
+              className="collection-card__image collection-card__image--list"
+            />
+          ) : (
+            <div 
+              className="collection-card__placeholder collection-card__placeholder--list" 
+              style={{ backgroundColor: coverColor || 'var(--bg-tertiary)' }}
+            >
+              <div className="collection-card__cover-pattern" />
+              <span>{title[0]}</span>
+            </div>
+          )}
           <FormatBadge formats={formats} />
           {editionCount > 1 && (
             <div className="collection-card__edition-badge collection-card__edition-badge--list" title={`${editionCount} editions owned`}>
@@ -104,17 +109,22 @@ export default function CollectionCard({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      <div
-        className="collection-card__cover"
-        style={{
-          backgroundColor: coverColor || '#2a2a3a',
-          backgroundImage: coverUrl ? `url(${coverUrl})` : 'none',
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center'
-        }}
-      >
-        {!coverUrl && <div className="collection-card__cover-pattern" />}
+      <div className="collection-card__cover">
+        {coverUrl ? (
+          <img 
+            src={coverUrl} 
+            alt={title} 
+            className="collection-card__image"
+          />
+        ) : (
+          <div 
+            className="collection-card__placeholder" 
+            style={{ backgroundColor: coverColor || 'var(--bg-tertiary)' }}
+          >
+            <div className="collection-card__cover-pattern" />
+            <span>{title[0]}</span>
+          </div>
+        )}
         {status && status !== 'unread' && (
           <div className="collection-card__status-badge">
             {status === 'reading' ? '📖' : '✓'}
