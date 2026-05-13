@@ -31,7 +31,7 @@ const FormatBadge = ({ formats }) => {
 export default function CollectionCard({
   title, subtitle, year, genres, rating, coverColor, coverUrl,
   notes, onClick, index = 0, status, formats, viewMode = 'grid',
-  editionCount = 1
+  editionCount = 1, synopsis = null
 }) {
   const stars = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : null;
   const delay = Math.min(index * 0.04, 0.4);
@@ -133,6 +133,13 @@ export default function CollectionCard({
         {editionCount > 1 && (
           <div className="collection-card__edition-badge" title={`${editionCount} editions owned`}>
             {editionCount}
+          </div>
+        )}
+        {synopsis && (
+          <div className="collection-card__synopsis-badge" title="Archival Synopsis Available">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
           </div>
         )}
         <FormatBadge formats={formats} />

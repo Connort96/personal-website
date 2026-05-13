@@ -103,7 +103,7 @@ export default function Books() {
               editions ( 
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format, needs_review,
-                works ( id, title, author ) 
+                works ( id, title, author, synopsis ) 
               )
             `)
             .eq('user_id', adminId)
@@ -140,6 +140,7 @@ export default function Books() {
               rating: 0,
               review: '',
               owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
+              synopsis: work.synopsis,
               editions: []
             });
           }
@@ -240,6 +241,7 @@ export default function Books() {
       status={book.status}
       formats={book.formats}
       notes={book.review}
+      synopsis={book.synopsis}
       editionCount={book.editions?.length || 1}
       viewMode={viewMode}
       index={index}

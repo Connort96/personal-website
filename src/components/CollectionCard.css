@@ -118,6 +118,23 @@
   z-index: 3;
 }
 
+.collection-card__synopsis-badge {
+  position: absolute;
+  top: 32px;
+  left: var(--space-3);
+  background: var(--bg-card);
+  color: var(--accent-primary);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--accent-primary);
+  box-shadow: var(--shadow-md);
+  z-index: 3;
+}
+
 .collection-card__edition-badge--list {
   top: 4px;
   left: 4px;
