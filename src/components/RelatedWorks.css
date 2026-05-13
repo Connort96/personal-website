@@ -9,7 +9,7 @@
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--text-muted);
+  color: #ff0000; /* DEBUG RED */
   letter-spacing: 0.2em;
   text-transform: uppercase;
   margin-bottom: var(--space-6);
