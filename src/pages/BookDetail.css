@@ -183,25 +183,29 @@
 /* ── Archival Metadata ───────────────────────────────────── */
 .book-detail-archival-meta {
   margin-top: var(--space-12);
-  padding: var(--space-8);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .archival-meta-title {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.3em;
   color: var(--accent-secondary);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-8);
+  opacity: 0.7;
 }
 
 .archival-meta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-10);
+  gap: var(--space-12);
+}
+
+.archival-meta-grid.full-width {
+  grid-template-columns: 1fr;
 }
 
 .archival-meta-column h4 {
@@ -209,53 +213,84 @@
   font-size: var(--text-base);
   color: var(--text-primary);
   margin-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-muted);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: var(--space-2);
+  letter-spacing: 0.05em;
 }
 
-.archival-meta-column p {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  margin-bottom: var(--space-3);
+.archival-meta-setting {
+  font-family: 'Crimson Pro', var(--font-serif);
+  font-size: var(--text-base);
+  font-style: italic;
   color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+}
+
+.meta-index-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.meta-index-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.meta-index-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.meta-index-btn:hover {
+  color: var(--accent-primary);
+}
+
+.meta-separator {
+  margin: 0 var(--space-2);
+  color: var(--accent-secondary);
+  opacity: 0.5;
+  font-size: 12px;
 }
 
 .meta-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  margin-right: var(--space-2);
+  color: var(--accent-secondary);
+  opacity: 0.6;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
 }
 
 .meta-value {
   color: var(--text-primary);
+  font-size: var(--text-sm);
 }
 
-.meta-tags-container {
-  margin-bottom: var(--space-4);
-}
-
-.meta-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-.meta-tag {
-  font-size: 11px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-}
-
-.defect-tag {
+.meta-defect-text {
+  font-size: var(--text-sm);
   color: #ff8a80;
-  border-color: rgba(255, 138, 128, 0.2);
-  background: rgba(255, 138, 128, 0.05);
+  opacity: 0.9;
+}
+
+.archival-meta-divider {
+  margin-top: var(--space-12);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {

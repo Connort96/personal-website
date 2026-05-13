@@ -434,57 +434,77 @@ export default function BookDetail() {
                 )}
               </div>
               
-              {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
+              {(work.ai_enrichment || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
                 <div className="book-detail-archival-meta">
                   <h3 className="archival-meta-title">Archival Metadata</h3>
-                  <div className="archival-meta-grid">
+                  <div className={`archival-meta-grid ${!((work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes)) ? 'full-width' : ''}`}>
                     <div className="archival-meta-column">
                       <h4 className="archival-meta-subtitle">Literary Elements</h4>
-                      {work.setting_era && <p><span className="meta-label">Era:</span> {work.setting_era}</p>}
-                      {work.setting_location && <p><span className="meta-label">Location:</span> {work.setting_location}</p>}
+                      
+                      {(work.setting_era || work.setting_location) && (
+                        <p className="archival-meta-setting">
+                          {work.setting_era && !work.setting_location && `Set in the ${work.setting_era}.`}
+                          {!work.setting_era && work.setting_location && `Set primarily in ${work.setting_location}.`}
+                          {work.setting_era && work.setting_location && `Set in the ${work.setting_era}, primarily in ${work.setting_location}.`}
+                        </p>
+                      )}
+
                       {work.vibes && work.vibes.length > 0 && (
-                        <div className="meta-tags-container">
+                        <div className="meta-index-row">
                           <span className="meta-label">Vibes:</span>
-                          <div className="meta-tags">
-                            {work.vibes.map(v => <span key={v} className="meta-tag">{v}</span>)}
+                          <div className="meta-index-tags">
+                            {work.vibes.map((v, i) => (
+                              <button key={v} className="meta-index-btn">
+                                {v}{i < work.vibes.length - 1 && <span className="meta-separator">·</span>}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       )}
+
                       {work.motifs && work.motifs.length > 0 && (
-                        <div className="meta-tags-container">
+                        <div className="meta-index-row">
                           <span className="meta-label">Motifs:</span>
-                          <div className="meta-tags">
-                            {work.motifs.map(m => <span key={m} className="meta-tag">{m}</span>)}
+                          <div className="meta-index-tags">
+                            {work.motifs.map((m, i) => (
+                              <button key={m} className="meta-index-btn">
+                                {m}{i < work.motifs.length - 1 && <span className="meta-separator">·</span>}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       )}
                     </div>
                     
-                    <div className="archival-meta-column">
-                      <h4 className="archival-meta-subtitle">Physical Provenance</h4>
-                      {work.primaryEdition?.condition && <p><span className="meta-label">Condition:</span> <span className="meta-value">{work.primaryEdition.condition}</span></p>}
-                      {work.primaryEdition?.defects && work.primaryEdition.defects.length > 0 && (
-                         <div className="meta-tags-container">
-                          <span className="meta-label">Defects:</span>
-                          <div className="meta-tags">
-                            {work.primaryEdition.defects.map(d => <span key={d} className="meta-tag defect-tag">{d}</span>)}
+                    {(work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes) && (
+                      <div className="archival-meta-column">
+                        <h4 className="archival-meta-subtitle">Physical Provenance</h4>
+                        {work.primaryEdition?.condition && <p><span className="meta-label">Condition:</span> <span className="meta-value">{work.primaryEdition.condition}</span></p>}
+                        {work.primaryEdition?.defects && work.primaryEdition.defects.length > 0 && (
+                           <div className="meta-index-row">
+                            <span className="meta-label">Defects:</span>
+                            <div className="meta-index-tags">
+                              {work.primaryEdition.defects.map((d, i) => (
+                                <span key={d} className="meta-defect-text">
+                                  {d}{i < work.primaryEdition.defects.length - 1 && <span className="meta-separator">,</span>}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {(work.primaryEdition?.acquisition_notes || work.primaryEdition?.acquisition_year) && (
-                        <p>
-                          <span className="meta-label">Acquisition:</span> 
-                          <span className="meta-value">
-                            {work.primaryEdition?.acquisition_notes} 
-                            {work.primaryEdition?.acquisition_year && ` (${work.primaryEdition.acquisition_year})`}
-                          </span>
-                        </p>
-                      )}
-                      {(!work.primaryEdition?.condition && (!work.primaryEdition?.defects || work.primaryEdition.defects.length === 0) && !work.primaryEdition?.acquisition_notes) && (
-                        <p className="no-review">No physical provenance recorded.</p>
-                      )}
-                    </div>
+                        )}
+                        {(work.primaryEdition?.acquisition_notes || work.primaryEdition?.acquisition_year) && (
+                          <p>
+                            <span className="meta-label">Acquisition:</span> 
+                            <span className="meta-value">
+                              {work.primaryEdition?.acquisition_notes} 
+                              {work.primaryEdition?.acquisition_year && ` (${work.primaryEdition.acquisition_year})`}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
+                  <div className="archival-meta-divider" />
                 </div>
               )}
             </div>
