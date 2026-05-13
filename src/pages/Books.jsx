@@ -239,7 +239,7 @@ export default function Books() {
         if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
         return (b.owned_at || 0) - (a.owned_at || 0);
       });
-  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag, needsReviewFilter]);
+  }, [allBooks, activeTab, sortBy, searchTerm, selectedTag, needsReviewFilter, themeFilter, vibeFilter]);
 
   const currentlyReading = useMemo(() => allBooks.find(b => b.status === 'reading'), [allBooks]);
 
