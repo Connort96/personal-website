@@ -9,35 +9,51 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('[RelatedWorks] Themes:', themes, 'Vibes:', vibes);
     async function fetchRelated() {
-      if (!themes?.length && !vibes?.length) {
-        console.log('[RelatedWorks] No tags to search with');
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       try {
-        // Format tags for Postgres array syntax: {"tag one","tag two"}
-        const themeArr = themes.map(t => `"${t}"`).join(',');
-        const vibeArr = vibes.map(v => `"${v}"`).join(',');
+        let results = [];
         
-        let query = supabase.from('works').select('id, title, author, cover_image_url');
-        
-        // Use .or with overlaps for both motifs and vibes
-        const orConditions = [];
-        if (themes.length) orConditions.push(`motifs.ov.{${themeArr}}`);
-        if (vibes.length) orConditions.push(`vibes.ov.{${vibeArr}}`);
-        
-        const { data, error } = await query
-          .or(orConditions.join(','))
-          .neq('id', currentBookId)
-          .limit(4);
+        // 1. Semantic Match (Themes/Vibes)
+        if (themes?.length || vibes?.length) {
+          const themeArr = (themes || []).map(t => `"${t}"`).join(',');
+          const vibeArr = (vibes || []).map(v => `"${v}"`).join(',');
+          
+          const orConditions = [];
+          if (themes?.length) orConditions.push(`motifs.ov.{${themeArr}}`);
+          if (vibes?.length) orConditions.push(`vibes.ov.{${vibeArr}}`);
+          
+          const { data } = await supabase
+            .from('works')
+            .select('id, title, author, cover_image_url')
+            .or(orConditions.join(','))
+            .neq('id', currentBookId)
+            .limit(4);
+          
+          results = data || [];
+        }
 
-        if (error) throw error;
-        console.log('[RelatedWorks] Found:', data?.length, 'results');
-        setRelated(data || []);
+        // 2. Fallback: Same Author (if less than 2 semantic matches)
+        if (results.length < 2) {
+          // Get author of current book
+          const { data: currentBook } = await supabase.from('works').select('author').eq('id', currentBookId).single();
+          if (currentBook?.author) {
+            const { data: authorMatches } = await supabase
+              .from('works')
+              .select('id, title, author, cover_image_url')
+              .eq('author', currentBook.author)
+              .neq('id', currentBookId)
+              .limit(4 - results.length);
+            
+            // Add unique matches
+            const existingIds = new Set(results.map(r => r.id));
+            (authorMatches || []).forEach(am => {
+              if (!existingIds.has(am.id)) results.push(am);
+            });
+          }
+        }
+
+        setRelated(results.slice(0, 4));
       } catch (err) {
         console.error('[RelatedWorks] Failed to fetch:', err);
       } finally {
@@ -49,7 +65,7 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [] })
   }, [currentBookId, themes, vibes]);
 
   if (loading) return <div className="related-works-loading">Finding related volumes...</div>;
-  // if (!related.length) return null;
+  if (!related.length) return null;
 
   return (
     <div className="related-works">
