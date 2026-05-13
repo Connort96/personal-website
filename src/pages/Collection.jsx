@@ -404,21 +404,34 @@ export default function Collection() {
         // 4. AI ENRICHMENT: Fetch vibes, motifs, setting from Gemini
         try {
           console.log(`[Checklist Scout] Running AI Enrichment for "${bookTitle}"...`);
+          
+          // Fetch existing taxonomy for standardization
+          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+          const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
+          const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
+
           const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-            body: { title: bookTitle, author: bookAuthor, provenance_string: null }
+            body: { 
+              title: bookTitle, 
+              author: bookAuthor, 
+              provenance_string: null,
+              existing_vibes: existingVibes,
+              existing_motifs: existingMotifs
+            }
           });
 
           if (!aiError && aiData) {
-            const updates = { ai_enriched: true };
-            if (aiData.vibes?.length) updates.vibes = aiData.vibes;
-            if (aiData.motifs?.length) updates.motifs = aiData.motifs;
-            if (aiData.setting_era) updates.setting_era = aiData.setting_era;
-            if (aiData.setting_location) updates.setting_location = aiData.setting_location;
+            const updates = { 
+              ai_enriched: true,
+              vibes: aiData.vibes || [],
+              motifs: aiData.motifs || [],
+              setting_era: aiData.setting_era || null,
+              setting_location: aiData.setting_location || null,
+              synopsis: aiData.synopsis || null
+            };
 
-            if (Object.keys(updates).length > 1) { // More than just ai_enriched
-              await supabase.from('works').update(updates).eq('id', workId);
-              console.log(`[Checklist Scout] AI Enrichment complete for "${bookTitle}"`);
-            }
+            await supabase.from('works').update(updates).eq('id', workId);
+            console.log(`[Checklist Scout] AI Enrichment complete for "${bookTitle}"`);
           }
         } catch (aiErr) {
           console.warn(`[Checklist Scout] AI Enrichment failed (non-blocking):`, aiErr);

@@ -256,19 +256,32 @@ export default function BookDetail() {
     if (!isAdmin || !work) return;
     try {
       setIsDetectingAI(true);
+
+      // Fetch existing taxonomy for standardization
+      const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+      const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
+      const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
+
       const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-        body: { title: work.title, author: work.author, provenance_string: null }
+        body: { 
+          title: work.title, 
+          author: work.author, 
+          provenance_string: null,
+          existing_vibes: existingVibes,
+          existing_motifs: existingMotifs
+        }
       });
       
       if (aiError) throw aiError;
       
       if (aiData) {
-        // 1. Write literary metadata to works
+        // 1. Write literary metadata and synopsis to works
         const updates = { ai_enriched: true };
         if (aiData.vibes?.length) updates.vibes = aiData.vibes;
         if (aiData.motifs?.length) updates.motifs = aiData.motifs;
         if (aiData.setting_era) updates.setting_era = aiData.setting_era;
         if (aiData.setting_location) updates.setting_location = aiData.setting_location;
+        if (aiData.synopsis) updates.synopsis = aiData.synopsis;
 
         await supabase.from('works').update(updates).eq('id', work.id);
         
