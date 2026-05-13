@@ -134,6 +134,28 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         } catch (fbErr) {
           console.warn("[Batch Scanner] Fallback series search failed:", fbErr);
         }
+
+        // Fallback 2: AI Librarian Edge Function (with concurrency stagger)
+        if (!seriesInfo) {
+          try {
+            // Stagger delay: prevent multiple queue items from hammering the API simultaneously
+            await new Promise(r => setTimeout(r, 500));
+            console.log(`[Batch Scanner] APIs failed. Pinging AI Librarian for: ${finalTitle}`);
+            const { data: aiData, error: aiError } = await supabase.functions.invoke('saga-scout', {
+              body: { title: finalTitle, author: finalAuthor }
+            });
+            if (!aiError && aiData?.series_name) {
+              console.log(`[Batch Scanner] AI Librarian found series:`, aiData);
+              seriesInfo = {
+                name: aiData.series_name,
+                sequence: parseInt(aiData.sequence || 1)
+              };
+            }
+          } catch (aiErr) {
+            // Graceful failure: book still gets added, just without series data
+            console.warn("[Batch Scanner] AI Librarian failed (non-blocking):", aiErr);
+          }
+        }
       }
 
       // Auto-detect genre from API subjects

@@ -5,6 +5,46 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ── Exponential Backoff Wrapper ──
+// Retries up to MAX_RETRIES on 429/5xx, with exponential delay starting at BASE_DELAY_MS.
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
+
+async function callGeminiWithRetry(url: string, body: object): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    // Success — return immediately
+    if (response.ok) {
+      return response;
+    }
+
+    const status = response.status;
+    const errorText = await response.text();
+
+    // Only retry on rate-limit (429) or server errors (5xx)
+    if (status === 429 || status >= 500) {
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s
+      console.warn(`[Saga Scout AI] Attempt ${attempt + 1}/${MAX_RETRIES} failed (${status}). Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      lastError = new Error(`Gemini API ${status}: ${errorText}`);
+      continue;
+    }
+
+    // Non-retryable error (400, 403, 404, etc.) — fail immediately
+    throw new Error(`Gemini API ${status}: ${errorText}`);
+  }
+
+  // All retries exhausted
+  throw lastError || new Error('All retries exhausted');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -23,7 +63,12 @@ serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not set in environment variables');
+      // Graceful failure: return null series data instead of crashing
+      console.error('[Saga Scout AI] GEMINI_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ series_name: null, sequence: null }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log(`[Saga Scout AI] Analyzing: "${title}" by ${author}`);
@@ -34,33 +79,40 @@ Return ONLY valid JSON in this exact format: {"series_name": "The Hunger Games",
 If it does not belong to a series, return {"series_name": null, "sequence": null}. 
 Do not include markdown code blocks, backticks, or any other text. Just the raw JSON object.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.1, // Low temperature for factual metadata
-          responseMimeType: "application/json",
-        }
-      })
-    });
+    // Model: gemini-2.5-flash (free-tier friendly)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiBody = {
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 0.1, // Low temperature for factual metadata
+        responseMimeType: "application/json",
+      }
+    };
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("[Saga Scout AI] Gemini API Error:", errorData);
-      throw new Error(`Gemini API Error: ${response.status}`);
+    let response: Response;
+    try {
+      response = await callGeminiWithRetry(geminiUrl, geminiBody);
+    } catch (retryErr) {
+      // Graceful failure after all retries exhausted — return null, don't crash
+      console.error(`[Saga Scout AI] All retries failed: ${retryErr.message}`);
+      return new Response(
+        JSON.stringify({ series_name: null, sequence: null }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
     let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!textResult) {
-      throw new Error('No content returned from Gemini');
+      // Graceful failure: no content from model
+      console.warn('[Saga Scout AI] Gemini returned no content');
+      return new Response(
+        JSON.stringify({ series_name: null, sequence: null }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Clean up potential markdown formatting if the LLM ignored instructions
@@ -77,9 +129,10 @@ Do not include markdown code blocks, backticks, or any other text. Just the raw 
 
   } catch (error) {
     console.error("[Saga Scout AI] Uncaught Error:", error.message);
+    // Graceful failure: never crash the caller
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ series_name: null, sequence: null }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
