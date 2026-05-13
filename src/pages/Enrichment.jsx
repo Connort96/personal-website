@@ -76,11 +76,15 @@ export default function Enrichment() {
     setProgress({ done: 0, total: works.length });
     addLog(`Starting batch enrichment for ${works.length} works...`, 'info');
 
+    // 0. Fetch existing taxonomy pool to maintain standardization
+    const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+    const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
+    const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
+
     const updatedWorks = [...works];
     let completedCount = 0;
 
-    // Process in batches of 5 to avoid hammering the Edge Function immediately, but
-    // we also enforce a delay between calls.
+    // Process in batches of 5 to avoid hammering the Edge Function immediately
     const batchSize = 5;
     
     for (let i = 0; i < updatedWorks.length; i += batchSize) {
@@ -93,18 +97,25 @@ export default function Enrichment() {
 
         try {
           const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-            body: { title: work.title, author: work.author, provenance_string: null } // No provenance retroactively
+            body: { 
+              title: work.title, 
+              author: work.author, 
+              provenance_string: null,
+              existing_vibes: existingVibes,
+              existing_motifs: existingMotifs
+            }
           });
 
           if (aiError) throw aiError;
 
           if (aiData) {
-            // Write literary metadata to works
+            // Write literary metadata and synopsis to works
             const updates = { ai_enriched: true };
             if (aiData.vibes?.length) updates.vibes = aiData.vibes;
             if (aiData.motifs?.length) updates.motifs = aiData.motifs;
             if (aiData.setting_era) updates.setting_era = aiData.setting_era;
             if (aiData.setting_location) updates.setting_location = aiData.setting_location;
+            if (aiData.synopsis) updates.synopsis = aiData.synopsis;
 
             await supabase.from('works').update(updates).eq('id', work.id);
 
