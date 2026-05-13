@@ -28,11 +28,16 @@ serve(async (req) => {
       );
     }
 
-    const prompt = `You are a literary series specialist. List all the primary, mainline books in the series: "${series_name}". 
-    Return a pure JSON array of objects, strictly matching this format: 
-    [ { "series_index": number, "title": string } ]
-    Do not include spin-offs, companion guides, or novellas unless they are part of the core numbered sequence. 
-    Return ONLY the JSON array. No markdown, no backticks, no explanation.`;
+    const prompt = `You are a world-class literary archivist and series specialist. 
+    List all the primary, mainline books in the sequence known as: "${series_name}". 
+    
+    CRITICAL INSTRUCTIONS:
+    1. Be exhaustive for the MAIN sequence. For example, if searching for 'Gormenghast', you MUST include 'Titus Groan', 'Gormenghast', and 'Titus Alone'.
+    2. Focus on the core narrative arc. 
+    3. Return a pure JSON array of objects, strictly matching this format: 
+       [ { "series_index": number, "title": string } ]
+    4. Do not include spin-offs, companion guides, or novellas unless they are part of the core numbered sequence. 
+    5. Return ONLY the JSON array. No markdown, no backticks, no explanation.`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const geminiBody = {

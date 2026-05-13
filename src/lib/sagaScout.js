@@ -29,33 +29,47 @@ export async function runSagaScout(supabase, seriesId, seriesName, knownSequence
     }
 
     // NEW: Phase 0.5: Gemini AI Deep Scan (The canonical source)
-    if (uniqueVolumes.size === 0) {
-      console.log(`[Saga Scout] Phase 0.5: Initiating Gemini AI Deep Scan for ${seriesName}`);
-      try {
-        const { data: aiData, error: aiError } = await supabase.functions.invoke('sync-series-volumes', {
-          body: { series_name: seriesName }
+    console.log(`[Saga Scout] Phase 0.5: Initiating Gemini AI Deep Scan for ${seriesName}`);
+    try {
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('sync-series-volumes', {
+        body: { series_name: seriesName }
+      });
+      
+      if (!aiError && Array.isArray(aiData)) {
+        console.log(`[Saga Scout] Gemini found ${aiData.length} canonical volumes.`);
+        aiData.forEach(b => {
+          if (b.series_index !== knownSequence && !uniqueVolumes.has(b.series_index)) {
+            uniqueVolumes.set(b.series_index, {
+              title: b.title,
+              author: defaultAuthor
+            });
+          }
         });
-        
-        if (!aiError && Array.isArray(aiData)) {
-          console.log(`[Saga Scout] Gemini found ${aiData.length} canonical volumes.`);
-          aiData.forEach(b => {
-            if (b.series_index !== knownSequence && !uniqueVolumes.has(b.series_index)) {
-              uniqueVolumes.set(b.series_index, {
-                title: b.title,
-                author: defaultAuthor
-              });
-            }
-          });
-        }
-      } catch (aiErr) {
-        console.warn(`[Saga Scout] Gemini AI Scan failed:`, aiErr);
       }
+    } catch (aiErr) {
+      console.warn(`[Saga Scout] Gemini AI Scan failed:`, aiErr);
     }
 
-    // Only hit OpenLibrary if the above yielded nothing
+    // Phase 1: OpenLibrary Fallback (only if we still have gaps)
     if (uniqueVolumes.size === 0) {
-      // 1. Phase 1: HIDDEN SERIES API (The Triple-Threat)
-      // ... (rest of the OpenLibrary logic remains as fallback)
+      console.log(`[Saga Scout] Phase 1: Gemini yielded nothing. Checking OpenLibrary for ${seriesName}`);
+      try {
+        const searchRes = await fetch(`https://openlibrary.org/search.json?q=series:("${encodeURIComponent(seriesName)}")&limit=50`);
+        const searchData = await searchRes.json();
+        searchData.docs?.forEach(doc => {
+          if (doc.series_name?.some(n => n.toLowerCase().includes(seriesName.toLowerCase())) && doc.series_position?.[0]) {
+            const pos = parseInt(doc.series_position[0]);
+            if (pos !== knownSequence && !uniqueVolumes.has(pos)) {
+              uniqueVolumes.set(pos, {
+                title: doc.title,
+                author: doc.author_name?.[0] || defaultAuthor
+              });
+            }
+          }
+        });
+      } catch (phase1Err) {
+        console.warn(`[Saga Scout] Phase 1 fallback failed:`, phase1Err);
+      }
     }
 
     if (uniqueVolumes.size === 0) {

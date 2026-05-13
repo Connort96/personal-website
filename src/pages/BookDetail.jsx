@@ -527,7 +527,7 @@ export default function BookDetail() {
                   </div>
                   {isAdmin && (
                     <button 
-                      className="book-detail-edit-btn"
+                      className="book-detail-saga-sync-btn"
                       onClick={async () => {
                         try {
                           setIsSyncingSaga(true);
@@ -545,16 +545,8 @@ export default function BookDetail() {
                         }
                       }}
                       disabled={isSyncingSaga}
-                      style={{ 
-                        opacity: isSyncingSaga ? 0.7 : 1,
-                        background: 'var(--accent-color)', 
-                        borderColor: 'var(--accent-color)', 
-                        color: 'white',
-                        marginTop: '10px',
-                        display: 'block'
-                      }}
                     >
-                      {isSyncingSaga ? 'Scouting...' : 'Sync Missing Volumes'}
+                      {isSyncingSaga ? '🔄 Scouting...' : '✨ Sync Missing Volumes'}
                     </button>
                   )}
                 </div>
