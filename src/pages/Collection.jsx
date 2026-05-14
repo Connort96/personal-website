@@ -82,7 +82,7 @@ export default function Collection() {
         while (true) {
           const { data, error } = await supabase
             .from('books')
-            .select('*')
+            .select('*, works(themes)')
             .order('title', { ascending: true })
             .range(from, from + limit - 1);
           
@@ -116,6 +116,7 @@ export default function Collection() {
             genre_id: b.genre_id,
             work_id: b.work_id,
             genre_name: b.genre_name,
+            themes: b.works?.themes || [],
             imprint: b.collection_imprint || b.imprint_collection,
             color: b.color,
             badge: b.badge,
@@ -153,10 +154,8 @@ export default function Collection() {
               editions (
                 work_id,
                 collection_imprint,
-                imprint_collection
-              ),
-              works:book_id (
-                themes
+                imprint_collection,
+                works (themes)
               )
             `)
             .eq('user_id', user.id);
@@ -371,9 +370,10 @@ export default function Collection() {
           groupId = book.imprint || 'Standalone';
           groupName = book.imprint || 'Standalone Editions';
         } else {
-          // View by Category (Genre or Theme)
-          groupId = book.genre_id;
-          groupName = book.genre_name;
+          // View by Category (Prioritize Themes, then Genre)
+          const primaryTheme = book.themes?.[0];
+          groupId = primaryTheme || book.genre_id;
+          groupName = primaryTheme || book.genre_name;
         }
 
         if (!groupings.has(groupId)) {
