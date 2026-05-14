@@ -100,7 +100,7 @@ serve(async (req) => {
         "setting_era": string or null
       }`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const geminiBody = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
@@ -109,18 +109,10 @@ serve(async (req) => {
       }
     };
 
-    let response: Response;
-    try {
-      response = await callGeminiWithRetry(geminiUrl, geminiBody);
-    } catch (retryErr) {
-      console.error(`[Enrichment AI] All retries failed: ${retryErr.message}`);
-      return new Response(
-        JSON.stringify(NULL_RESPONSE),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    const response = await callGeminiWithRetry(geminiUrl, geminiBody);
     const data = await response.json();
+    console.log(`[Enrichment AI] Gemini API Response Status: ${response.status}`);
+
     let textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textResult) {
@@ -132,12 +124,9 @@ serve(async (req) => {
     }
 
     textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    console.log(`[Enrichment AI] Raw Text Result: ${textResult.substring(0, 100)}...`);
+    
     const parsed = JSON.parse(textResult);
-
-    // Ensure the provenance object exists even if the LLM omitted it
-    if (!parsed.provenance) {
-      parsed.provenance = NULL_RESPONSE.provenance;
-    }
 
     // Programmatic 2-word enforcement for taxonomy
     if (Array.isArray(parsed.vibes)) {
@@ -147,7 +136,12 @@ serve(async (req) => {
       parsed.motifs = parsed.motifs.map(m => m.split(' ').slice(0, 2).join(' '));
     }
 
-    console.log(`[Enrichment AI] Result for "${title}":`, JSON.stringify(parsed).substring(0, 200));
+    // Ensure backward compatibility for provenance if any UI expects it
+    if (!parsed.provenance) {
+      parsed.provenance = NULL_RESPONSE.provenance;
+    }
+
+    console.log(`[Enrichment AI] Successfully parsed for "${title}"`);
 
     return new Response(
       JSON.stringify(parsed),
