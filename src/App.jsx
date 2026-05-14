@@ -11,6 +11,7 @@ import Books from './pages/Books';
 import BookDetail from './pages/BookDetail';
 import Reviews from './pages/Reviews';
 import Collection from './pages/Collection';
+import Checklist from './pages/Checklist';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import Enrichment from './pages/Enrichment';
@@ -57,6 +58,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Collection />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/checklist" 
+              element={
+                <ProtectedRoute>
+                  <Checklist />
                 </ProtectedRoute>
               } 
             />

@@ -75,7 +75,7 @@ export default function Navbar() {
             </li>
 
             <li className="navbar__item">
-              <NavLink to="/collection" className={({ isActive }) => `navbar__link ${isActive ? 'active' : ''}`}>
+              <NavLink to="/checklist" className={({ isActive }) => `navbar__link ${isActive ? 'active' : ''}`}>
                 Checklist
               </NavLink>
             </li>
