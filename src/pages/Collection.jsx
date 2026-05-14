@@ -5,36 +5,47 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { detectGenre, GENRE_META } from '../lib/genreMap';
 import { runSagaScout } from '../lib/sagaScout';
+import Drawer from '../components/Drawer';
+import BookDetail from './BookDetail';
 import './Collection.css';
 
 // Minimal Circular Progress Component
-const ProgressRing = ({ pct, size = 18, stroke = 2 }) => {
+const ProgressRing = ({ pct, size = 18, stroke = 2, color = 'var(--accent-primary)' }) => {
   const radius = (size - stroke) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (pct / 100) * circumference;
 
   return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle
-        stroke="rgba(200, 168, 75, 0.1)"
-        strokeWidth={stroke}
-        fill="transparent"
-        r={radius}
-        cx={size / 2}
-        cy={size / 2}
-      />
-      <circle
-        stroke="var(--accent-primary)"
-        strokeWidth={stroke}
-        strokeDasharray={`${circumference} ${circumference}`}
-        style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 0.5s ease' }}
-        strokeLinecap="round"
-        fill="transparent"
-        r={radius}
-        cx={size / 2}
-        cy={size / 2}
-      />
-    </svg>
+    <div className="progress-ring-wrapper" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle
+          stroke="rgba(200, 168, 75, 0.05)"
+          strokeWidth={stroke}
+          fill="transparent"
+          r={radius}
+          cx={size / 2}
+          cy={size / 2}
+        />
+        <circle
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={`${circumference} ${circumference}`}
+          style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+          strokeLinecap="round"
+          fill="transparent"
+          r={radius}
+          cx={size / 2}
+          cy={size / 2}
+        />
+      </svg>
+      {pct === 100 && (
+        <div className="progress-check-overlay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -53,6 +64,7 @@ export default function Collection() {
   const [addStatus, setAddStatus] = useState(null); // 'saving', 'success', 'error'
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedWorkId, setSelectedWorkId] = useState(null);
   const isAdmin = user?.email === 'theconison96@gmail.com';
 
   // Load Catalog and Owned Books
@@ -78,7 +90,7 @@ export default function Collection() {
           from += limit;
         }
 
-        const genresMap = new Map();
+        const collectionsMap = new Map();
         const seenEditions = new Map(); // Key: title|author|isbn or title|author|publisher
 
         catalogData.forEach(b => {
@@ -87,7 +99,6 @@ export default function Collection() {
           const uniqueKey = `${b.title}|${b.author}|${isbnKey}`.toLowerCase();
 
           if (seenEditions.has(uniqueKey)) {
-            // Already have this edition, but we might need to track multiple IDs for 'owned' check
             const existing = seenEditions.get(uniqueKey);
             existing.ids.add(b.id);
             return;
@@ -103,6 +114,7 @@ export default function Collection() {
             genre_id: b.genre_id,
             work_id: b.work_id,
             genre_name: b.genre_name,
+            imprint: b.imprint_collection,
             color: b.color,
             badge: b.badge,
             badgeLabel: b.badge_label
@@ -110,21 +122,24 @@ export default function Collection() {
 
           seenEditions.set(uniqueKey, editionEntry);
 
-          if (!genresMap.has(b.genre_id)) {
-            genresMap.set(b.genre_id, {
-              id: b.genre_id,
-              name: b.genre_name,
-              color: b.color,
+          // Grouping logic: Prioritize imprint_collection, then genre
+          const categoryId = b.imprint_collection || b.genre_id;
+          const categoryName = b.imprint_collection || b.genre_name;
+
+          if (!collectionsMap.has(categoryId)) {
+            collectionsMap.set(categoryId, {
+              id: categoryId,
+              name: categoryName,
+              isImprint: !!b.imprint_collection,
+              color: b.color || '#c8a84b',
               badge: b.badge,
               badgeLabel: b.badge_label,
               books: []
             });
           }
-          genresMap.get(b.genre_id).books.push(editionEntry);
+          collectionsMap.get(categoryId).books.push(editionEntry);
         });
         
-        setLibraryData(Array.from(genresMap.values()));
-
         // 2. Fetch owned editions (to see what is checked)
         let ownedWorkSet = new Set();
         if (user) {
@@ -141,7 +156,6 @@ export default function Collection() {
           if (userBooks) {
             userBooks.forEach(row => {
               if (row.editions?.work_id) ownedWorkSet.add(row.editions.work_id);
-              // Important: Also track the legacy book_id for the checklist mapping
               if (row.book_id) ownedWorkSet.add(row.book_id);
             });
           }
@@ -150,7 +164,6 @@ export default function Collection() {
         // Map owned status to our grouped editions
         const ownedGroupIds = new Set();
         seenEditions.forEach(ed => {
-          // If ANY of the IDs in this group are owned, the whole group is checked
           for (const id of ed.ids) {
             if (ownedWorkSet.has(id)) {
               ownedGroupIds.add(ed.id);
@@ -159,13 +172,13 @@ export default function Collection() {
           }
         });
 
-        // Final sorting of books within each genre (A-Z)
-        const finalGenres = Array.from(genresMap.values()).map(g => ({
+        // Final sorting of books within each category (A-Z)
+        const finalCategories = Array.from(collectionsMap.values()).map(g => ({
           ...g,
           books: g.books.sort((a, b) => a.t.localeCompare(b.t))
         }));
 
-        setLibraryData(finalGenres);
+        setLibraryData(finalCategories);
         setOwnedBooks(ownedGroupIds);
       } catch (err) {
         console.error("Error loading collection:", err);
@@ -468,10 +481,10 @@ export default function Collection() {
 
   const stats = useMemo(() => {
     let total = 0;
-    libraryData.forEach(genre => total += genre.books.length);
+    libraryData.forEach(cat => total += cat.books.length);
     const owned = ownedBooks.size;
     const pct = total === 0 ? 0 : (owned / total) * 100;
-    return { total, owned, pct: pct.toFixed(2) };
+    return { total, owned, pct };
   }, [ownedBooks, libraryData]);
 
   const sortedLibrary = useMemo(() => {
@@ -689,50 +702,51 @@ export default function Collection() {
         </div>
         <div className="collection-stat-box collection-stat-box--pct">
           <div className="collection-stat-flex">
-            <div className="collection-stat-val">{stats.pct}%</div>
+            <div className="collection-stat-val">{stats.pct.toFixed(1)}%</div>
             <ProgressRing pct={stats.pct} size={22} stroke={2.5} />
           </div>
           <div className="collection-stat-label">Complete</div>
         </div>
       </div>
 
-      <input 
-        type="search" 
-        className="collection-search-bar" 
-        placeholder="Search the ledger..." 
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-      />
-      
-      <div className="collection-controls-row">
-        <div className="collection-filters">
-          {['all', 'missing', 'owned'].map(f => (
-            <button 
-              key={f}
-              className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
-              onClick={() => setActiveFilter(f)}
-            >
-              {f === 'all' ? 'All Books' : f === 'missing' ? 'Still Needed' : 'Owned'}
-            </button>
-          ))}
-        </div>
+      <div className="collection-controls-sticky">
+        <input 
+          type="search" 
+          className="collection-search-bar" 
+          placeholder="Search the ledger..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        
+        <div className="collection-controls-row">
+          <div className="collection-filters">
+            {['all', 'missing', 'owned'].map(f => (
+              <button 
+                key={f}
+                className={`collection-filter-btn ${activeFilter === f ? 'active' : ''}`} 
+                onClick={() => setActiveFilter(f)}
+              >
+                {f === 'all' ? 'All' : f === 'missing' ? 'Needed' : 'Owned'}
+              </button>
+            ))}
+          </div>
 
-        <div className="collection-sort-controls">
-          <span className="sort-label">Sort categories:</span>
-          <button 
-            className={`sort-btn ${categorySort === 'alphabetical' ? 'active' : ''}`}
-            onClick={() => setCategorySort('alphabetical')}
-          >A-Z</button>
-          <button 
-            className={`sort-btn ${categorySort === 'count' ? 'active' : ''}`}
-            onClick={() => setCategorySort('count')}
-          >Size</button>
+          <div className="collection-sort-controls">
+            <button 
+              className={`sort-btn ${categorySort === 'alphabetical' ? 'active' : ''}`}
+              onClick={() => setCategorySort('alphabetical')}
+            >A-Z</button>
+            <button 
+              className={`sort-btn ${categorySort === 'count' ? 'active' : ''}`}
+              onClick={() => setCategorySort('count')}
+            >Size</button>
+          </div>
         </div>
       </div>
 
       <div className="collection-library">
-        {sortedLibrary.map(genre => {
-          const visibleBooks = genre.books.map((book) => {
+        {sortedLibrary.map(category => {
+          const visibleBooks = category.books.map((book) => {
             const isOwned = ownedBooks.has(book.id);
             if (searchQuery) {
               const match = book.t.toLowerCase().includes(lowerSearch) || book.a.toLowerCase().includes(lowerSearch);
@@ -749,62 +763,94 @@ export default function Collection() {
 
           if (visibleBooks.length === 0) return null;
 
-          const genreTotal = genre.books.length;
-          const genreOwnedCount = genre.books.filter(b => ownedBooks.has(b.id)).length;
-          const genrePct = (genreOwnedCount / genreTotal) * 100;
-          const isOpen = openGenres.has(genre.id) || searchQuery.length > 0;
+          const categoryTotal = category.books.length;
+          const categoryOwnedCount = category.books.filter(b => ownedBooks.has(b.id)).length;
+          const categoryPct = (categoryOwnedCount / categoryTotal) * 100;
+          const isOpen = openGenres.has(category.id) || searchQuery.length > 0;
 
           return (
-            <div key={genre.id} className={`collection-genre-section ${isOpen ? 'open' : ''}`}>
-              <div className="collection-genre-header" onClick={() => toggleGenre(genre.id)}>
+            <div key={category.id} className={`collection-genre-section ${isOpen ? 'open' : ''} ${category.isImprint ? 'is-imprint' : ''}`}>
+              <div className="collection-genre-header" onClick={() => toggleGenre(category.id)}>
                 <div className="collection-genre-title-wrapper">
-                  <div className="collection-genre-color-dot" style={{ backgroundColor: genre.color }}></div>
-                  <div className="collection-genre-title">{genre.name}</div>
-                  <div className={`collection-spine-badge ${genre.badge}`}>{genre.badgeLabel}</div>
+                  <ProgressRing pct={categoryPct} size={28} stroke={3} color={category.color} />
+                  <div className="collection-genre-text-group">
+                    <div className="collection-genre-title">{category.name}</div>
+                    {category.badgeLabel && <div className={`collection-spine-badge ${category.badge}`}>{category.badgeLabel}</div>}
+                  </div>
                 </div>
                 <div className="collection-genre-stats">
-                  <span>{genreOwnedCount}/{genreTotal}</span>
-                  <span className="collection-chevron">▼</span>
-                </div>
-                {/* Horizontal Progress Bar */}
-                <div className="collection-genre-progress">
-                  <div className="collection-genre-progress-fill" style={{ width: `${genrePct}%` }}></div>
+                  <span>{categoryOwnedCount}/{categoryTotal}</span>
+                  <span className="collection-chevron">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
                 </div>
               </div>
               
-              <div className="collection-book-list">
-                {visibleBooks.map(book => (
-                  <div 
-                    key={book.id} 
-                    className={`collection-book-item ${book.isOwned ? 'owned' : 'unowned'}`}
-                    onClick={(e) => toggleBook(book.id, e)}
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div 
+                    className="collection-book-list"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
                   >
-                    <div className="collection-checkbox-wrapper">
-                      <motion.div 
-                        className={`collection-checkbox ${book.isOwned ? 'checked' : ''}`}
-                        animate={{ scale: book.isOwned ? [1, 1.2, 1] : 1 }}
-                        transition={{ duration: 0.2 }}
+                    {visibleBooks.map(book => (
+                      <div 
+                        key={book.id} 
+                        className={`collection-book-item ${book.isOwned ? 'owned' : 'unowned'}`}
+                        onClick={(e) => toggleBook(book.id, e)}
                       >
-                        {book.isOwned && (
-                          <motion.svg viewBox="0 0 24 24" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <path fill="none" stroke="currentColor" strokeWidth="3" d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                          </motion.svg>
-                        )}
-                      </motion.div>
-                    </div>
-                    <div className="collection-book-details">
-                      <Link to={`/book/${book.work_id || book.id}`} className="collection-book-link" onClick={(e) => e.stopPropagation()}>
-                        <div className="collection-book-title">{book.t}</div>
-                      </Link>
-                      <div className="collection-book-author">{book.a}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div className="collection-checkbox-wrapper" onClick={(e) => e.stopPropagation()}>
+                          <div 
+                            className={`collection-checkbox ${book.isOwned ? 'checked' : ''}`}
+                            onClick={(e) => toggleBook(book.id, e)}
+                          >
+                            {book.isOwned && (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="collection-book-details">
+                          <div className="collection-book-title">{book.t}</div>
+                          <div className="collection-book-author">{book.a}</div>
+                        </div>
+
+                        <button 
+                          className="collection-view-details-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedWorkId(book.work_id || book.id);
+                          }}
+                          title="View Details"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}
       </div>
+
+      <Drawer 
+        isOpen={!!selectedWorkId} 
+        onClose={() => setSelectedWorkId(null)}
+        title="Archival Record"
+      >
+        {selectedWorkId && <BookDetail id={selectedWorkId} />}
+      </Drawer>
     </div>
   );
 }
+

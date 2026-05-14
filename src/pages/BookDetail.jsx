@@ -24,8 +24,9 @@ const FormatIcon = ({ format }) => {
     </svg>
   );
 };
-export default function BookDetail() {
-  const { id } = useParams();
+export default function BookDetail({ id: propId }) {
+  const { id: paramId } = useParams();
+  const id = propId || paramId;
   const navigate = useNavigate();
   const { user } = useAuth();
   const [work, setWork] = useState(null);
