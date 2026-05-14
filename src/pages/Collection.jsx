@@ -392,27 +392,29 @@ export default function Collection() {
       
       // 1. Silent Scout: Find or Create Master Work
       let workId = null;
-      const { data: existingWork } = await supabase
+      const { data: existingWork, error: scoutErr } = await supabase
         .from('works')
         .select('id')
         .ilike('title', newBook.title)
         .ilike('author', targetAuthor)
         .maybeSingle();
       
+      if (scoutErr) console.warn("[Quick Add] Scout check error:", scoutErr);
+
       if (existingWork) {
         workId = existingWork.id;
-        console.log(`[Silent Scout] Found existing master record for "${newBook.title}":`, workId);
+        await supabase.from('works').update({ in_collection: true }).eq('id', workId);
       } else {
-        const { data: newWork } = await supabase
+        const { data: newWork, error: nwErr } = await supabase
           .from('works')
-          .insert({ title: newBook.title, author: targetAuthor })
+          .insert({ title: newBook.title, author: targetAuthor, in_collection: true })
           .select().single();
+        if (nwErr) throw nwErr;
         workId = newWork.id;
-        console.log(`[Silent Scout] Created new master record for "${newBook.title}":`, workId);
       }
 
       // 2. Create Modern Edition with ISBN
-      const { data: newEd } = await supabase.from('editions').insert({
+      const { data: newEd, error: edErr } = await supabase.from('editions').insert({
         work_id: workId,
         isbn: newBook.isbn || null,
         genre_id: targetGenreId,
@@ -420,6 +422,8 @@ export default function Collection() {
         color: genre.color,
         publisher: 'Unknown Publisher'
       }).select().single();
+
+      if (edErr) throw edErr;
 
       // 3. Trigger Cover Art Pipeline
       let finalCoverUrl = null;
@@ -437,7 +441,7 @@ export default function Collection() {
       }
 
       // 4. Create Legacy Book Entry
-      const { data: lastBook } = await supabase
+      const { data: lastBook, error: indexErr } = await supabase
         .from('books')
         .select('book_index')
         .eq('genre_id', targetGenreId)
@@ -445,6 +449,7 @@ export default function Collection() {
         .limit(1)
         .maybeSingle();
       
+      if (indexErr) console.warn("[Quick Add] Index fetch error:", indexErr);
       const nextIndex = (lastBook?.book_index || 0) + 1;
 
       const { data, error } = await supabase.from('books').insert({
@@ -454,8 +459,8 @@ export default function Collection() {
         genre_id: targetGenreId,
         genre_name: genre.genre_name,
         color: genre.color,
-        badge: genre.badge || null,
-        badge_label: genre.badge_label || null,
+        badge: null,
+        badge_label: null,
         book_index: nextIndex,
         cover_url: finalCoverUrl,
         isbn: newBook.isbn || null
