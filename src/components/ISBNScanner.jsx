@@ -577,8 +577,28 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
                 setting_era: aiData.setting_era || null,
                 setting_location: aiData.setting_location || null,
                 synopsis: aiData.synopsis || null,
-                ai_enriched: true
+                ai_enriched: true,
+                series_name: aiData.series_name || null
               }).eq('id', workId);
+
+              // ── SERIES DISCOVERY & SAGA SCOUTING ──
+              if (aiData.is_series && aiData.series_name) {
+                let { data: series } = await supabase.from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
+                let sId = series?.id;
+                if (!sId) {
+                  const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+                  sId = newS.id;
+                }
+
+                await supabase.from('series_works').upsert({
+                  series_id: sId,
+                  work_id: workId,
+                  sequence_order: aiData.series_index || 1
+                }, { onConflict: 'series_id, work_id' });
+
+                // Run saga scout to find siblings (non-blocking)
+                runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, scannedAuthor).catch(e => console.warn(e));
+              }
             }
           } catch (aiErr) {
             console.warn(`[Batch Scanner] AI Enrichment skipped:`, aiErr.message);

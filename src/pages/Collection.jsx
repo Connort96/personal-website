@@ -608,34 +608,28 @@ export default function Collection() {
       // 6. AI Enrichment (Background)
       (async () => {
         try {
-          setAddStatus('enriching'); // Visual cue for background work
-          console.log(`[Fulfillment] Background AI Enrichment for Work: ${finalWorkId} ("${title}")`);
+          const targetTitle = title.trim();
+          const targetAuthor = author.trim();
+
+          setAddStatus('enriching'); 
+          console.log(`[Fulfillment] Triggering AI Enrichment for "${targetTitle}" (Work ID: ${finalWorkId})`);
           
           // 1. Fetch and Rank Taxonomy (Top 40 Frequency)
           const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-          
           const vibeCounts = {};
           const motifCounts = {};
-          
           (tagPool || []).forEach(w => {
             (w.vibes || []).forEach(v => vibeCounts[v] = (vibeCounts[v] || 0) + 1);
             (w.motifs || []).forEach(m => motifCounts[m] = (motifCounts[m] || 0) + 1);
           });
 
-          const topVibes = Object.entries(vibeCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 40)
-            .map(entry => entry[0]);
-
-          const topMotifs = Object.entries(motifCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 40)
-            .map(entry => entry[0]);
+          const topVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
+          const topMotifs = Object.entries(motifCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
 
           const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
             body: { 
-              title: title, 
-              author: author, 
+              title: targetTitle, 
+              author: targetAuthor, 
               existing_vibes: topVibes,
               existing_motifs: topMotifs
             }
@@ -644,8 +638,9 @@ export default function Collection() {
           if (aiError) throw aiError;
           if (!aiData) throw new Error("No AI data returned");
 
-          console.log(`[Fulfillment] AI enrichment successful for "${title}"`);
+          console.log(`[Fulfillment] AI metadata synthesized for "${targetTitle}"`);
 
+          // 2. Update Master Work
           await supabase.from('works').update({
             vibes: aiData.vibes || [],
             motifs: aiData.motifs || [],
@@ -656,6 +651,7 @@ export default function Collection() {
             series_name: aiData.series_name || null
           }).eq('id', finalWorkId);
 
+          // 3. Series Discovery & Saga Scouting
           if (aiData.is_series && aiData.series_name) {
             let { data: series } = await supabase.from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
             let sId = series?.id;
@@ -664,21 +660,24 @@ export default function Collection() {
               sId = newS.id;
             }
 
+            const sequence = parseInt(aiData.series_index || 1);
             await supabase.from('series_works').upsert({
               series_id: sId,
               work_id: finalWorkId,
-              sequence_order: aiData.series_index || 1
+              sequence_order: sequence
             }, { onConflict: 'series_id, work_id' });
 
-            await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, author);
+            console.log(`[Fulfillment] Series linked: ${aiData.series_name} (Vol ${sequence})`);
+            await runSagaScout(supabase, sId, aiData.series_name, sequence, targetAuthor).catch(e => console.warn(e));
           }
           
           setAddStatus('success');
           setTimeout(() => setAddStatus(null), 2000);
         } catch (bgErr) {
-          console.error(`[Fulfillment] Background enrichment failed for ${title}:`, bgErr);
-          // Don't show error to user for background enrichment to keep UX smooth
-          setAddStatus(null); 
+          console.error(`[Fulfillment] Background enrichment failed:`, bgErr.message);
+          setAddStatus('success'); // Revert to success so UI doesn't hang
+          setTimeout(() => setAddStatus(null), 2000);
+        }
         }
       })();
     } catch (err) {

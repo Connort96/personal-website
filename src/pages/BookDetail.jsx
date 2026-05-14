@@ -444,6 +444,14 @@ export default function BookDetail({ id: propId, onDelete }) {
           </Link>
           {isAdmin && (
             <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="book-detail-edit-btn" 
+                onClick={handleManualEnrich}
+                disabled={isEnriching}
+                style={{ opacity: isEnriching ? 0.7 : 1 }}
+              >
+                {isEnriching ? '🔄 Syncing...' : '✨ Sync Metadata'}
+              </button>
               <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
                 Edit Archive
               </button>
@@ -761,13 +769,6 @@ export default function BookDetail({ id: propId, onDelete }) {
 
             {isAdmin && (
               <div className="book-detail-admin-actions">
-                <button 
-                  className="enrichment-sync-btn"
-                  onClick={handleManualEnrich}
-                  disabled={isEnriching}
-                >
-                  {isEnriching ? '🔄 Syncing Metadata...' : '✨ Synchronize Literary Metadata'}
-                </button>
                 <button 
                   className={`deaccession-btn ${deleteConfirm ? 'confirm' : ''}`}
                   onClick={handleDeleteBook}
