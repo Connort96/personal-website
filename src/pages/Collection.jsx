@@ -535,18 +535,39 @@ export default function Collection() {
       setAddStatus('saving');
       
       let finalWorkId = workId;
+      
+      // Deduplication: Ensure we don't create a new work if one exists
       if (!finalWorkId) {
-        const { data: newWork } = await supabase.from('works').insert({ 
-          title: title, 
-          author: author 
-        }).select().single();
-        finalWorkId = newWork.id;
+        console.log(`[Fulfillment] No workId provided, checking for existing work: "${title}"`);
+        const { data: existingWork } = await supabase
+          .from('works')
+          .select('id')
+          .ilike('title', title)
+          .ilike('author', author)
+          .maybeSingle();
+        
+        if (existingWork) {
+          finalWorkId = existingWork.id;
+          console.log(`[Fulfillment] Found existing work ID: ${finalWorkId}`);
+        } else {
+          const { data: newWork, error: nwErr } = await supabase.from('works').insert({ 
+            title: title, 
+            author: author,
+            in_collection: true
+          }).select().single();
+          if (nwErr) throw nwErr;
+          finalWorkId = newWork.id;
+          console.log(`[Fulfillment] Created new work ID: ${finalWorkId}`);
+        }
+      } else {
+        // Mark existing work as in collection
+        await supabase.from('works').update({ in_collection: true }).eq('id', finalWorkId);
       }
 
-      const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+      const coverUrl = \`https://covers.openlibrary.org/b/isbn/\${isbn}-L.jpg\`;
       const storageUrl = await processAndUploadCover(coverUrl, isbn);
 
-      const { data: newEd } = await supabase.from('editions').insert({
+      const { data: newEd, error: neErr } = await supabase.from('editions').insert({
         work_id: finalWorkId,
         isbn: isbn,
         cover_url: storageUrl,
@@ -559,6 +580,8 @@ export default function Collection() {
         badge: legacyRef?.badge,
         badge_label: legacyRef?.badge_label
       }).select().single();
+
+      if (neErr) throw neErr;
 
       await supabase.from('books').update({ work_id: finalWorkId }).eq('id', bookId);
 
@@ -576,29 +599,33 @@ export default function Collection() {
         return next;
       });
 
-      // UI cleanup
       setFulfillmentData(null);
       setAddStatus('success');
       setTimeout(() => setAddStatus(null), 2000);
 
-      // 6. AI Enrichment & Series Detection (Background - using captured title/author)
-      try {
-        console.log(`[Fulfillment] Triggering AI Taxonomy for Work: ${finalWorkId} ("${title}")`);
-        
-        const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-        const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
-        const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+      // 6. AI Enrichment (Background)
+      (async () => {
+        try {
+          console.log(`[Fulfillment] Background AI Enrichment for Work: ${finalWorkId} ("${title}")`);
+          
+          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+          const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+          const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
 
-        const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-          body: { 
-            title: title, 
-            author: author, 
-            existing_vibes: existingVibes,
-            existing_motifs: existingMotifs
-          }
-        });
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+            body: { 
+              title: title, 
+              author: author, 
+              existing_vibes: existingVibes,
+              existing_motifs: existingMotifs
+            }
+          });
 
-        if (!aiError && aiData) {
+          if (aiError) throw aiError;
+          if (!aiData) throw new Error("No AI data returned");
+
+          console.log(`[Fulfillment] AI enrichment successful for "${title}"`);
+
           await supabase.from('works').update({
             vibes: aiData.vibes || [],
             motifs: aiData.motifs || [],
@@ -625,10 +652,10 @@ export default function Collection() {
 
             await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, author);
           }
+        } catch (bgErr) {
+          console.error(`[Fulfillment] Background enrichment failed for ${title}:`, bgErr);
         }
-      } catch (aiErr) {
-        console.warn("[Fulfillment] AI enrichment failed:", aiErr);
-      }
+      })();
     } catch (err) {
       console.error("[Fulfillment] Failed:", err);
       setAddStatus('error');
