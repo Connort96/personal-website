@@ -372,8 +372,9 @@ export default function Collection() {
         } else {
           // View by Category (Prioritize Themes, then Genre)
           const primaryTheme = book.themes?.[0];
-          groupId = primaryTheme || book.genre_id;
           groupName = primaryTheme || book.genre_name;
+          // Use name as ID for merging categories with same name
+          groupId = groupName;
         }
 
         if (!groupings.has(groupId)) {
