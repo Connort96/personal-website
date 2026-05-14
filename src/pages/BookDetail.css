@@ -264,9 +264,8 @@
 }
 
 .setting-value {
-  font-family: 'Crimson Pro', var(--font-serif);
-  font-size: var(--text-lg);
-  color: #e5e7eb; /* text-gray-200 equivalent */
+  color: var(--text-primary);
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 

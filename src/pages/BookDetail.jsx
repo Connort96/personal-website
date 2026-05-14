@@ -423,10 +423,8 @@ export default function BookDetail() {
                )}
               {(work.ai_enriched || work.primaryEdition?.condition || work.primaryEdition?.acquisition_notes) && (
                 <div className="book-detail-archival-meta">
-                  <h3 className="archival-meta-title">CATALOG RECORD</h3>
                   <div className={`archival-meta-grid ${!((work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes)) ? 'full-width' : ''}`}>
                     <div className="archival-meta-column">
-                      <h4 className="archival-meta-subtitle">Literary Elements</h4>
                       {(work.setting_era || work.setting_location) && (
                         <div className="archival-meta-setting-grid">
                           {work.setting_era && (
@@ -478,7 +476,6 @@ export default function BookDetail() {
                     </div>
                     {(work.primaryEdition?.condition || (work.primaryEdition?.defects && work.primaryEdition.defects.length > 0) || work.primaryEdition?.acquisition_notes) && (
                       <div className="archival-meta-column">
-                        <h4 className="archival-meta-subtitle">Physical Provenance</h4>
                         {work.primaryEdition?.condition && <p><span className="meta-label">Condition:</span> <span className="meta-value">{work.primaryEdition.condition}</span></p>}
                         {work.primaryEdition?.defects && work.primaryEdition.defects.length > 0 && (
                            <div className="meta-index-row">
