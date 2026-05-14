@@ -599,34 +599,6 @@ export default function Collection() {
         return next;
       });
 
-      setFulfillmentData(null);
-      setAddStatus('success');
-      setTimeout(() => setAddStatus(null), 2000);
-    } catch (err) {
-      console.error("Fulfillment failed:", err);
-      setAddStatus('error');
-    }
-  };
-
-  const handleDeleteFromChecklist = async (bookId, e) => {
-    e.stopPropagation();
-    if (!isAdmin) return;
-    if (!window.confirm("Are you sure you want to remove this book from the checklist?")) return;
-
-    try {
-      const { error } = await supabase.from('books').delete().eq('id', bookId);
-      if (error) throw error;
-
-      setLibraryData(prev => prev.map(cat => ({
-        ...cat,
-        books: cat.books.filter(b => b.id !== bookId)
-      })));
-    } catch (err) {
-      console.error("Delete failed:", err);
-      alert("Failed to remove book: " + err.message);
-    }
-  };
-
       // 6. AI Enrichment (Background)
       (async () => {
         try {
@@ -701,9 +673,32 @@ export default function Collection() {
           setTimeout(() => setAddStatus(null), 2000);
         }
       })();
+
+      setFulfillmentData(null);
+      setAddStatus('success');
+      setTimeout(() => setAddStatus(null), 2000);
     } catch (err) {
       console.error("[Fulfillment] Failed:", err);
       setAddStatus('error');
+    }
+  };
+
+  const handleDeleteFromChecklist = async (bookId, e) => {
+    e.stopPropagation();
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to remove this book from the checklist?")) return;
+
+    try {
+      const { error } = await supabase.from('books').delete().eq('id', bookId);
+      if (error) throw error;
+
+      setLibraryData(prev => prev.map(cat => ({
+        ...cat,
+        books: cat.books.filter(b => b.id !== bookId)
+      })));
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to remove book: " + err.message);
     }
   };
 
