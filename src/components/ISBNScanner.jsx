@@ -67,7 +67,20 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
     // Create parallel tasks with individual error handling
     const tasks = [
-      // TIER 1: Direct ISBN Lookups (Fastest & Most Reliable)
+      // TIER 1: Comprehensive APIs (Best Data Quality)
+      (async () => {
+        try {
+          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position&limit=1`);
+          if (res.ok) {
+            const data = await res.json();
+            const doc = data.docs?.[0];
+            if (doc) {
+              console.log(`[Batch Scanner] OL Search API hit for ${isbn}`);
+              searchInfo = doc;
+            }
+          }
+        } catch (e) { console.warn("OL Search task failed", e); }
+      })(),
       (async () => {
         try {
           const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
@@ -78,38 +91,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           }
         } catch (e) { console.warn("OL Data task failed", e); }
       })(),
-      (async () => {
-        try {
-          const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data) {
-              console.log(`[Batch Scanner] OL Direct ISBN hit: ${data.title}`);
-              
-              let authors = null;
-              if (data.authors?.[0]?.key) {
-                try {
-                  const authorRes = await fetch(`https://openlibrary.org${data.authors[0].key}.json`);
-                  if (authorRes.ok) {
-                    const authorData = await authorRes.json();
-                    authors = [authorData.name];
-                  }
-                } catch (e) {}
-              }
 
-              searchInfo = {
-                title: data.title,
-                author_name: authors,
-                subject: data.subjects || [],
-                series_name: data.series ? [data.series] : null,
-                cover_i: data.covers?.[0]
-              };
-            }
-          }
-        } catch (e) { }
-      })(),
-
-      // TIER 2: Search & Enrichment (Prone to latency/limits)
+      // TIER 2: Supplementary & Direct APIs
       (async () => {
         try {
           const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
@@ -122,18 +105,32 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       })(),
       (async () => {
         try {
-          // If we already have searchInfo from direct ISBN, we might skip heavy search
-          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position&limit=1`);
+          const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
           if (res.ok) {
             const data = await res.json();
-            const doc = data.docs?.[0];
-            if (doc) {
-              console.log(`[Batch Scanner] OL Search API hit for ${isbn}`);
-              // Merge into searchInfo
-              searchInfo = { ...searchInfo, ...doc };
+            if (data && !searchInfo) {
+              console.log(`[Batch Scanner] OL Direct ISBN fallback hit: ${data.title}`);
+              // Attempt to resolve author key if needed
+              let authors = null;
+              if (data.authors?.[0]?.key) {
+                try {
+                  const authorRes = await fetch(`https://openlibrary.org${data.authors[0].key}.json`);
+                  if (authorRes.ok) {
+                    const authorData = await authorRes.json();
+                    authors = [authorData.name];
+                  }
+                } catch (e) {}
+              }
+              searchInfo = {
+                title: data.title,
+                author_name: authors,
+                subject: data.subjects || [],
+                series_name: data.series ? [data.series] : null,
+                cover_i: data.covers?.[0]
+              };
             }
           }
-        } catch (e) { console.warn("OL Search task failed", e); }
+        } catch (e) { }
       })()
     ];
 
