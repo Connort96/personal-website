@@ -579,6 +579,59 @@ export default function Collection() {
       setFulfillmentData(null);
       setAddStatus('success');
       setTimeout(() => setAddStatus(null), 2000);
+
+      // 6. AI Enrichment & Series Detection (Background)
+      try {
+        console.log(`[Fulfillment] Triggering AI Taxonomy for Work: ${finalWorkId}`);
+        
+        // Fetch existing tags for normalization
+        const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+        const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+        const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+          body: { 
+            title: fulfillmentData.title, 
+            author: fulfillmentData.author, 
+            existing_vibes: existingVibes,
+            existing_motifs: existingMotifs
+          }
+        });
+
+        if (!aiError && aiData) {
+          // Update work with AI metadata
+          await supabase.from('works').update({
+            vibes: aiData.vibes || [],
+            motifs: aiData.motifs || [],
+            setting_era: aiData.setting_era || null,
+            setting_location: aiData.setting_location || null,
+            synopsis: aiData.synopsis || null,
+            ai_enriched: true,
+            series_name: aiData.series_name || null
+          }).eq('id', finalWorkId);
+
+          // Handle Series & Saga Expansion
+          if (aiData.is_series && aiData.series_name) {
+            let { data: series } = await supabase.from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
+            let sId = series?.id;
+            if (!sId) {
+              const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+              sId = newS.id;
+            }
+
+            await supabase.from('series_works').upsert({
+              series_id: sId,
+              work_id: finalWorkId,
+              sequence_order: aiData.series_index || 1
+            }, { onConflict: 'series_id, work_id' });
+
+            // Run Saga Scout
+            await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, fulfillmentData.author);
+          }
+        }
+      } catch (aiErr) {
+        console.warn("[Fulfillment] AI enrichment failed:", aiErr);
+      }
     } catch (err) {
       console.error("[Fulfillment] Failed:", err);
       setAddStatus('error');
