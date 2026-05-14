@@ -380,11 +380,14 @@ export default function Collection() {
   
   const handleQuickAdd = async (e) => {
     e.preventDefault();
-    if (!newBook.title || !newBook.author || !newBook.genre_id) return;
+    if (!newBook.title) return;
+
+    const targetAuthor = newBook.author || 'Unknown Author';
+    const targetGenreId = newBook.genre_id || 'modern_post2000';
     
     setAddStatus('saving');
     try {
-      const genre = libraryData.find(g => g.id === newBook.genre_id);
+      const genre = GENRE_META[targetGenreId];
       
       // 1. Silent Scout: Find or Create Master Work
       let workId = null;
@@ -464,7 +467,7 @@ export default function Collection() {
       
       // Update local state to show the new book immediately
       setLibraryData(prev => prev.map(g => {
-        if (g.id === newBook.genre_id) {
+        if (g.id === targetGenreId) {
           const newEntry = {
             id: data.id,
             ids: new Set([data.id]),
@@ -760,29 +763,6 @@ export default function Collection() {
                   </div>
                 )}
               </div>
-
-              <div className="quick-add-row">
-                <input 
-                  type="text" 
-                  className="smart-search-input"
-                  placeholder="Author..."
-                  value={newBook.author}
-                  onChange={e => setNewBook(prev => ({ ...prev, author: e.target.value }))}
-                  required
-                />
-                <select 
-                  className="smart-search-input"
-                  value={newBook.genre_id}
-                  onChange={e => setNewBook(prev => ({ ...prev, genre_id: e.target.value }))}
-                  required
-                >
-                  <option value="">Select Genre...</option>
-                  {Object.entries(GENRE_META).map(([id, meta]) => (
-                    <option key={id} value={id}>{meta.genre_name}</option>
-                  ))}
-                </select>
-              </div>
-
               <div className="form-actions">
                 <button type="submit" className="submit-btn" disabled={addStatus === 'saving'}>
                   {addStatus === 'saving' ? 'Archiving...' : addStatus === 'success' ? 'Added!' : 'Add to Checklist'}
