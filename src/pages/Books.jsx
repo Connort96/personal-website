@@ -109,6 +109,9 @@ export default function Books() {
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format, needs_review,
                 works ( id, title, author, synopsis, motifs, vibes ) 
+              ),
+              books (
+                id, title, author, cover_url, page_count, genre_name, publisher, color
               )
             `)
             .eq('user_id', adminId)
@@ -125,21 +128,25 @@ export default function Books() {
 
         allRows.forEach(row => {
           const edition = row.editions;
+          const legacyBook = row.books;
           const work = edition?.works;
-          if (!work) return;
-
-          // Only merge if we have a valid title, otherwise treat as unique
-          const dedupKey = work.title 
-            ? `${work.title.toLowerCase().trim()}--${work.author?.toLowerCase().trim() || 'unknown'}`
-            : `unique-${row.edition_id}`;
           
-          if (edition?.genre_name) tags.add(edition.genre_name);
+          // Use metadata from whichever source is available
+          const title = work?.title || legacyBook?.title;
+          const author = work?.author || legacyBook?.author;
+          
+          if (!title) return; // Still skip if absolutely no title found
+
+          const dedupKey = `${title.toLowerCase().trim()}--${author?.toLowerCase().trim() || 'unknown'}`;
+          
+          const genre = edition?.genre_name || legacyBook?.genre_name;
+          if (genre) tags.add(genre);
 
           if (!workGroups.has(dedupKey)) {
             workGroups.set(dedupKey, {
-              id: work.id, 
-              title: work.title || 'Unknown Title',
-              author: work.author || 'Unknown Author',
+              id: work?.id || row.book_id || row.edition_id, 
+              title: title,
+              author: author || 'Unknown Author',
               genres: new Set(),
               status: row.status || 'unread',
               rating: 0,
@@ -151,17 +158,25 @@ export default function Books() {
           }
 
           const group = workGroups.get(dedupKey);
-          if (edition) {
-            if (edition.genre_name) group.genres.add(edition.genre_name);
+          if (edition || legacyBook) {
+            const finalEdition = edition || {
+              id: `legacy-${row.book_id}`,
+              cover_url: legacyBook?.cover_url,
+              color: legacyBook?.color,
+              publisher: legacyBook?.publisher,
+              page_count: legacyBook?.page_count,
+              genre_name: legacyBook?.genre_name
+            };
+
+            if (finalEdition.genre_name) group.genres.add(finalEdition.genre_name);
             group.editions.push({
-              ...edition,
+              ...finalEdition,
               status: row.status,
               owned_at: row.owned_at,
               rating: row.rating,
               review: row.review
             });
 
-            // Shared Review/Rating Logic: Use the best one found among editions
             if (row.review && !group.review) group.review = row.review;
             if (row.rating && !group.rating) group.rating = row.rating;
           }
