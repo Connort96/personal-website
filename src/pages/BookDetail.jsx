@@ -412,6 +412,36 @@ export default function BookDetail({ id: propId, onDelete }) {
       console.error('Failed to save archive updates:', err);
     }
   };
+
+  if (error) {
+    return (
+      <div className="book-detail-error">
+        <h2>The archives are silent on this work</h2>
+        <p>{error}</p>
+        <Link to="/books" className="back-link">Return to the Master Catalog</Link>
+      </div>
+    );
+  }
+
+  if (loading || !work) {
+    return (
+      <div className="book-detail-loading">
+        <div className="loading-spinner"></div>
+        <p>Consulting the archives...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="book-detail-page">
+      <div className="container">
+        <div className="book-detail-nav-row">
+          <Link to="/books" className="book-detail-back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back to Library
+          </Link>
           {isAdmin && (
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
