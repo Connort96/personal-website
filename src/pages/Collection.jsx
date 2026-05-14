@@ -416,16 +416,45 @@ export default function Collection() {
         return;
       }
 
-      if (existingWork) {
-        workId = existingWork.id;
+      // 1. Silent Scout: Find or Create Master Work (Robust Detection)
+      let workId = null;
+      const cleanTitle = newBook.title.trim();
+      const cleanAuthor = targetAuthor.trim();
+
+      // Step A: Try lookup by ISBN if available
+      if (newBook.isbn) {
+        const { data: edByIsbn } = await supabase
+          .from('editions')
+          .select('work_id')
+          .eq('isbn', newBook.isbn)
+          .maybeSingle();
+        if (edByIsbn) workId = edByIsbn.work_id;
+      }
+
+      // Step B: Try lookup by Title/Author if not found by ISBN
+      if (!workId) {
+        const { data: existingWork, error: scoutErr } = await supabase
+          .from('works')
+          .select('id')
+          .ilike('title', cleanTitle)
+          .ilike('author', cleanAuthor)
+          .maybeSingle();
+        
+        if (scoutErr) console.warn("[Quick Add] Scout check error:", scoutErr);
+        if (existingWork) workId = existingWork.id;
+      }
+
+      if (workId) {
         await supabase.from('works').update({ in_collection: true }).eq('id', workId);
+        console.log(`[Silent Scout] Found existing master record:`, workId);
       } else {
         const { data: newWork, error: nwErr } = await supabase
           .from('works')
-          .insert({ title: newBook.title, author: targetAuthor, in_collection: true })
+          .insert({ title: cleanTitle, author: cleanAuthor, in_collection: true })
           .select().single();
         if (nwErr) throw nwErr;
         workId = newWork.id;
+        console.log(`[Silent Scout] Created new master record:`, workId);
       }
 
       // 2. Create Modern Edition with ISBN
