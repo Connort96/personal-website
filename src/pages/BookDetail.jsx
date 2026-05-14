@@ -124,25 +124,36 @@ export default function BookDetail({ id: propId, onDelete }) {
 
   const [isEnriching, setIsEnriching] = useState(false);
   const handleManualEnrich = async () => {
+    if (!isAdmin || !work) return;
     setIsEnriching(true);
     try {
-      console.log(`[Enrichment] Manually triggering AI Taxonomy for "${work.title}"`);
+      console.log(`[Enrichment] Full AI Synchronization for "${work.title}"`);
+      
+      // 1. Fetch existing taxonomy for standardization
       const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-      const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
-      const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+      const vibeCounts = {};
+      const motifCounts = {};
+      (tagPool || []).forEach(w => {
+        (w.vibes || []).forEach(v => vibeCounts[v] = (vibeCounts[v] || 0) + 1);
+        (w.motifs || []).forEach(m => motifCounts[m] = (motifCounts[m] || 0) + 1);
+      });
+      const topVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
+      const topMotifs = Object.entries(motifCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
 
+      // 2. Invoke optimized Gemini engine
       const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
         body: { 
           title: work.title, 
           author: work.author, 
-          existing_vibes: existingVibes,
-          existing_motifs: existingMotifs
+          existing_vibes: topVibes,
+          existing_motifs: topMotifs
         }
       });
 
       if (aiError) throw aiError;
       if (!aiData) throw new Error("No AI data returned");
 
+      // 3. Update Master Work (Taxonomy + Synopsis)
       await supabase.from('works').update({
         vibes: aiData.vibes || [],
         motifs: aiData.motifs || [],
@@ -153,15 +164,46 @@ export default function BookDetail({ id: propId, onDelete }) {
         series_name: aiData.series_name || null
       }).eq('id', work.id);
 
-      alert("Literary metadata synchronized successfully!");
+      // 4. Handle Series/Saga Linking
+      let seriesMsg = '';
+      if (aiData.is_series && aiData.series_name) {
+        let { data: existingSeries } = await supabase
+          .from('series')
+          .select('id')
+          .ilike('name', aiData.series_name)
+          .maybeSingle();
+        
+        let sId;
+        if (existingSeries) {
+          sId = existingSeries.id;
+        } else {
+          const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+          sId = newS.id;
+        }
+
+        const sequence = parseInt(aiData.series_index || 1);
+        await supabase.from('series_works').upsert({
+          series_id: sId,
+          work_id: work.id,
+          sequence_order: sequence
+        }, { onConflict: 'series_id, work_id' });
+        
+        seriesMsg = `\nSeries identified: ${aiData.series_name} (Vol ${sequence}).`;
+        
+        // Auto-run saga scout to find siblings (non-blocking)
+        runSagaScout(supabase, sId, aiData.series_name, sequence, work.author).catch(e => console.warn(e));
+      }
+
+      alert(`AI Enrichment Complete!${seriesMsg}`);
       loadBookData();
     } catch (err) {
-      console.error("[Enrichment] Manual sync failed:", err);
+      console.error("[Enrichment] Full sync failed:", err);
       alert("Failed to synchronize metadata: " + err.message);
     } finally {
       setIsEnriching(false);
     }
   };
+
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const loadBookData = useCallback(async () => {
     setLoading(true);
@@ -370,110 +412,8 @@ export default function BookDetail({ id: propId, onDelete }) {
       console.error('Failed to save archive updates:', err);
     }
   };
-  const handleAIDetection = async () => {
-    if (!isAdmin || !work) return;
-    try {
-      setIsDetectingAI(true);
-      // Fetch existing taxonomy for standardization
-      const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-      const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
-      const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-        body: { 
-          title: work.title, 
-          author: work.author, 
-          provenance_string: null,
-          existing_vibes: existingVibes,
-          existing_motifs: existingMotifs
-        }
-      });
-      if (aiError) throw aiError;
-      if (aiData) {
-        // 1. Write literary metadata and synopsis to works
-        const updates = { ai_enriched: true };
-        if (aiData.vibes?.length) updates.vibes = aiData.vibes;
-        if (aiData.motifs?.length) updates.motifs = aiData.motifs;
-        if (aiData.setting_era) updates.setting_era = aiData.setting_era;
-        if (aiData.setting_location) updates.setting_location = aiData.setting_location;
-        if (aiData.synopsis) updates.synopsis = aiData.synopsis;
-        await supabase.from('works').update(updates).eq('id', work.id);
-        let seriesMsg = '';
-        // 2. Link series if found
-        if (aiData.is_series && aiData.series_name) {
-          let { data: existingSeries } = await supabase
-            .from('series')
-            .select('id')
-            .ilike('name', aiData.series_name)
-            .maybeSingle();
-          let sId;
-          if (existingSeries) {
-            sId = existingSeries.id;
-          } else {
-            const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
-            sId = newS.id;
-          }
-          const sequence = parseInt(aiData.series_index || 1);
-          await supabase.from('series_works').upsert({
-            series_id: sId,
-            work_id: work.id,
-            sequence_order: sequence
-          }, { onConflict: 'series_id, work_id' });
-          seriesMsg = `\nSeries identified: ${aiData.series_name} (Book ${sequence}).`;
-          // Auto-run saga scout to find siblings (non-blocking)
-          runSagaScout(supabase, sId, aiData.series_name, sequence, work.author).catch(e => console.warn(e));
-        }
-        alert(`AI Enrichment Complete!${seriesMsg}`);
-        await loadBookData();
-      } else {
-        alert("The AI Librarian returned no data.");
-      }
-    } catch (err) {
-      // Graceful failure: inform the user but don't crash
-      console.warn('[BookDetail] AI Detection failed (non-blocking):', err);
-      alert("AI Detection was unable to reach the server. The book has not been modified.");
-    } finally {
-      setIsDetectingAI(false);
-    }
-  };
-  if (error) {
-    return (
-      <div className="book-detail-error">
-        <h2>The archives are silent on this work</h2>
-        <p>{error}</p>
-        <Link to="/books" className="back-link">Return to the Master Catalog</Link>
-      </div>
-    );
-  }
-  if (loading || !work) {
-    return (
-      <div className="book-detail-loading">
-        <div className="loading-spinner"></div>
-        <p>Consulting the archives...</p>
-      </div>
-    );
-  }
-  return (
-    <div className="book-detail-page">
-      <div className="container">
-        <div className="book-detail-nav-row">
-          <Link to="/books" className="book-detail-back">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back to Library
-          </Link>
           {isAdmin && (
             <div style={{ display: 'flex', gap: '10px' }}>
-              {!work.saga && (
-                <button 
-                  className="book-detail-edit-btn" 
-                  onClick={handleAIDetection}
-                  disabled={isDetectingAI}
-                  style={{ opacity: isDetectingAI ? 0.7 : 1 }}
-                >
-                  {isDetectingAI ? 'Detecting...' : '✨ AI Series Detect'}
-                </button>
-              )}
               <button className="book-detail-edit-btn" onClick={() => setIsEditOpen(true)}>
                 Edit Archive
               </button>
