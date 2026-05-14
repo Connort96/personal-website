@@ -942,18 +942,32 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
+      // Try precise search first
       const q = `intitle:${encodeURIComponent(data.title)}+inauthor:${encodeURIComponent(data.author)}`;
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=8&printType=books`;
-      const res = await fetch(url);
-      const json = await res.json();
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&printType=books`;
+      let res = await fetch(url);
+      let json = await res.json();
       
-      const mapped = (json.items || []).map(item => {
+      let items = json.items || [];
+
+      // Fallback: if precise search is empty or too few results, try keyword search
+      if (items.length < 2) {
+        const fallbackUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(data.title + ' ' + data.author)}&maxResults=10&printType=books`;
+        const fbRes = await fetch(fallbackUrl);
+        const fbJson = await fbRes.json();
+        const fbItems = fbJson.items || [];
+        // Merge and deduplicate by ID
+        const existingIds = new Set(items.map(i => i.id));
+        items = [...items, ...fbItems.filter(i => !existingIds.has(i.id))];
+      }
+      
+      const mapped = items.map(item => {
         const info = item.volumeInfo;
         const isbns = info.industryIdentifiers || [];
         const isbn13 = isbns.find(i => i.type === 'ISBN_13')?.identifier;
         const isbn10 = isbns.find(i => i.type === 'ISBN_10')?.identifier;
         const finalIsbn = isbn13 || isbn10;
-        const thumb = info.imageLinks?.thumbnail?.replace('http:', 'https:').replace('&edge=curl', '');
+        const thumb = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail)?.replace('http:', 'https:').replace('&edge=curl', '');
         
         return {
           title: info.title,
