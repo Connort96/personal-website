@@ -108,7 +108,7 @@ export default function Books() {
               editions ( 
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format, needs_review,
-                works ( id, title, author, synopsis, motifs, vibes, primary_edition_id ) 
+                works!work_id ( id, title, author, synopsis, motifs, vibes, primary_edition_id ) 
               ),
               books (
                 id, title, author, cover_url, page_count, genre_name, publisher, color

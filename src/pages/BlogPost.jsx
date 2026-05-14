@@ -19,7 +19,7 @@ export default function BlogPost() {
               id,
               title,
               author,
-              editions ( cover_url )
+              editions!work_id ( cover_url )
             )
           `)
           .eq('slug', id)

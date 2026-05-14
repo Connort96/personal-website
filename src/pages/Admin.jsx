@@ -425,7 +425,7 @@ export default function Admin() {
           .select(`
             id, 
             work_id,
-            works ( title, author )
+            works!work_id ( title, author )
           `)
           .is('cover_url', null)
           .range(from, from + 999);
