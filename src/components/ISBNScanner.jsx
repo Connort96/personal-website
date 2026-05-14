@@ -78,7 +78,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           }
         } catch (e) { console.warn("Google Books task failed", e); }
       })(),
-      // 2. Open Library Data API
+      // 2. Open Library Data API (Direct lookup)
       (async () => {
         try {
           const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
@@ -92,13 +92,32 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       // 3. Open Library Search API (Best for series/subjects)
       (async () => {
         try {
-          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position`);
+          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position&limit=1`);
           if (res.ok) {
             const data = await res.json();
             searchInfo = data.docs?.[0];
             if (searchInfo) console.log(`[Batch Scanner] OL Search API found match for ${isbn}`);
           }
         } catch (e) { console.warn("OL Search task failed", e); }
+      })(),
+      // 4. Open Library ISBN API (Most direct, very reliable)
+      (async () => {
+        try {
+          const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && !searchInfo) {
+              console.log(`[Batch Scanner] OL Direct ISBN API match: ${data.title}`);
+              // Normalize into searchInfo structure
+              searchInfo = {
+                title: data.title,
+                author_name: data.authors ? ["Unknown Author"] : null, // We'll fill author from other sources or keep placeholder
+                subject: data.subjects || [],
+                series_name: data.series ? [data.series] : null
+              };
+            }
+          }
+        } catch (e) { }
       })()
     ];
 
@@ -106,7 +125,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     await Promise.allSettled(tasks);
 
     if (!olInfo && !gbInfo && !searchInfo) {
-      console.warn(`[Batch Scanner] No metadata found for ${isbn} across 3 providers`);
+      console.warn(`[Batch Scanner] No metadata found for ${isbn} across 4 providers`);
       return {
         title: 'Unknown Book',
         subtitle: '',
