@@ -145,6 +145,32 @@
   font-weight: 700;
 }
 
+.collection-sort-controls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.sort-btn {
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sort-btn.active {
+  background: rgba(200, 168, 75, 0.1);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
 /* ── Library / Categories ────────────────────────────────── */
 .collection-library {
   display: flex;
