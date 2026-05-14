@@ -265,7 +265,19 @@ export default function BookDetail({ id: propId, onDelete }) {
       if (ownedEditions.length > 0) {
         const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4 };
         editions = [...ownedEditions].sort((a, b) => (formatPriority[a.format] || 5) - (formatPriority[b.format] || 5));
-        primaryEdition = editions.find(e => e.cover_url || e.cover_image_url) || editions[0];
+        
+        // Prioritize the explicitly chosen primary edition
+        if (workData.primary_edition_id) {
+          const explicitPrimary = editions.find(e => e.id === workData.primary_edition_id);
+          if (explicitPrimary) {
+            primaryEdition = explicitPrimary;
+          } else {
+            primaryEdition = editions.find(e => e.cover_url || e.cover_image_url) || editions[0];
+          }
+        } else {
+          primaryEdition = editions.find(e => e.cover_url || e.cover_image_url) || editions[0];
+        }
+
         bestReview = ownedEditions.find(e => e.review)?.review || '';
         bestRating = ownedEditions.find(e => e.rating)?.rating || 0;
         allGenres = Array.from(new Set(ownedEditions.map(e => e.genre_name).filter(Boolean)));
@@ -273,7 +285,12 @@ export default function BookDetail({ id: propId, onDelete }) {
       } else {
         const { data: allEditions } = await supabase.from('editions').select('*').eq('work_id', numericId);
         editions = allEditions || [];
-        primaryEdition = editions[0] || {};
+        
+        if (workData.primary_edition_id) {
+          primaryEdition = editions.find(e => e.id === workData.primary_edition_id) || editions[0] || {};
+        } else {
+          primaryEdition = editions[0] || {};
+        }
       }
 
       const primaryGenre = {
@@ -368,7 +385,7 @@ export default function BookDetail({ id: propId, onDelete }) {
       return () => clearTimeout(timer);
     }
   }, [work?.needs_review, isAdmin, isEditOpen]);
-  const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}) => {
+  const handleSaveReview = async (workId, updates, globalCoverUrl, editionUpdates = {}, primaryEditionId = null) => {
     if (!isAdmin) return;
     try {
       // 1. Sync global review/rating across ALL editions
@@ -383,7 +400,13 @@ export default function BookDetail({ id: propId, onDelete }) {
       if (globalCoverUrl !== undefined && globalCoverUrl !== null) {
         await supabase.from('editions').update({ cover_image_url: globalCoverUrl }).eq('work_id', workId);
       }
-      // 3. Process individual edition updates with legacy mirroring
+      
+      // 3. Update primary edition if provided
+      if (primaryEditionId) {
+        await supabase.from('works').update({ primary_edition_id: primaryEditionId }).eq('id', workId);
+      }
+
+      // 4. Process individual edition updates with legacy mirroring
       for (const [id, edits] of Object.entries(editionUpdates)) {
         const { data: currentEd } = await supabase.from('editions').select('*').eq('id', id).single();
         if (!currentEd) continue;

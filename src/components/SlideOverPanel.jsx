@@ -68,6 +68,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const [editTitle, setEditTitle] = useState('');
   const [editAuthor, setEditAuthor] = useState('');
   const [editGenre, setEditGenre] = useState('');
+  const [primaryEditionId, setPrimaryEditionId] = useState(null);
 
   useEffect(() => {
     setStatus(book.status || 'unread');
@@ -81,6 +82,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setEditTitle(book.title || '');
     setEditAuthor(book.author || '');
     setEditGenre(book.primaryGenre?.id || '');
+    setPrimaryEditionId(book.primary_edition_id || (book.editions?.[0]?.id || null));
   }, [book]);
 
   const [fetchingArt, setFetchingArt] = useState(null); // ID of edition being fetched
@@ -220,7 +222,8 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
           current_page: parseInt(currentPage) || 0 
         }, 
         coverUrl.trim() || null,
-        editionEdits
+        editionEdits,
+        primaryEditionId
       );
       
       onClose();
@@ -356,10 +359,11 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
             {editions.map((ed) => {
               const edits = editionEdits[ed.id] || {};
               const isEditing = editingEditionId === ed.id;
+              const isPrimary = primaryEditionId === ed.id;
               const displayCover = edits.cover_image_url || ed.cover_image_url || ed.cover_url;
 
               return (
-                <div key={ed.id} className={`edition-card ${isEditing ? 'editing' : ''}`}>
+                <div key={ed.id} className={`edition-card ${isEditing ? 'editing' : ''} ${isPrimary ? 'is-primary' : ''}`}>
                   <div className="edition-card-main">
                     <div className="edition-card-art">
                       {displayCover ? (
@@ -372,12 +376,23 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
                     <div className="edition-card-content">
                       <div className="edition-card-top">
                         <span className="edition-publisher">{edits.publisher || ed.publisher || 'Publisher Unknown'}</span>
-                        <button 
-                          className="edition-edit-trigger"
-                          onClick={() => setEditingEditionId(isEditing ? null : ed.id)}
-                        >
-                          {isEditing ? 'Close' : 'Edit'}
-                        </button>
+                        <div className="edition-card-actions">
+                          {isAdmin && (
+                            <button 
+                              className={`edition-primary-btn ${isPrimary ? 'active' : ''}`}
+                              onClick={() => setPrimaryEditionId(ed.id)}
+                              title={isPrimary ? 'This is the main edition' : 'Set as main edition'}
+                            >
+                              {isPrimary ? '★ Main' : '☆ Set Main'}
+                            </button>
+                          )}
+                          <button 
+                            className="edition-edit-trigger"
+                            onClick={() => setEditingEditionId(isEditing ? null : ed.id)}
+                          >
+                            {isEditing ? 'Close' : 'Edit'}
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="edition-card-meta">

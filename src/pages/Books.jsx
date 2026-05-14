@@ -108,7 +108,7 @@ export default function Books() {
               editions ( 
                 id, work_id, cover_url, cover_image_url, genre_id, genre_name, color, publisher, 
                 page_count, isbn, publication_date, translator, format, needs_review,
-                works ( id, title, author, synopsis, motifs, vibes ) 
+                works ( id, title, author, synopsis, motifs, vibes, primary_edition_id ) 
               ),
               books (
                 id, title, author, cover_url, page_count, genre_name, publisher, color
@@ -152,7 +152,8 @@ export default function Books() {
               rating: 0,
               review: '',
               owned_at: row.owned_at ? new Date(row.owned_at).getTime() : 0,
-              synopsis: work.synopsis,
+              synopsis: work?.synopsis,
+              primary_edition_id: work?.primary_edition_id,
               editions: []
             });
           }
@@ -183,17 +184,24 @@ export default function Books() {
         });
 
         const mapped = Array.from(workGroups.values()).map(work => {
-          const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
-          const sortedEditions = [...work.editions].sort((a, b) => {
-            const aHasCover = !!(a.cover_url || a.cover_image_url);
-            const bHasCover = !!(b.cover_url || b.cover_image_url);
-            if (aHasCover !== bHasCover) return aHasCover ? -1 : 1;
-            const aPrio = formatPriority[a.format] || 5;
-            const bPrio = formatPriority[b.format] || 5;
-            return aPrio - bPrio;
-          });
+          // If an explicit primary edition exists, use it. Otherwise, use priority logic.
+          let primary = {};
+          if (work.primary_edition_id) {
+            primary = work.editions.find(e => e.id === work.primary_edition_id) || {};
+          }
 
-          const primary = sortedEditions[0] || {};
+          if (!primary.id) {
+            const formatPriority = { 'Hardcover': 1, 'Paperback': 2, 'Audiobook': 3, 'Digital': 4, 'Kindle': 4 };
+            const sortedEditions = [...work.editions].sort((a, b) => {
+              const aHasCover = !!(a.cover_url || a.cover_image_url);
+              const bHasCover = !!(b.cover_url || b.cover_image_url);
+              if (aHasCover !== bHasCover) return aHasCover ? -1 : 1;
+              const aPrio = formatPriority[a.format] || 5;
+              const bPrio = formatPriority[b.format] || 5;
+              return aPrio - bPrio;
+            });
+            primary = sortedEditions[0] || {};
+          }
           const formats = Array.from(new Set(work.editions.map(e => e.format).filter(Boolean)));
           const latestOwnedAt = Math.max(...work.editions.map(e => e.owned_at ? new Date(e.owned_at).getTime() : 0));
 
