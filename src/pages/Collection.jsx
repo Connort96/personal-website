@@ -388,6 +388,7 @@ export default function Collection() {
     setAddStatus('saving');
     try {
       const genre = GENRE_META[targetGenreId];
+      if (!genre) throw new Error("Invalid Genre");
       
       // 1. Silent Scout: Find or Create Master Work
       let workId = null;
@@ -395,7 +396,7 @@ export default function Collection() {
         .from('works')
         .select('id')
         .ilike('title', newBook.title)
-        .ilike('author', newBook.author)
+        .ilike('author', targetAuthor)
         .maybeSingle();
       
       if (existingWork) {
@@ -404,7 +405,7 @@ export default function Collection() {
       } else {
         const { data: newWork } = await supabase
           .from('works')
-          .insert({ title: newBook.title, author: newBook.author })
+          .insert({ title: newBook.title, author: targetAuthor })
           .select().single();
         workId = newWork.id;
         console.log(`[Silent Scout] Created new master record for "${newBook.title}":`, workId);
@@ -414,8 +415,8 @@ export default function Collection() {
       const { data: newEd } = await supabase.from('editions').insert({
         work_id: workId,
         isbn: newBook.isbn || null,
-        genre_id: newBook.genre_id,
-        genre_name: genre.name,
+        genre_id: targetGenreId,
+        genre_name: genre.genre_name,
         color: genre.color,
         publisher: 'Unknown Publisher'
       }).select().single();
@@ -439,7 +440,7 @@ export default function Collection() {
       const { data: lastBook } = await supabase
         .from('books')
         .select('book_index')
-        .eq('genre_id', newBook.genre_id)
+        .eq('genre_id', targetGenreId)
         .order('book_index', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -448,16 +449,16 @@ export default function Collection() {
 
       const { data, error } = await supabase.from('books').insert({
         title: newBook.title,
-        author: newBook.author,
+        author: targetAuthor,
         work_id: workId,
-        genre_id: newBook.genre_id,
-        genre_name: genre.name,
+        genre_id: targetGenreId,
+        genre_name: genre.genre_name,
         color: genre.color,
-        badge: genre.badge,
-        badge_label: genre.badgeLabel,
+        badge: genre.badge || null,
+        badge_label: genre.badge_label || null,
         book_index: nextIndex,
         cover_url: finalCoverUrl,
-        isbn: newBook.isbn
+        isbn: newBook.isbn || null
       }).select().single();
 
       if (error) throw error;
@@ -494,6 +495,7 @@ export default function Collection() {
     } catch (err) {
       console.error("Quick add failed:", err);
       setAddStatus('error');
+      setTimeout(() => setAddStatus(null), 3000);
     }
   };
 
