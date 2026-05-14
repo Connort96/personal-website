@@ -139,27 +139,22 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     
     let bestCover = (gbCover || olCover || searchCover || MISSING_COVER_URL).replace('http://', 'https://');
 
-      // TRIPLE-HUNT FALLBACK for covers
-      const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,series,series_name,series_position,cover_i,subject`);
-      const searchData = await searchRes.json();
-      const firstDoc = searchData.docs?.[0];
-
-      if (!bestCover && firstDoc?.cover_i) {
-        bestCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
+    // TRIPLE-HUNT FALLBACK for covers (if first doc has better cover)
+    if (!bestCover || bestCover === MISSING_COVER_URL) {
+      if (searchInfo?.cover_i) {
+        bestCover = `https://covers.openlibrary.org/b/id/${searchInfo.cover_i}-L.jpg`;
       }
+    }
 
-      const finalTitle = olInfo?.title || gbInfo?.title || searchData?.docs?.[0]?.title || 'Unknown Title';
-      const finalAuthor = olInfo?.authors?.[0]?.name || gbInfo?.authors?.[0] || searchData?.docs?.[0]?.author_name?.[0] || 'Unknown Author';
+    // SAGA SCOUT: Check for series info
+    let seriesInfo = null;
 
-      // SAGA SCOUT: Check for series info
-      let seriesInfo = null;
-
-      if (firstDoc?.series_name?.[0]) {
-        seriesInfo = {
-          name: firstDoc.series_name[0],
-          sequence: parseInt(firstDoc.series_position?.[0] || firstDoc.title?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
-        };
-      } else if (finalTitle !== 'Unknown Title' && finalAuthor !== 'Unknown Author') {
+    if (searchInfo?.series_name?.[0]) {
+      seriesInfo = {
+        name: searchInfo.series_name[0],
+        sequence: parseInt(searchInfo.series_position?.[0] || finalTitle?.match(/Vol\.?\s*(\d+)/i)?.[1] || 1)
+      };
+    } else if (finalTitle !== 'Unknown Title' && finalAuthor !== 'Unknown Author') {
         // Fallback 1: Broad Title + Author search
         try {
           const fallbackRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(finalTitle)}&author=${encodeURIComponent(finalAuthor)}&fields=title,series_name,series_position&limit=5`);
@@ -201,7 +196,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       // Auto-detect genre from API subjects
       // Combine subjects from BOTH the Books API and the Search API for best coverage
       const olSubjects = olInfo?.subjects || [];
-      const searchSubjects = (firstDoc?.subject || []).map(s => typeof s === 'string' ? { name: s } : s);
+      const searchSubjects = (searchInfo?.subject || []).map(s => typeof s === 'string' ? { name: s } : s);
       const combinedSubjects = [...olSubjects, ...searchSubjects];
       const gbCategories = gbInfo?.categories || [];
       const detectedGenre = detectGenre(combinedSubjects, gbCategories);
@@ -227,30 +222,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         genre_color: detectedGenre?.color || null,
         subjects: olSubjects.map(s => s.name || s),
         categories: gbCategories,
-      };
-    } catch (err) {
-      console.error("[Batch Scanner] Fetch error:", err);
-      return {
-        title: 'Unknown Book',
-        subtitle: '',
-        author: 'Unknown Author',
-        publisher: 'Unknown Publisher',
-        year: 'Unknown',
-        full_date: null,
-        cover: MISSING_COVER_URL,
-        pages: 0,
-        isbn: isbn,
-        description: '',
-        format: 'Hardcover',
-        series: null,
-        status: 'draft',
-        genre_id: null,
-        genre_name: null,
-        genre_color: null,
-        subjects: [],
-        categories: [],
-      };
-    }
+    };
   }, []);
 
   // Handle a successful barcode scan
