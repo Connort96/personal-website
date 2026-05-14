@@ -344,6 +344,12 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   }, []);
 
   // Update genre for a specific queue item
+  const updateQueueItem = useCallback((queueId, updates) => {
+    setSessionQueue(prev => prev.map(item => 
+      item._queueId === queueId ? { ...item, ...updates } : item
+    ));
+  }, []);
+
   const updateQueueGenre = useCallback((queueId, genreId) => {
     setSessionQueue(prev => prev.map(item => {
       if (item._queueId !== queueId) return item;
@@ -764,10 +770,32 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                       />
                     </div>
                     <div className="queue-item-info">
-                      <div className="queue-item-title">{item.title}</div>
-                      <div className="queue-item-author">{item.author}</div>
+                      {item.status === 'draft' ? (
+                        <div className="queue-item-manual-edit">
+                          <input 
+                            type="text" 
+                            className="queue-item-input"
+                            placeholder="Title..."
+                            value={item.title === 'Unknown Book' ? '' : item.title}
+                            onChange={(e) => updateQueueItem(item._queueId, { title: e.target.value })}
+                          />
+                          <input 
+                            type="text" 
+                            className="queue-item-input"
+                            placeholder="Author..."
+                            value={item.author === 'Unknown Author' ? '' : item.author}
+                            onChange={(e) => updateQueueItem(item._queueId, { author: e.target.value })}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="queue-item-title">{item.title}</div>
+                          <div className="queue-item-author">{item.author}</div>
+                        </>
+                      )}
+                      
                       {item.status === 'draft' && (
-                        <span className="queue-item-draft-badge">Draft — Needs Review</span>
+                        <span className="queue-item-draft-badge">Draft — Manual Entry</span>
                       )}
                       <div className="queue-item-genre-row">
                         <select
