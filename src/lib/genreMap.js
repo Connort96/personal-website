@@ -105,16 +105,17 @@ const GENRE_RULES = [
 
 
 /**
- * Detect the best-matching genre from API subject/category data.
+ * Detect the best-matching genre from API subject/category data and title.
  * 
+ * @param {string} title - Book title
  * @param {Array<{name: string}>} olSubjects - Open Library subjects array
  * @param {string[]} gbCategories - Google Books categories array
  * @returns {{ genre_id: string, genre_name: string, color: string } | null}
  */
-export function detectGenre(olSubjects = [], gbCategories = []) {
-  // Build a single searchable string from all subject data
+export function detectGenre(title = '', olSubjects = [], gbCategories = []) {
+  // Build a single searchable string from all data
   const subjectNames = olSubjects.map(s => typeof s === 'string' ? s : s.name || '');
-  const allTerms = [...subjectNames, ...gbCategories].join(' | ');
+  const allTerms = [title, ...subjectNames, ...gbCategories].join(' | ');
 
   if (!allTerms.trim()) return null;
 

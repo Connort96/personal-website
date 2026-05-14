@@ -67,62 +67,70 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
     // Create parallel tasks with individual error handling
     const tasks = [
-      // 1. Google Books (Fastest, but prone to rate limits)
-      (async () => {
-        try {
-          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-          if (res.ok) {
-            const data = await res.json();
-            gbInfo = data.items?.[0]?.volumeInfo;
-            if (gbInfo) console.log(`[Batch Scanner] Google Books found match for ${isbn}`);
-          }
-        } catch (e) { console.warn("Google Books task failed", e); }
-      })(),
-      // 2. Open Library Data API (Direct lookup)
+      // TIER 1: Direct ISBN Lookups (Fastest & Most Reliable)
       (async () => {
         try {
           const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
           if (res.ok) {
             const data = await res.json();
             olInfo = data[`ISBN:${isbn}`];
-            if (olInfo) console.log(`[Batch Scanner] OL Data API found match for ${isbn}`);
+            if (olInfo) console.log(`[Batch Scanner] OL Data API hit for ${isbn}`);
           }
         } catch (e) { console.warn("OL Data task failed", e); }
       })(),
-      // 3. Open Library Search API (Best for series/subjects)
-      (async () => {
-        try {
-          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position&limit=1`);
-          if (res.ok) {
-            const data = await res.json();
-            searchInfo = data.docs?.[0];
-            if (searchInfo) console.log(`[Batch Scanner] OL Search API found match for ${isbn}`);
-          }
-        } catch (e) { console.warn("OL Search task failed", e); }
-      })(),
-      // 4. Open Library ISBN API (Most direct, very reliable)
       (async () => {
         try {
           const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
           if (res.ok) {
             const data = await res.json();
-            if (data && !searchInfo) {
-              console.log(`[Batch Scanner] OL Direct ISBN API match: ${data.title}`);
-              // Normalize into searchInfo structure
+            if (data) {
+              console.log(`[Batch Scanner] OL Direct ISBN hit: ${data.title}`);
               searchInfo = {
                 title: data.title,
-                author_name: data.authors ? ["Unknown Author"] : null, // We'll fill author from other sources or keep placeholder
+                author_name: null, // Will be filled by other tasks or fallback
                 subject: data.subjects || [],
-                series_name: data.series ? [data.series] : null
+                series_name: data.series ? [data.series] : null,
+                cover_i: data.covers?.[0]
               };
             }
           }
         } catch (e) { }
+      })(),
+
+      // TIER 2: Search & Enrichment (Prone to latency/limits)
+      (async () => {
+        try {
+          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+          if (res.ok) {
+            const data = await res.json();
+            gbInfo = data.items?.[0]?.volumeInfo;
+            if (gbInfo) console.log(`[Batch Scanner] Google Books hit for ${isbn}`);
+          }
+        } catch (e) { console.warn("Google Books task failed", e); }
+      })(),
+      (async () => {
+        try {
+          // If we already have searchInfo from direct ISBN, we might skip heavy search
+          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position&limit=1`);
+          if (res.ok) {
+            const data = await res.json();
+            const doc = data.docs?.[0];
+            if (doc) {
+              console.log(`[Batch Scanner] OL Search API hit for ${isbn}`);
+              // Merge into searchInfo
+              searchInfo = { ...searchInfo, ...doc };
+            }
+          }
+        } catch (e) { console.warn("OL Search task failed", e); }
       })()
     ];
 
-    // Wait for all tasks to settle
-    await Promise.allSettled(tasks);
+    // Wait for all tasks to settle (with a max timeout for the whole process to keep it snappy)
+    const timeoutPromise = new Promise(r => setTimeout(r, 4500));
+    await Promise.race([
+      Promise.allSettled(tasks),
+      timeoutPromise
+    ]);
 
     if (!olInfo && !gbInfo && !searchInfo) {
       console.warn(`[Batch Scanner] No metadata found for ${isbn} across 4 providers`);
@@ -218,7 +226,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       const searchSubjects = (searchInfo?.subject || []).map(s => typeof s === 'string' ? { name: s } : s);
       const combinedSubjects = [...olSubjects, ...searchSubjects];
       const gbCategories = gbInfo?.categories || [];
-      const detectedGenre = detectGenre(combinedSubjects, gbCategories);
+      const detectedGenre = detectGenre(finalTitle, combinedSubjects, gbCategories);
 
       return {
         title: finalTitle,
