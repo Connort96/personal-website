@@ -397,3 +397,41 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 18px;
   font-weight: 300;
 }
+
+.fulfillment-isbn-search {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.fulfillment-isbn-search:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.fulfillment-isbn-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.fulfillment-isbn-search button {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border: none;
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-weight: 700;
+}
