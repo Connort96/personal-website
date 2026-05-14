@@ -82,57 +82,25 @@ serve(async (req) => {
 
     console.log(`[Enrichment AI] Analyzing: "${title}" by ${author}`);
 
-    const taxonomyInstruction = `
-      For 'vibes' and 'motifs' (Themes), you are a strict librarian. Use ONLY standard literary taxonomy.
+    const prompt = `Categorize this book: "${title}" by "${author}". 
+      Use these Top 40 Themes/Vibes to standardize your selection where possible:
+      Themes: ${JSON.stringify(existing_motifs)}
+      Vibes: ${JSON.stringify(existing_vibes)}
       
-      CRITICAL RULES:
-      1. MAXIMUM TWO WORDS PER TAG. This is a hard limit.
-      2. NO POETIC ADJECTIVES (e.g., do not use 'Bleak', 'Gritty', 'Impending', 'Dark', 'Lush').
-      3. USE NOUN-HEAVY TERMS (e.g., 'Political Intrigue', 'Civil War', 'Coming Age', 'Lost Innocence').
+      RULES: Max 2 words per tag. Output pure JSON without markdown. Include a 2-sentence academic synopsis.
       
-      EXAMPLES:
-      - BAD: "Bleak political machinations" (3 words + flowery)
-      - GOOD: "Political Intrigue" (2 words + objective)
-      - BAD: "Gritty medieval realism" (3 words)
-      - GOOD: "Medieval Realism" (2 words)
-      
-      EXISTING VIBES: ${JSON.stringify(existing_vibes)}
-      EXISTING MOTIFS/THEMES: ${JSON.stringify(existing_motifs)}
-      
-      Prioritize selecting from existing lists ONLY if they follow the 2-word rule. If an existing tag is longer than 2 words, IGNORE IT and create a new, shorter one.
-    `;
+      {
+        "is_series": boolean,
+        "series_name": string or null,
+        "series_index": number or null,
+        "synopsis": string,
+        "vibes": string[],
+        "motifs": string[],
+        "setting_location": string or null,
+        "setting_era": string or null
+      }`;
 
-    const provenanceInstruction = provenance_string
-      ? `The user has provided these provenance notes about their physical copy: "${provenance_string}". Parse this to extract condition, defects, acquisition source, and acquisition year.`
-      : `No provenance notes were provided. Return null for all provenance fields.`;
-
-    const prompt = `You are an expert literary archivist and metadata specialist. Analyze the book "${title}" by "${author}" and return a comprehensive metadata profile.
-
-${taxonomyInstruction}
-
-${provenanceInstruction}
-
-For the 'synopsis' field: Return a strict 2-sentence, objective, spoiler-free literary summary written in a formal, academic archival tone. Do NOT include marketing copy, hook sentences, or praise.
-
-Return ONLY a valid JSON object matching this EXACT structure. No markdown, no backticks, no explanation:
-{
-  "is_series": boolean,
-  "series_name": string or null,
-  "series_index": number or null,
-  "synopsis": "Academic 2-sentence summary",
-  "vibes": ["Strict librarian tags, max 2 words each"],
-  "motifs": ["Strict librarian themes, max 2 words each"],
-  "setting_location": "Primary geographic or fictional location",
-  "setting_era": "Primary time period",
-  "provenance": {
-    "condition": "Mint, Good, Fair, or Poor" or null,
-    "defects": ["specific defects"] or [],
-    "acquisition_source": string or null,
-    "acquisition_year": number or null
-  }
-}`;
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const geminiBody = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {

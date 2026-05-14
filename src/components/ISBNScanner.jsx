@@ -479,16 +479,33 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
             // Optional: Delay to avoid rate limits
             await new Promise(r => setTimeout(r, 300));
             
+            // 1. Fetch and Rank Taxonomy (Top 40 Frequency)
             const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-            const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
-            const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+            
+            const vibeCounts = {};
+            const motifCounts = {};
+            
+            (tagPool || []).forEach(w => {
+              (w.vibes || []).forEach(v => vibeCounts[v] = (vibeCounts[v] || 0) + 1);
+              (w.motifs || []).forEach(m => motifCounts[m] = (motifCounts[m] || 0) + 1);
+            });
+
+            const topVibes = Object.entries(vibeCounts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 40)
+              .map(entry => entry[0]);
+
+            const topMotifs = Object.entries(motifCounts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 40)
+              .map(entry => entry[0]);
 
             const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
               body: { 
                 title: bookData.title, 
                 author: bookData.author, 
-                existing_vibes: existingVibes,
-                existing_motifs: existingMotifs
+                existing_vibes: topVibes,
+                existing_motifs: topMotifs
               }
             });
 
