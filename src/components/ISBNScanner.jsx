@@ -58,96 +58,86 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   }, []);
 
   // Fetch book metadata from APIs
-  // Fetch book metadata from APIs
   const fetchBookMetadata = useCallback(async (isbn) => {
     let olInfo = null;
     let gbInfo = null;
+    let searchInfo = null;
 
-    // 1. Open Library Data API
-    try {
-      const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
-      if (olRes.ok) {
-        const olData = await olRes.json();
-        olInfo = olData[`ISBN:${isbn}`];
-      }
-    } catch (err) {
-      console.warn("[Batch Scanner] Open Library API failed:", err);
-    }
+    console.log(`[Batch Scanner] Initiating deep scan for ISBN: ${isbn}`);
 
-    // 2. Google Books API (with fallback for 429 rate limiting)
-    try {
-      const gbRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-      if (gbRes.ok) {
-        const gbData = await gbRes.json();
-        gbInfo = gbData.items?.[0]?.volumeInfo;
-      } else if (gbRes.status === 429) {
-        console.warn("[Batch Scanner] Google Books Rate Limited (429). Skipping...");
-      }
-    } catch (err) {
-      console.warn("[Batch Scanner] Google Books API failed:", err);
-    }
-
-    try {
-      if (!olInfo && !gbInfo) {
-        // TRIPLE-HUNT FALLBACK for basic title/author if primary APIs failed
+    // Create parallel tasks with individual error handling
+    const tasks = [
+      // 1. Google Books (Fastest, but prone to rate limits)
+      (async () => {
         try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject`);
-          const searchData = await searchRes.json();
-          if (searchData.docs?.[0]) {
-            const doc = searchData.docs[0];
-            return {
-              title: doc.title || 'Unknown Book',
-              subtitle: '',
-              author: doc.author_name?.[0] || 'Unknown Author',
-              publisher: 'Unknown Publisher',
-              year: 'Unknown',
-              full_date: null,
-              cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : MISSING_COVER_URL,
-              pages: 0,
-              isbn: isbn,
-              description: '',
-              format: 'Hardcover',
-              series: null,
-              status: 'identified',
-              genre_id: null,
-              genre_name: null,
-              genre_color: null,
-              subjects: (doc.subject || []).slice(0, 5),
-              categories: [],
-            };
+          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+          if (res.ok) {
+            const data = await res.json();
+            gbInfo = data.items?.[0]?.volumeInfo;
+            if (gbInfo) console.log(`[Batch Scanner] Google Books found match for ${isbn}`);
           }
-        } catch (sErr) {
-          console.warn("[Batch Scanner] Search fallback failed:", sErr);
-        }
+        } catch (e) { console.warn("Google Books task failed", e); }
+      })(),
+      // 2. Open Library Data API
+      (async () => {
+        try {
+          const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+          if (res.ok) {
+            const data = await res.json();
+            olInfo = data[`ISBN:${isbn}`];
+            if (olInfo) console.log(`[Batch Scanner] OL Data API found match for ${isbn}`);
+          }
+        } catch (e) { console.warn("OL Data task failed", e); }
+      })(),
+      // 3. Open Library Search API (Best for series/subjects)
+      (async () => {
+        try {
+          const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject,series_name,series_position`);
+          if (res.ok) {
+            const data = await res.json();
+            searchInfo = data.docs?.[0];
+            if (searchInfo) console.log(`[Batch Scanner] OL Search API found match for ${isbn}`);
+          }
+        } catch (e) { console.warn("OL Search task failed", e); }
+      })()
+    ];
 
-        // Final Draft state — APIs returned nothing
-        return {
-          title: 'Unknown Book',
-          subtitle: '',
-          author: 'Unknown Author',
-          publisher: 'Unknown Publisher',
-          year: 'Unknown',
-          full_date: null,
-          cover: MISSING_COVER_URL,
-          pages: 0,
-          isbn: isbn,
-          description: '',
-          format: 'Hardcover',
-          series: null,
-          status: 'draft',
-          genre_id: null,
-          genre_name: null,
-          genre_color: null,
-          subjects: [],
-          categories: [],
-        };
-      }
+    // Wait for all tasks to settle
+    await Promise.allSettled(tasks);
 
-      // Prefer Google Books for cover art
-      const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
-      const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
-      
-      let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+    if (!olInfo && !gbInfo && !searchInfo) {
+      console.warn(`[Batch Scanner] No metadata found for ${isbn} across 3 providers`);
+      return {
+        title: 'Unknown Book',
+        subtitle: '',
+        author: 'Unknown Author',
+        publisher: 'Unknown Publisher',
+        year: 'Unknown',
+        full_date: null,
+        cover: MISSING_COVER_URL,
+        pages: 0,
+        isbn: isbn,
+        description: '',
+        format: 'Hardcover',
+        series: null,
+        status: 'draft',
+        genre_id: null,
+        genre_name: null,
+        genre_color: null,
+        subjects: [],
+        categories: [],
+      };
+    }
+
+    // Merge strategy
+    const finalTitle = gbInfo?.title || olInfo?.title || searchInfo?.title || 'Unknown Title';
+    const finalAuthor = gbInfo?.authors?.[0] || olInfo?.authors?.[0]?.name || searchInfo?.author_name?.[0] || 'Unknown Author';
+    
+    const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
+    const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
+    const searchCover = searchInfo?.cover_i ? `https://covers.openlibrary.org/b/id/${searchInfo.cover_i}-L.jpg` : '';
+    
+    let bestCover = (gbCover || olCover || searchCover || MISSING_COVER_URL).replace('http://', 'https://');
 
       // TRIPLE-HUNT FALLBACK for covers
       const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,series,series_name,series_position,cover_i,subject`);
