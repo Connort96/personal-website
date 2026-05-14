@@ -606,7 +606,7 @@ export default function BookDetail({ id: propId, onDelete }) {
                       </div>
                     )}
                   </div>
-                  <div className="archival-meta-divider" />
+                  {work.saga && <div className="archival-meta-divider" />}
                 </div>
               )}
             </div>
