@@ -528,7 +528,7 @@ export default function Collection() {
   };
 
   const handleFulfill = async (edition) => {
-    const { bookId, workId, legacyRef } = fulfillmentData;
+    const { bookId, workId, legacyRef, title, author } = fulfillmentData;
     const isbn = edition.isbn?.[0];
     
     try {
@@ -537,8 +537,8 @@ export default function Collection() {
       let finalWorkId = workId;
       if (!finalWorkId) {
         const { data: newWork } = await supabase.from('works').insert({ 
-          title: fulfillmentData.title, 
-          author: fulfillmentData.author 
+          title: title, 
+          author: author 
         }).select().single();
         finalWorkId = newWork.id;
       }
@@ -576,30 +576,29 @@ export default function Collection() {
         return next;
       });
 
+      // UI cleanup
       setFulfillmentData(null);
       setAddStatus('success');
       setTimeout(() => setAddStatus(null), 2000);
 
-      // 6. AI Enrichment & Series Detection (Background)
+      // 6. AI Enrichment & Series Detection (Background - using captured title/author)
       try {
-        console.log(`[Fulfillment] Triggering AI Taxonomy for Work: ${finalWorkId}`);
+        console.log(`[Fulfillment] Triggering AI Taxonomy for Work: ${finalWorkId} ("${title}")`);
         
-        // Fetch existing tags for normalization
         const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
         const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
         const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
 
         const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
           body: { 
-            title: fulfillmentData.title, 
-            author: fulfillmentData.author, 
+            title: title, 
+            author: author, 
             existing_vibes: existingVibes,
             existing_motifs: existingMotifs
           }
         });
 
         if (!aiError && aiData) {
-          // Update work with AI metadata
           await supabase.from('works').update({
             vibes: aiData.vibes || [],
             motifs: aiData.motifs || [],
@@ -610,7 +609,6 @@ export default function Collection() {
             series_name: aiData.series_name || null
           }).eq('id', finalWorkId);
 
-          // Handle Series & Saga Expansion
           if (aiData.is_series && aiData.series_name) {
             let { data: series } = await supabase.from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
             let sId = series?.id;
@@ -625,8 +623,7 @@ export default function Collection() {
               sequence_order: aiData.series_index || 1
             }, { onConflict: 'series_id, work_id' });
 
-            // Run Saga Scout
-            await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, fulfillmentData.author);
+            await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, author);
           }
         }
       } catch (aiErr) {
@@ -647,6 +644,7 @@ export default function Collection() {
           data={fulfillmentData} 
           onFulfill={handleFulfill} 
           onClose={() => setFulfillmentData(null)} 
+          isFulfilling={addStatus === 'saving'}
         />
       )}
 
@@ -903,40 +901,6 @@ export default function Collection() {
 
 
 
-const FulfillmentModal = ({ data, onFulfill, onClose }) => {
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [manualIsbn, setManualIsbn] = useState('');
-  const [isSearchingIsbn, setIsSearchingIsbn] = useState(false);
-
-  const fetchResults = useCallback(async (isbn = null) => {
-    setLoading(true);
-    try {
-      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`;
-      if (isbn) {
-        url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
-      }
-      const res = await fetch(url);
-      const json = await res.json();
-      setResults(json.docs || []);
-    } catch (err) {
-      console.error("Fulfillment search failed:", err);
-    } finally {
-      setLoading(false);
-      setIsSearchingIsbn(false);
-    }
-  }, [data.title, data.author]);
-
-  useEffect(() => {
-    fetchResults();
-  }, [fetchResults]);
-
-  const handleIsbnSearch = (e) => {
-    e.preventDefault();
-    if (!manualIsbn) return;
-    setIsSearchingIsbn(true);
-    fetchResults(manualIsbn);
-  };
 
   return (
     <div className="fulfillment-overlay">
@@ -985,6 +949,99 @@ const FulfillmentModal = ({ data, onFulfill, onClose }) => {
           </div>
         )}
         <button className="fulfillment-cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+};
+
+const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [manualIsbn, setManualIsbn] = useState('');
+  const [isSearchingIsbn, setIsSearchingIsbn] = useState(false);
+
+  const fetchResults = useCallback(async (isbn = null) => {
+    setLoading(true);
+    try {
+      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`;
+      if (isbn) {
+        url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
+      }
+      const res = await fetch(url);
+      const json = await res.json();
+      setResults(json.docs || []);
+    } catch (err) {
+      console.error("Fulfillment search failed:", err);
+    } finally {
+      setLoading(false);
+      setIsSearchingIsbn(false);
+    }
+  }, [data.title, data.author]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [fetchResults]);
+
+  const handleIsbnSearch = (e) => {
+    e.preventDefault();
+    if (!manualIsbn || isFulfilling) return;
+    setIsSearchingIsbn(true);
+    fetchResults(manualIsbn);
+  };
+
+  return (
+    <div className="fulfillment-overlay">
+      <div className="fulfillment-modal">
+        <div className="fulfillment-modal-header">
+          <h3>Select Edition for "{data.title}"</h3>
+          <button className="fulfillment-close-top" onClick={onClose} disabled={isFulfilling}>✕</button>
+        </div>
+        <p>Pick the cover that matches your copy to finalize archival.</p>
+
+        <form className="fulfillment-isbn-search" onSubmit={handleIsbnSearch}>
+          <input 
+            type="text" 
+            placeholder="Search by exact ISBN..." 
+            value={manualIsbn}
+            onChange={(e) => setManualIsbn(e.target.value)}
+            disabled={isFulfilling}
+          />
+          <button type="submit" disabled={isSearchingIsbn || isFulfilling}>
+            {isSearchingIsbn ? 'Searching...' : 'Find'}
+          </button>
+        </form>
+        
+        {(loading || isFulfilling) ? (
+          <div className="fulfillment-loading">
+            <div className="fulfillment-spinner"></div>
+            <span>{isFulfilling ? 'Finalizing Archival...' : 'Scouting editions...'}</span>
+          </div>
+        ) : (
+          <div className="fulfillment-grid">
+            {results.filter(r => r.isbn && r.isbn.length > 0).map((r, i) => (
+              <div 
+                key={i} 
+                className="fulfillment-card" 
+                onClick={() => !isFulfilling && onFulfill(r)}
+                style={{ opacity: isFulfilling ? 0.5 : 1, pointerEvents: isFulfilling ? 'none' : 'auto' }}
+              >
+                <div className="fulfillment-cover-wrapper">
+                  <img src={`https://covers.openlibrary.org/b/isbn/${r.isbn[0]}-M.jpg`} alt="Cover" />
+                </div>
+                <div className="fulfillment-card-info">
+                  <span className="fulfillment-publisher">{r.publisher?.[0] || 'Unknown Publisher'}</span>
+                  <span className="fulfillment-isbn">{r.isbn[0]}</span>
+                </div>
+              </div>
+            ))}
+            {results.length === 0 && (
+              <div className="fulfillment-empty">
+                No editions found. Try searching by ISBN above.
+              </div>
+            )}
+          </div>
+        )}
+        <button className="fulfillment-cancel" onClick={onClose} disabled={isFulfilling}>Cancel</button>
       </div>
     </div>
   );
