@@ -588,24 +588,7 @@ export default function Collection() {
   const lowerSearch = searchQuery.toLowerCase();
 
   return (
-    <div className="collection-page container container--narrow animate-fade-in">
-      <div className="collection-header-container">
-        <h1 className="collection-title">Collection Checklist</h1>
-        
-        <div className="collection-header-actions">
-          {isAdmin && (
-            <button 
-              className={`quick-add-minimal-btn ${isAddingNew ? 'active' : ''}`}
-              onClick={() => setIsAddingNew(!isAddingNew)}
-              title="Add to Checklist"
-            >
-              <span className="icon">+</span>
-            </button>
-          )}
-          {isSyncing && <div className="collection-sync-badge">Syncing...</div>}
-        </div>
-      </div>
-
+    <>
       {fulfillmentData && (
         <FulfillmentModal 
           data={fulfillmentData} 
@@ -613,6 +596,24 @@ export default function Collection() {
           onClose={() => setFulfillmentData(null)} 
         />
       )}
+
+      <div className="collection-page container container--narrow animate-fade-in">
+        <div className="collection-header-container">
+          <h1 className="collection-title">Collection Checklist</h1>
+          
+          <div className="collection-header-actions">
+            {isAdmin && (
+              <button 
+                className={`quick-add-minimal-btn ${isAddingNew ? 'active' : ''}`}
+                onClick={() => setIsAddingNew(!isAddingNew)}
+                title="Add to Checklist"
+              >
+                <span className="icon">+</span>
+              </button>
+            )}
+            {isSyncing && <div className="collection-sync-badge">Syncing...</div>}
+          </div>
+        </div>
 
       <AnimatePresence>
         {isAddingNew && isAdmin && (
@@ -847,30 +848,62 @@ export default function Collection() {
 }
 
 
+
 const FulfillmentModal = ({ data, onFulfill, onClose }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [manualIsbn, setManualIsbn] = useState('');
+  const [isSearchingIsbn, setIsSearchingIsbn] = useState(false);
+
+  const fetchResults = useCallback(async (isbn = null) => {
+    setLoading(true);
+    try {
+      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`;
+      if (isbn) {
+        url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
+      }
+      const res = await fetch(url);
+      const json = await res.json();
+      setResults(json.docs || []);
+    } catch (err) {
+      console.error("Fulfillment search failed:", err);
+    } finally {
+      setLoading(false);
+      setIsSearchingIsbn(false);
+    }
+  }, [data.title, data.author]);
 
   useEffect(() => {
-    async function searchEditions() {
-      try {
-        const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`);
-        const json = await res.json();
-        setResults(json.docs || []);
-      } catch (err) {
-        console.error("Fulfillment search failed:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    searchEditions();
-  }, [data]);
+    fetchResults();
+  }, [fetchResults]);
+
+  const handleIsbnSearch = (e) => {
+    e.preventDefault();
+    if (!manualIsbn) return;
+    setIsSearchingIsbn(true);
+    fetchResults(manualIsbn);
+  };
 
   return (
     <div className="fulfillment-overlay">
       <div className="fulfillment-modal">
-        <h3>Select Edition for "{data.title}"</h3>
+        <div className="fulfillment-modal-header">
+          <h3>Select Edition for "{data.title}"</h3>
+          <button className="fulfillment-close-top" onClick={onClose}>✕</button>
+        </div>
         <p>Pick the cover that matches your copy to finalize archival.</p>
+
+        <form className="fulfillment-isbn-search" onSubmit={handleIsbnSearch}>
+          <input 
+            type="text" 
+            placeholder="Search by exact ISBN..." 
+            value={manualIsbn}
+            onChange={(e) => setManualIsbn(e.target.value)}
+          />
+          <button type="submit" disabled={isSearchingIsbn}>
+            {isSearchingIsbn ? 'Searching...' : 'Find'}
+          </button>
+        </form>
         
         {loading ? (
           <div className="fulfillment-loading">
@@ -890,7 +923,11 @@ const FulfillmentModal = ({ data, onFulfill, onClose }) => {
                 </div>
               </div>
             ))}
-            {results.length === 0 && <div className="fulfillment-empty">No editions found.</div>}
+            {results.length === 0 && (
+              <div className="fulfillment-empty">
+                No editions found. Try searching by ISBN above.
+              </div>
+            )}
           </div>
         )}
         <button className="fulfillment-cancel" onClick={onClose}>Cancel</button>
