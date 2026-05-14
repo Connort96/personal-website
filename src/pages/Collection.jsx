@@ -564,7 +564,7 @@ export default function Collection() {
         await supabase.from('works').update({ in_collection: true }).eq('id', finalWorkId);
       }
 
-      const coverUrl = \`https://covers.openlibrary.org/b/isbn/\${isbn}-L.jpg\`;
+      const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
       const storageUrl = await processAndUploadCover(coverUrl, isbn);
 
       const { data: newEd, error: neErr } = await supabase.from('editions').insert({
