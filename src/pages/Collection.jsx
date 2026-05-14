@@ -670,53 +670,30 @@ export default function Collection() {
 
       <AnimatePresence>
         {isAddingNew && isAdmin && (
-          <motion.div 
-            className="collection-quick-add-overlay"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-          >
+          <div className="collection-quick-add-container">
             <form className="quick-add-form" onSubmit={handleQuickAdd}>
-              <div className="form-row">
-                <div className="autocomplete-wrapper">
-                  <input 
-                    type="text" 
-                    placeholder="Search titles..."
-                    value={newBook.title}
-                    onChange={e => handleTitleSearch(e.target.value)}
-                    required
-                  />
-                  {searchSuggestions.length > 0 && (
-                    <div className="search-suggestions">
-                      {searchSuggestions.map((s, i) => (
-                        <div key={i} className="suggestion-item" onClick={() => selectSuggestion(s)}>
-                          <div className="suggestion-info">
-                            <span className="suggestion-title">{s.title}</span>
-                            <span className="suggestion-author">{s.author_name?.[0]}</span>
-                          </div>
-                          {s.first_publish_year && <span className="suggestion-year">{s.first_publish_year}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="autocomplete-wrapper">
                 <input 
                   type="text" 
-                  placeholder="Author"
-                  value={newBook.author}
-                  onChange={e => setNewBook(prev => ({ ...prev, author: e.target.value }))}
+                  className="smart-search-input"
+                  placeholder="Enter book title or ISBN to search and add..."
+                  value={newBook.title}
+                  onChange={e => handleTitleSearch(e.target.value)}
                   required
                 />
-                <select 
-                  value={newBook.genre_id}
-                  onChange={e => setNewBook(prev => ({ ...prev, genre_id: e.target.value }))}
-                  required
-                >
-                  <option value="">Genre...</option>
-                  {libraryData.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
+                {searchSuggestions.length > 0 && (
+                  <div className="search-suggestions">
+                    {searchSuggestions.map((s, i) => (
+                      <div key={i} className="suggestion-item" onClick={() => selectSuggestion(s)}>
+                        <div className="suggestion-info">
+                          <span className="suggestion-title">{s.title}</span>
+                          <span className="suggestion-author">{s.author_name?.[0]}</span>
+                        </div>
+                        {s.first_publish_year && <span className="suggestion-year">{s.first_publish_year}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-actions">
                 <button type="submit" className="submit-btn" disabled={addStatus === 'saving'}>
@@ -724,7 +701,7 @@ export default function Collection() {
                 </button>
               </div>
             </form>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
