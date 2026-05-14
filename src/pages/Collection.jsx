@@ -678,7 +678,6 @@ export default function Collection() {
           setAddStatus('success'); // Revert to success so UI doesn't hang
           setTimeout(() => setAddStatus(null), 2000);
         }
-        }
       })();
     } catch (err) {
       console.error("[Fulfillment] Failed:", err);
