@@ -772,7 +772,7 @@ export default function Collection() {
             <div key={category.id} className={`collection-genre-section ${isOpen ? 'open' : ''} ${category.isImprint ? 'is-imprint' : ''}`}>
               <div className="collection-genre-header" onClick={() => toggleGenre(category.id)}>
                 <div className="collection-genre-title-wrapper">
-                  <ProgressRing pct={categoryPct} size={28} stroke={3} color={category.color} />
+                  <ProgressRing pct={categoryPct} size={28} stroke={3} color={category.color || 'var(--accent-primary)'} />
                   <div className="collection-genre-text-group">
                     <div className="collection-genre-title">{category.name}</div>
                     {category.badgeLabel && <div className={`collection-spine-badge ${category.badge}`}>{category.badgeLabel}</div>}
