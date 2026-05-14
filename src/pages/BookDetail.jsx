@@ -46,54 +46,77 @@ export default function BookDetail({ id: propId, onDelete }) {
     }
 
     try {
-      console.log(`[Archive] Starting deaccession for Work ID: ${work.id}`);
-      const workId = work.id;
+      console.log(`[Archive] Starting Global Purge for: "${work.title}" by ${work.author}`);
       
-      // 1. Cleanup Storage
-      for (const ed of work.editions) {
-        const coverUrl = ed.cover_image_url || ed.cover_url;
-        if (coverUrl && coverUrl.includes('supabase.co/storage')) {
-          try {
-            const pathParts = coverUrl.split('/public/book-covers/');
-            if (pathParts.length > 1) {
-              const filePath = pathParts[1];
-              await supabase.storage.from('book-covers').remove([filePath]);
+      // 1. Identify all duplicate works (to ensure "Fully Deleted" status)
+      const { data: duplicates } = await supabase
+        .from('works')
+        .select('id')
+        .ilike('title', work.title)
+        .ilike('author', work.author);
+      
+      const workIds = duplicates.map(d => d.id);
+      console.log(`[Archive] Found ${workIds.length} duplicate works to purge:`, workIds);
+
+      // 2. Fetch all editions for all duplicate works to cleanup storage
+      const { data: allEditions } = await supabase
+        .from('editions')
+        .select('id, cover_image_url, cover_url')
+        .in('work_id', workIds);
+
+      // 3. Cleanup Storage
+      if (allEditions) {
+        for (const ed of allEditions) {
+          const coverUrl = ed.cover_image_url || ed.cover_url;
+          if (coverUrl && coverUrl.includes('supabase.co/storage')) {
+            try {
+              const pathParts = coverUrl.split('/public/book-covers/');
+              if (pathParts.length > 1) {
+                const filePath = pathParts[1];
+                await supabase.storage.from('book-covers').remove([filePath]);
+              }
+            } catch (stErr) {
+              console.warn("[Archive Cleanup] Storage cleanup failed:", stErr);
             }
-          } catch (stErr) {
-            console.warn("[Archive Cleanup] Storage cleanup failed:", stErr);
           }
         }
       }
 
-      // 2. Database Cleanup (Safe Order)
+      // 4. Database Cleanup (Safe Order)
       // a. Clean series links
-      await supabase.from('series_works').delete().eq('work_id', workId);
+      await supabase.from('series_works').delete().in('work_id', workIds);
 
-      // b. Clean user links
-      await supabase.from('user_books').delete().eq('book_id', workId); // Legacy fallback
-      for (const ed of work.editions) {
-        await supabase.from('user_books').delete().eq('edition_id', ed.id);
+      // b. Clean user links (by edition_id and by legacy book_id)
+      if (allEditions) {
+        const editionIds = allEditions.map(e => e.id);
+        await supabase.from('user_books').delete().in('edition_id', editionIds);
+      }
+      
+      // c. Clean legacy table (also clean user_books linked to these books)
+      const { data: legacyBooks } = await supabase.from('books').select('id').in('work_id', workIds);
+      if (legacyBooks && legacyBooks.length > 0) {
+        const bookIds = legacyBooks.map(b => b.id);
+        await supabase.from('user_books').delete().in('book_id', bookIds);
+        await supabase.from('books').delete().in('id', bookIds);
       }
 
-      // c. Clean legacy table
-      await supabase.from('books').delete().eq('work_id', workId);
-
       // d. Clean modern editions
-      await supabase.from('editions').delete().eq('work_id', workId);
+      await supabase.from('editions').delete().in('work_id', workIds);
 
-      // e. Delete Master Work
-      const { error: workErr } = await supabase.from('works').delete().eq('id', workId);
+      // e. Delete Master Works
+      const { error: workErr } = await supabase.from('works').delete().in('id', workIds);
       if (workErr) throw workErr;
 
-      console.log(`[Archive] Successfully deaccessioned Work ID: ${workId}`);
+      console.log(`[Archive] Successfully purged all records for: "${work.title}"`);
       
       if (onDelete) {
-        onDelete(workId);
+        // Trigger multi-ID cleanup if supported, or just the main one
+        workIds.forEach(id => onDelete(id));
       } else {
         navigate('/books');
       }
     } catch (err) {
-      console.error("[Archive] Deaccession failed:", err);
+      console.error("[Archive] Global Purge failed:", err);
       alert("Failed to remove book: " + err.message);
     }
   };
