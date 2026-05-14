@@ -424,10 +424,14 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           if (existingWork) {
             workId = existingWork.id;
           } else {
-            const { data: newWork } = await supabase
+            const { data: newWork, error: workErr } = await supabase
               .from('works')
               .insert({ title: bookData.title, author: bookData.author })
               .select().single();
+            
+            if (workErr || !newWork) {
+              throw new Error(`Work creation failed: ${workErr?.message || 'Unknown error'}`);
+            }
             workId = newWork.id;
           }
 
@@ -479,17 +483,25 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
           };
 
           if (genericEd) {
-            const { data: updatedEd } = await supabase
+            const { data: updatedEd, error: upEdErr } = await supabase
               .from('editions')
               .update(editionPayload)
               .eq('id', genericEd.id)
               .select().single();
+            
+            if (upEdErr || !updatedEd) {
+              throw new Error(`Edition update failed: ${upEdErr?.message || 'Unknown error'}`);
+            }
             editionId = updatedEd.id;
           } else {
-            const { data: newEdition } = await supabase
+            const { data: newEdition, error: newEdErr } = await supabase
               .from('editions')
               .insert(editionPayload)
               .select().single();
+            
+            if (newEdErr || !newEdition) {
+              throw new Error(`Edition creation failed: ${newEdErr?.message || 'Unknown error'}`);
+            }
             editionId = newEdition.id;
           }
 
@@ -519,10 +531,14 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
           let legacyBookId;
           if (genericBook) {
-            const { data: updatedBook } = await supabase.from('books')
+            const { data: updatedBook, error: upBkErr } = await supabase.from('books')
               .update(legacyPayload)
               .eq('id', genericBook.id)
               .select('id').single();
+            
+            if (upBkErr || !updatedBook) {
+              throw new Error(`Checklist update failed: ${upBkErr?.message || 'Unknown error'}`);
+            }
             legacyBookId = updatedBook?.id;
           } else {
             const { data: genreBooks } = await supabase.from('books')
@@ -532,10 +548,14 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
               .limit(1);
             const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
             
-            const { data: insertedBook } = await supabase.from('books').insert({
+            const { data: insertedBook, error: insBkErr } = await supabase.from('books').insert({
               ...legacyPayload,
               book_index: nextIndex
             }).select('id').single();
+            
+            if (insBkErr || !insertedBook) {
+              throw new Error(`Checklist insertion failed: ${insBkErr?.message || 'Unknown error'}`);
+            }
             legacyBookId = insertedBook?.id;
           }
 
@@ -553,7 +573,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             .maybeSingle();
 
           if (legacyBookId) {
-            await supabase.from('user_books').upsert({
+            const { error: ubErr } = await supabase.from('user_books').upsert({
               user_id: targetUserId,
               book_id: legacyBookId,
               edition_id: editionId,
@@ -562,6 +582,10 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
               review: workReview?.review || '',
               owned_at: new Date().toISOString()
             }, { onConflict: 'user_id, edition_id' });
+            
+            if (ubErr) {
+              throw new Error(`Ownership link failed: ${ubErr.message}`);
+            }
           }
 
           // 4.5. Checklist Handshake
