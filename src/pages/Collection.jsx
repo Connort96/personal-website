@@ -479,13 +479,15 @@ export default function Collection() {
             ids: new Set([data.id]),
             t: data.title,
             a: data.author,
+            work_id: data.work_id,
             publisher: data.publisher,
             pages: data.page_count,
             genre_id: data.genre_id,
             genre_name: data.genre_name,
             color: data.color,
             badge: data.badge,
-            badgeLabel: data.badge_label
+            badgeLabel: data.badge_label,
+            isbn: data.isbn
           };
           return { ...g, books: [...g.books, newEntry].sort((a,b) => a.t.localeCompare(b.t)) };
         }
