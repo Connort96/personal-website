@@ -219,11 +219,15 @@ export default function Collection() {
 
   const toggleBook = async (id, e) => {
     e.stopPropagation();
-    if (!user) return;
+    if (!user) {
+      console.warn("[Checklist] User not logged in, cannot toggle.");
+      return;
+    }
     
     const isAdding = !ownedBooks.has(id);
+    console.log(`[Checklist] Toggling book ${id}. Action: ${isAdding ? 'Adding' : 'Removing'}`);
 
-    // Optimistic UI update
+    // 1. Optimistic UI update
     setOwnedBooks(prev => {
       const next = new Set(prev);
       if (isAdding) next.add(id);
@@ -247,28 +251,15 @@ export default function Collection() {
           .single();
         
         if (fetchErr || !legacyRef) {
-          console.error("Critical: Could not find book record for ID", id, fetchErr);
-          // Rollback UI
-          setOwnedBooks(prev => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
-          return;
+          throw new Error(`Could not find book record for ID ${id}`);
         }
 
         bookTitle = legacyRef.title;
         bookAuthor = legacyRef.author;
 
-        if (!bookTitle) {
-          console.error("Critical: Book has no title, aborting work creation.");
-          return;
-        }
-
         // Prioritize existing work_id from books table
         if (legacyRef?.work_id) {
           workId = legacyRef.work_id;
-          // Also try to find an edition for this work
           const { data: edMatch } = await supabase
             .from('editions')
             .select('id')
@@ -286,9 +277,8 @@ export default function Collection() {
               .ilike('author', bookAuthor)
               .maybeSingle();
             
-            if (workMatch) {
-              workId = workMatch.id;
-            } else {
+            if (workMatch) workId = workMatch.id;
+            else {
               const { data: newWork } = await supabase
                 .from('works')
                 .insert({ title: bookTitle, author: bookAuthor })
@@ -297,7 +287,6 @@ export default function Collection() {
             }
           }
 
-          // Create a Generic Edition for this work if one doesn't exist
           const { data: existingGeneric } = await supabase
             .from('editions')
             .select('id')
@@ -312,7 +301,7 @@ export default function Collection() {
               work_id: workId,
               publisher: legacyRef?.publisher || 'Unknown Publisher',
               format: 'Hardcover',
-              isbn: null, // Explicitly generic
+              isbn: null,
               genre_id: legacyRef?.genre_id,
               genre_name: legacyRef?.genre_name,
               color: legacyRef?.color || '#1a1a1a',
@@ -321,137 +310,11 @@ export default function Collection() {
             }).select().single();
             editionId = newEd.id;
           }
-          // Update legacy record with the found/created work_id
           await supabase.from('books').update({ work_id: workId }).eq('id', id);
         }
 
-        // 3. AUTO-SAGA & METADATA SCOUT: Precision Discovery
-        console.log(`[Checklist Scout] Scanning for "${bookTitle}" metadata...`);
-        try {
-          const searchRes = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent('"' + bookTitle + '"')}+author:${encodeURIComponent('"' + bookAuthor + '"')}&limit=1&fields=title,author_name,series_name,series_position,number_of_pages_median,publisher,isbn,first_publish_year,cover_i,subject`);
-          const searchData = await searchRes.json();
-          const firstDoc = searchData.docs?.[0];
-
-          if (firstDoc) {
-            const resultTitle = firstDoc.title.toLowerCase();
-            const resultAuthor = (firstDoc.author_name?.[0] || '').toLowerCase();
-            const targetTitle = bookTitle.toLowerCase();
-            const targetAuthor = bookAuthor.toLowerCase();
-            
-            const isTitleMatch = resultTitle.includes(targetTitle) || targetTitle.includes(resultTitle);
-            const isAuthorMatch = resultAuthor.includes(targetAuthor) || targetAuthor.includes(resultAuthor);
-
-            if (isTitleMatch && isAuthorMatch) {
-              if (firstDoc.series_name?.[0]) {
-                const seriesName = firstDoc.series_name[0];
-                const sequence = parseInt(firstDoc.series_position?.[0] || 1);
-                
-                let { data: existingS } = await supabase.from('series').select('id').ilike('name', seriesName).maybeSingle();
-                let sId;
-                if (existingS) sId = existingS.id;
-                else {
-                  const { data: newS } = await supabase.from('series').insert({ name: seriesName }).select('id').single();
-                  sId = newS.id;
-                }
-
-                await supabase.from('series_works').upsert({
-                  series_id: sId,
-                  work_id: workId,
-                  sequence_order: sequence
-                }, { onConflict: 'series_id, work_id' });
-
-                // Run robust Saga Scout
-                try {
-                  const { newWorks } = await runSagaScout(supabase, sId, seriesName, sequence, bookAuthor);
-                  if (newWorks > 0) {
-                    console.log(`[Checklist Scout] Discovered ${newWorks} missing books in ${seriesName} saga!`);
-                  }
-                } catch (sagaErr) {
-                  console.error(`[Checklist Scout] Saga Expansion failed for ${seriesName}`, sagaErr);
-                }
-              }
-
-              const updates = {};
-              if (firstDoc.number_of_pages_median) updates.page_count = firstDoc.number_of_pages_median;
-              if (firstDoc.publisher?.[0]) updates.publisher = firstDoc.publisher[0];
-              const bestIsbn = firstDoc.isbn?.find(i => i.length === 13) || firstDoc.isbn?.[0];
-              if (bestIsbn) updates.isbn = bestIsbn;
-              if (firstDoc.first_publish_year) updates.publication_date = `${firstDoc.first_publish_year}-01-01`;
-              if (firstDoc.cover_i) {
-                const olCover = `https://covers.openlibrary.org/b/id/${firstDoc.cover_i}-L.jpg`;
-                updates.cover_image_url = olCover;
-                updates.cover_url = olCover;
-              }
-
-              // Genre auto-detection from Search API subjects
-              const searchSubjects = (firstDoc.subject || []).map(s => ({ name: s }));
-              const detected = detectGenre(searchSubjects, []);
-              if (detected) {
-                const genreMeta = GENRE_META[detected.genre_id];
-                if (genreMeta) {
-                  updates.genre_id = detected.genre_id;
-                  updates.genre_name = genreMeta.genre_name;
-                  updates.color = genreMeta.color;
-                  
-                  // Cascade genre to legacy books table
-                  await supabase.from('books')
-                    .update({ 
-                      genre_id: detected.genre_id, 
-                      genre_name: genreMeta.genre_name, 
-                      color: genreMeta.color 
-                    })
-                    .eq('id', id);
-                  
-                  console.log(`[Checklist Scout] Auto-detected genre: ${genreMeta.genre_name}`);
-                }
-              }
-              
-              if (Object.keys(updates).length > 0) {
-                await supabase.from('editions').update(updates).eq('id', editionId);
-              }
-            }
-          }
-        } catch (sErr) {
-          console.error("[Saga Scout] Metadata scout failed:", sErr);
-        }
-
-        // 4. AI ENRICHMENT: Fetch vibes, motifs, setting from Gemini
-        try {
-          console.log(`[Checklist Scout] Running AI Enrichment for "${bookTitle}"...`);
-          
-          // Fetch existing taxonomy for standardization
-          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-          const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 100);
-          const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 100);
-
-          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-            body: { 
-              title: bookTitle, 
-              author: bookAuthor, 
-              provenance_string: null,
-              existing_vibes: existingVibes,
-              existing_motifs: existingMotifs
-            }
-          });
-
-          if (!aiError && aiData) {
-            const updates = { 
-              ai_enriched: true,
-              vibes: aiData.vibes || [],
-              motifs: aiData.motifs || [],
-              setting_era: aiData.setting_era || null,
-              setting_location: aiData.setting_location || null,
-              synopsis: aiData.synopsis || null
-            };
-
-            await supabase.from('works').update(updates).eq('id', workId);
-            console.log(`[Checklist Scout] AI Enrichment complete for "${bookTitle}"`);
-          }
-        } catch (aiErr) {
-          console.warn(`[Checklist Scout] AI Enrichment failed (non-blocking):`, aiErr);
-        }
-
-        await supabase.from('user_books').upsert({ 
+        // 3. Sync to user_books
+        const { error: upsertError } = await supabase.from('user_books').upsert({ 
           user_id: user.id, 
           book_id: id,
           edition_id: editionId,
@@ -459,24 +322,28 @@ export default function Collection() {
           owned_at: new Date().toISOString()
         }, { onConflict: 'user_id, book_id' });
 
-        setOwnedBooks(prev => {
-          const next = new Set(prev);
-          next.add(id);
-          return next;
-        });
+        if (upsertError) throw upsertError;
+        console.log(`[Checklist] Successfully added ${bookTitle} to owned shelf.`);
+
       } else {
-        await supabase.from('user_books').delete().match({ user_id: user.id, book_id: id });
-        await supabase.from('user_books').delete().match({ user_id: user.id, edition_id: id });
+        // Removing
+        const { error: deleteError } = await supabase
+          .from('user_books')
+          .delete()
+          .match({ user_id: user.id, book_id: id });
+        
+        if (deleteError) throw deleteError;
+        console.log(`[Checklist] Successfully removed book ${id} from owned shelf.`);
       }
     } catch (err) {
-      console.error("Error syncing book:", err);
-      if (!isAdding) {
-        setOwnedBooks(prev => {
-          const next = new Set(prev);
-          next.add(id);
-          return next;
-        });
-      }
+      console.error("[Checklist] Sync failed:", err);
+      // Rollback UI on error
+      setOwnedBooks(prev => {
+        const next = new Set(prev);
+        if (isAdding) next.delete(id);
+        else next.add(id);
+        return next;
+      });
     }
   };
 
