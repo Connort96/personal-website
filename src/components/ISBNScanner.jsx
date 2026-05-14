@@ -387,7 +387,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                 edition_id: existingEd.id,
                 status: 'unread',
                 owned_at: new Date().toISOString()
-              }, { onConflict: 'user_id, book_id' });
+              }, { onConflict: 'user_id, edition_id' });
             }
             console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
             continue;
@@ -531,7 +531,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             rating: workReview?.rating || 0,
             review: workReview?.review || '',
             owned_at: new Date().toISOString()
-          }, { onConflict: 'user_id, book_id' });
+          }, { onConflict: 'user_id, edition_id' });
         }
 
         // 4.5. Checklist Handshake
