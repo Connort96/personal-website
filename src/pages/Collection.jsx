@@ -57,6 +57,7 @@ export default function Collection() {
   const [openGenres, setOpenGenres] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'missing', 'owned'
+  const [viewMode, setViewMode] = useState('category'); // 'category' | 'imprint'
   const [categorySort, setCategorySort] = useState('alphabetical'); // 'alphabetical' | 'count'
   const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
@@ -115,7 +116,7 @@ export default function Collection() {
             genre_id: b.genre_id,
             work_id: b.work_id,
             genre_name: b.genre_name,
-            imprint: b.imprint_collection,
+            imprint: b.collection_imprint || b.imprint_collection,
             color: b.color,
             badge: b.badge,
             badgeLabel: b.badge_label
@@ -149,7 +150,14 @@ export default function Collection() {
             .select(`
               book_id,
               edition_id,
-              editions (work_id)
+              editions (
+                work_id,
+                collection_imprint,
+                imprint_collection
+              ),
+              works:book_id (
+                themes
+              )
             `)
             .eq('user_id', user.id);
           
@@ -173,14 +181,10 @@ export default function Collection() {
           }
         });
 
-        // Final sorting of books within each category (A-Z)
-        const finalCategories = Array.from(collectionsMap.values()).map(g => ({
-          ...g,
-          books: g.books.sort((a, b) => a.t.localeCompare(b.t))
-        }));
-
+        // Final grouping and sorting
+        const finalCategories = Array.from(collectionsMap.values());
         setLibraryData(finalCategories);
-        setOwnedBooks(ownedGroupIds);
+        setOwnedBooks(ownedWorkSet);
       } catch (err) {
         console.error("Error loading collection:", err);
       } finally {
@@ -356,14 +360,47 @@ export default function Collection() {
   }, [ownedBooks, libraryData]);
 
   const sortedLibrary = useMemo(() => {
-    return [...libraryData].sort((a, b) => {
+    // 1. Determine groupings based on viewMode
+    const groupings = new Map();
+
+    libraryData.forEach(cat => {
+      cat.books.forEach(book => {
+        let groupId, groupName;
+        
+        if (viewMode === 'imprint') {
+          groupId = book.imprint || 'Standalone';
+          groupName = book.imprint || 'Standalone Editions';
+        } else {
+          // View by Category (Genre or Theme)
+          groupId = book.genre_id;
+          groupName = book.genre_name;
+        }
+
+        if (!groupings.has(groupId)) {
+          groupings.set(groupId, {
+            id: groupId,
+            name: groupName,
+            isImprint: viewMode === 'imprint',
+            color: book.color || 'var(--accent-primary)',
+            badge: book.badge,
+            badgeLabel: book.badgeLabel,
+            books: []
+          });
+        }
+        groupings.get(groupId).books.push(book);
+      });
+    });
+
+    const categories = Array.from(groupings.values());
+
+    return categories.sort((a, b) => {
       if (categorySort === 'alphabetical') {
         return a.name.localeCompare(b.name);
       } else {
         return b.books.length - a.books.length;
       }
     });
-  }, [libraryData, categorySort]);
+  }, [libraryData, categorySort, viewMode]);
   
   const handleQuickAdd = async (e) => {
     e.preventDefault();
@@ -590,11 +627,28 @@ export default function Collection() {
         </div>
       </div>
 
+      <div className="collection-view-toggle-container">
+        <div className="segmented-toggle">
+          <button 
+            className={`toggle-btn ${viewMode === 'category' ? 'active' : ''}`}
+            onClick={() => setViewMode('category')}
+          >
+            View by Category
+          </button>
+          <button 
+            className={`toggle-btn ${viewMode === 'imprint' ? 'active' : ''}`}
+            onClick={() => setViewMode('imprint')}
+          >
+            View by Imprint
+          </button>
+        </div>
+      </div>
+
       <div className="collection-controls-sticky">
         <input 
-          type="search" 
+          type="text" 
           className="collection-search-bar" 
-          placeholder="Search the ledger..." 
+          placeholder="Search the ledger..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
