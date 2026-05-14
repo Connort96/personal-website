@@ -899,61 +899,6 @@ export default function Collection() {
   );
 }
 
-
-
-
-  return (
-    <div className="fulfillment-overlay">
-      <div className="fulfillment-modal">
-        <div className="fulfillment-modal-header">
-          <h3>Select Edition for "{data.title}"</h3>
-          <button className="fulfillment-close-top" onClick={onClose}>✕</button>
-        </div>
-        <p>Pick the cover that matches your copy to finalize archival.</p>
-
-        <form className="fulfillment-isbn-search" onSubmit={handleIsbnSearch}>
-          <input 
-            type="text" 
-            placeholder="Search by exact ISBN..." 
-            value={manualIsbn}
-            onChange={(e) => setManualIsbn(e.target.value)}
-          />
-          <button type="submit" disabled={isSearchingIsbn}>
-            {isSearchingIsbn ? 'Searching...' : 'Find'}
-          </button>
-        </form>
-        
-        {loading ? (
-          <div className="fulfillment-loading">
-            <div className="fulfillment-spinner"></div>
-            <span>Scouting editions...</span>
-          </div>
-        ) : (
-          <div className="fulfillment-grid">
-            {results.filter(r => r.isbn && r.isbn.length > 0).map((r, i) => (
-              <div key={i} className="fulfillment-card" onClick={() => onFulfill(r)}>
-                <div className="fulfillment-cover-wrapper">
-                  <img src={`https://covers.openlibrary.org/b/isbn/${r.isbn[0]}-M.jpg`} alt="Cover" />
-                </div>
-                <div className="fulfillment-card-info">
-                  <span className="fulfillment-publisher">{r.publisher?.[0] || 'Unknown Publisher'}</span>
-                  <span className="fulfillment-isbn">{r.isbn[0]}</span>
-                </div>
-              </div>
-            ))}
-            {results.length === 0 && (
-              <div className="fulfillment-empty">
-                No editions found. Try searching by ISBN above.
-              </div>
-            )}
-          </div>
-        )}
-        <button className="fulfillment-cancel" onClick={onClose}>Cancel</button>
-      </div>
-    </div>
-  );
-};
-
 const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
