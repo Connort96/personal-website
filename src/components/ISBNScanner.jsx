@@ -475,6 +475,51 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
 
           if (ubErr) throw new Error(`Ownership link failed: ${ubErr.message}`);
 
+          // 5. AI Enrichment & Provenance
+          try {
+            // Optional: Delay to avoid rate limits
+            await new Promise(r => setTimeout(r, 300));
+            
+            const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+            const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+            const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+
+            const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+              body: { 
+                title: bookData.title, 
+                author: bookData.author, 
+                provenance_string: provenanceNote || null,
+                existing_vibes: existingVibes,
+                existing_motifs: existingMotifs
+              }
+            });
+
+            if (!aiError && aiData) {
+              // Update Work with AI insights
+              await supabase.from('works').update({
+                vibes: aiData.vibes || [],
+                motifs: aiData.motifs || [],
+                setting_era: aiData.setting_era || null,
+                setting_location: aiData.setting_location || null,
+                synopsis: aiData.synopsis || bookData.description || null,
+                ai_enriched: true
+              }).eq('id', workId);
+
+              // Update Edition with Provenance details
+              if (aiData.provenance) {
+                const prov = aiData.provenance;
+                await supabase.from('editions').update({
+                  condition: prov.condition || null,
+                  defects: prov.defects || [],
+                  acquisition_notes: prov.acquisition_source || provenanceNote || null,
+                  acquisition_year: prov.acquisition_year || null
+                }).eq('id', editionId);
+              }
+            }
+          } catch (aiErr) {
+            console.warn(`[Batch Scanner] AI Enrichment failed (non-blocking) for ${bookData.title}:`, aiErr);
+          }
+
         } catch (itemErr) {
           console.error(`[Batch Scanner] Failed item "${item.title}":`, itemErr);
           showToast(`Failed: ${item.title} - ${itemErr.message}`, 'error');
