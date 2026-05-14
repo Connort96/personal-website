@@ -658,6 +658,8 @@ export default function BookDetail() {
               currentBookId={work.id} 
               themes={work.motifs || []} 
               vibes={work.vibes || []} 
+              author={work.author}
+              seriesName={work.saga?.name}
             />
           </div>
         </div>

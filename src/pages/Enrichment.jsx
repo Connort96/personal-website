@@ -134,6 +134,10 @@ export default function Enrichment() {
                   series_id: sId, work_id: work.id,
                   sequence_order: aiData.series_index || 1
                 }, { onConflict: 'series_id, work_id' });
+
+                // Denormalize series_name
+                await supabase.from('works').update({ series_name: aiData.series_name }).eq('id', work.id);
+                
                 // Run auto-saga scout non-blocking so it populates missing books
                 runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, work.author).catch(e => console.warn(e));
               }

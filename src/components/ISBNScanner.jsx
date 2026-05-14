@@ -531,6 +531,9 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             sequence_order: bookData.series.sequence
           }, { onConflict: 'series_id, work_id' });
 
+          // NEW: Denormalize series_name to works table for optimized RelatedWorks queries
+          await supabase.from('works').update({ series_name: bookData.series.name }).eq('id', workId);
+
           // NEW: Automated Saga Expansion using robust utility
           try {
             const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence, bookData.author);
@@ -602,6 +605,10 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                   series_id: sId, work_id: workId,
                   sequence_order: aiData.series_index || 1
                 }, { onConflict: 'series_id, work_id' });
+
+                // Denormalize series_name
+                await supabase.from('works').update({ series_name: aiData.series_name }).eq('id', workId);
+                
                 await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, bookData.author);
               }
             }
