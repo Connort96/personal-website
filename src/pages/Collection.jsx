@@ -575,20 +575,23 @@ export default function Collection() {
       }
 
       const coverUrl = edition.coverUrl || `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
-      const storageUrl = await processAndUploadCover(coverUrl, isbn);
+      const storageUrl = await processAndUploadCover(coverUrl, isbn).catch(e => {
+        console.warn("[Fulfillment] Cover upload failed:", e);
+        return coverUrl;
+      });
 
       const { data: newEd, error: neErr } = await supabase.from('editions').insert({
         work_id: finalWorkId,
-        isbn: isbn,
+        isbn: isbn || null,
         cover_url: storageUrl,
         cover_image_url: storageUrl,
         publisher: edition.publisher?.[0] || legacyRef?.publisher || 'Unknown Publisher',
         format: 'Hardcover',
-        genre_id: legacyRef?.genre_id,
-        genre_name: legacyRef?.genre_name,
-        color: legacyRef?.color || '#1a1a1a',
-        badge: legacyRef?.badge,
-        badge_label: legacyRef?.badge_label
+        genre_id: legacyRef?.genre_id || 'modern_post2000',
+        genre_name: legacyRef?.genre_name || 'Modern Fiction (Post-2000)',
+        color: legacyRef?.color || '#4A8A8A',
+        badge: legacyRef?.badge || null,
+        badge_label: legacyRef?.badgeLabel || null
       }).select().single();
 
       if (neErr) throw neErr;
