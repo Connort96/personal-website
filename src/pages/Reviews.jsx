@@ -61,7 +61,7 @@ export default function Reviews() {
             user_id, book_id, edition_id, status, rating, review, owned_at,
             editions ( 
               id, work_id, cover_url, cover_image_url, color, genre_name, 
-              works!work_id ( id, title, author ) 
+              works!editions_work_id_fkey ( id, title, author ) 
             ),
             books ( id, title, author, cover_url, color, genre_name )
           `)

@@ -156,7 +156,7 @@ export default function Collection() {
                 work_id,
                 collection_imprint,
                 imprint_collection,
-                works (themes)
+                works!editions_work_id_fkey (themes)
               )
             `)
             .eq('user_id', user.id);

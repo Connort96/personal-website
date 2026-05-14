@@ -30,13 +30,13 @@ export default function Home() {
           ] = await Promise.all([
             supabase.from('user_books').select(`
               book_id, status, current_page,
-              editions ( cover_url, works!work_id ( title, author ) ),
+              editions ( cover_url, works!editions_work_id_fkey ( title, author ) ),
               books ( title, author, cover_url, page_count )
             `).eq('user_id', adminId).eq('status', 'reading').limit(1),
 
             supabase.from('user_books').select(`
               book_id,
-              editions ( id, work_id, cover_url, works!work_id ( id, title ) ),
+              editions ( id, work_id, cover_url, works!editions_work_id_fkey ( id, title ) ),
               books ( id, cover_url, title )
             `).eq('user_id', adminId).order('owned_at', { ascending: false }).limit(10),
 

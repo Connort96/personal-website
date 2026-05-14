@@ -36,7 +36,7 @@ export default function RelatedWorks({ currentBookId, themes = [], vibes = [], a
         
         let query = supabase
           .from('works')
-          .select('id, title, author, series_name, motifs, vibes, editions(cover_image_url, cover_url)')
+          .select('id, title, author, series_name, motifs, vibes, editions!editions_work_id_fkey(cover_image_url, cover_url)')
           .or(orConditions.join(','))
           .neq('id', bookId);
         
