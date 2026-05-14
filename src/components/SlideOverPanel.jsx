@@ -58,7 +58,6 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
   const [status, setStatus] = useState('unread');
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [saving, setSaving] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
@@ -74,7 +73,6 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     setStatus(book.status || 'unread');
     setRating(book.rating || 0);
     setReview(book.review || '');
-    setCoverUrl(book.coverUrl || '');
     setCurrentPage(book.currentPage || 0);
     setEditingEditionId(null);
     setEditionEdits({});
@@ -221,7 +219,7 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
           review: review.trim() || null,
           current_page: parseInt(currentPage) || 0 
         }, 
-        coverUrl.trim() || null,
+        null,
         editionEdits,
         primaryEditionId
       );

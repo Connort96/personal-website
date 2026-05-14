@@ -396,10 +396,6 @@ export default function BookDetail({ id: propId, onDelete }) {
           .eq('user_id', user.id)
           .in('edition_id', editionIds);
       }
-      // 2. Update global cover if provided
-      if (globalCoverUrl !== undefined && globalCoverUrl !== null) {
-        await supabase.from('editions').update({ cover_image_url: globalCoverUrl }).eq('work_id', workId);
-      }
       
       // 3. Update primary edition if provided
       if (primaryEditionId) {
