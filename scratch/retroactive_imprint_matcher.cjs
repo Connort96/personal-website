@@ -1,5 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const fetch = require('node-fetch');
 const sharp = require('sharp');
 require('dotenv').config({ path: '.env.local' });
 

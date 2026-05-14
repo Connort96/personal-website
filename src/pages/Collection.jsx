@@ -63,7 +63,8 @@ export default function Collection() {
   const isInitialMount = useRef(true);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '', isbn: '' });
-  const [addStatus, setAddStatus] = useState(null); // 'saving', 'success', 'error'
+  const [addStatus, setAddStatus] = useState(null); // null, 'saving', 'success', 'error'
+  const [fulfillmentData, setFulfillmentData] = useState(null); // { bookId, workId, title, author }
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedWorkId, setSelectedWorkId] = useState(null);
@@ -265,55 +266,29 @@ export default function Collection() {
           workId = legacyRef.work_id;
           const { data: edMatch } = await supabase
             .from('editions')
-            .select('id')
+            .select('id, isbn')
             .eq('work_id', workId)
+            .not('isbn', 'is', null)
             .maybeSingle();
           if (edMatch) editionId = edMatch.id;
         }
 
+        // INTERCEPT: If no physical edition exists (ISBN-less), trigger fulfillment
         if (!editionId) {
-          if (!workId) {
-            const { data: workMatch } = await supabase
-              .from('works')
-              .select('id')
-              .ilike('title', bookTitle)
-              .ilike('author', bookAuthor)
-              .maybeSingle();
-            
-            if (workMatch) workId = workMatch.id;
-            else {
-              const { data: newWork } = await supabase
-                .from('works')
-                .insert({ title: bookTitle, author: bookAuthor })
-                .select().single();
-              workId = newWork.id;
-            }
-          }
-
-          const { data: existingGeneric } = await supabase
-            .from('editions')
-            .select('id')
-            .eq('work_id', workId)
-            .is('isbn', null)
-            .maybeSingle();
-
-          if (existingGeneric) {
-            editionId = existingGeneric.id;
-          } else {
-            const { data: newEd } = await supabase.from('editions').insert({
-              work_id: workId,
-              publisher: legacyRef?.publisher || 'Unknown Publisher',
-              format: 'Hardcover',
-              isbn: null,
-              genre_id: legacyRef?.genre_id,
-              genre_name: legacyRef?.genre_name,
-              color: legacyRef?.color || '#1a1a1a',
-              badge: legacyRef?.badge,
-              badge_label: legacyRef?.badge_label
-            }).select().single();
-            editionId = newEd.id;
-          }
-          await supabase.from('books').update({ work_id: workId }).eq('id', id);
+          setFulfillmentData({ 
+            bookId: id, 
+            title: bookTitle, 
+            author: bookAuthor, 
+            workId: workId,
+            legacyRef 
+          });
+          // Reset optimistic UI for now, we'll re-apply on fulfillment
+          setOwnedBooks(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          return;
         }
 
         // 3. Sync to user_books
@@ -552,6 +527,64 @@ export default function Collection() {
     setSearchSuggestions([]);
   };
 
+  const handleFulfill = async (edition) => {
+    const { bookId, workId, legacyRef } = fulfillmentData;
+    const isbn = edition.isbn?.[0];
+    
+    try {
+      setAddStatus('saving');
+      
+      let finalWorkId = workId;
+      if (!finalWorkId) {
+        const { data: newWork } = await supabase.from('works').insert({ 
+          title: fulfillmentData.title, 
+          author: fulfillmentData.author 
+        }).select().single();
+        finalWorkId = newWork.id;
+      }
+
+      const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+      const storageUrl = await processAndUploadCover(coverUrl, isbn);
+
+      const { data: newEd } = await supabase.from('editions').insert({
+        work_id: finalWorkId,
+        isbn: isbn,
+        cover_url: storageUrl,
+        cover_image_url: storageUrl,
+        publisher: edition.publisher?.[0] || legacyRef?.publisher || 'Unknown Publisher',
+        format: 'Hardcover',
+        genre_id: legacyRef?.genre_id,
+        genre_name: legacyRef?.genre_name,
+        color: legacyRef?.color || '#1a1a1a',
+        badge: legacyRef?.badge,
+        badge_label: legacyRef?.badge_label
+      }).select().single();
+
+      await supabase.from('books').update({ work_id: finalWorkId }).eq('id', bookId);
+
+      await supabase.from('user_books').upsert({
+        user_id: user.id,
+        book_id: bookId,
+        edition_id: newEd.id,
+        status: 'unread',
+        owned_at: new Date().toISOString()
+      }, { onConflict: 'user_id, book_id' });
+
+      setOwnedBooks(prev => {
+        const next = new Set(prev);
+        next.add(bookId);
+        return next;
+      });
+
+      setFulfillmentData(null);
+      setAddStatus('success');
+      setTimeout(() => setAddStatus(null), 2000);
+    } catch (err) {
+      console.error("[Fulfillment] Failed:", err);
+      setAddStatus('error');
+    }
+  };
+
   const lowerSearch = searchQuery.toLowerCase();
 
   return (
@@ -572,6 +605,14 @@ export default function Collection() {
           {isSyncing && <div className="collection-sync-badge">Syncing...</div>}
         </div>
       </div>
+
+      {fulfillmentData && (
+        <FulfillmentModal 
+          data={fulfillmentData} 
+          onFulfill={handleFulfill} 
+          onClose={() => setFulfillmentData(null)} 
+        />
+      )}
 
       <AnimatePresence>
         {isAddingNew && isAdmin && (
@@ -805,3 +846,55 @@ export default function Collection() {
   );
 }
 
+
+const FulfillmentModal = ({ data, onFulfill, onClose }) => {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function searchEditions() {
+      try {
+        const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`);
+        const json = await res.json();
+        setResults(json.docs || []);
+      } catch (err) {
+        console.error("Fulfillment search failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    searchEditions();
+  }, [data]);
+
+  return (
+    <div className="fulfillment-overlay">
+      <div className="fulfillment-modal">
+        <h3>Select Edition for "{data.title}"</h3>
+        <p>Pick the cover that matches your copy to finalize archival.</p>
+        
+        {loading ? (
+          <div className="fulfillment-loading">
+            <div className="fulfillment-spinner"></div>
+            <span>Scouting editions...</span>
+          </div>
+        ) : (
+          <div className="fulfillment-grid">
+            {results.filter(r => r.isbn && r.isbn.length > 0).map((r, i) => (
+              <div key={i} className="fulfillment-card" onClick={() => onFulfill(r)}>
+                <div className="fulfillment-cover-wrapper">
+                  <img src={`https://covers.openlibrary.org/b/isbn/${r.isbn[0]}-M.jpg`} alt="Cover" />
+                </div>
+                <div className="fulfillment-card-info">
+                  <span className="fulfillment-publisher">{r.publisher?.[0] || 'Unknown Publisher'}</span>
+                  <span className="fulfillment-isbn">{r.isbn[0]}</span>
+                </div>
+              </div>
+            ))}
+            {results.length === 0 && <div className="fulfillment-empty">No editions found.</div>}
+          </div>
+        )}
+        <button className="fulfillment-cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+};
