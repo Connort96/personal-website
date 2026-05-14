@@ -516,7 +516,7 @@ export default function Collection() {
   const selectSuggestion = (s) => {
     // Auto-detect genre from the selected book's subjects
     const subjects = (s.subject || []).map(subj => ({ name: subj }));
-    const detected = detectGenre(subjects, []);
+    const detected = detectGenre(s.title, subjects, []);
     
     setNewBook({
       title: s.title,
@@ -760,6 +760,29 @@ export default function Collection() {
                   </div>
                 )}
               </div>
+
+              <div className="quick-add-row">
+                <input 
+                  type="text" 
+                  className="smart-search-input"
+                  placeholder="Author..."
+                  value={newBook.author}
+                  onChange={e => setNewBook(prev => ({ ...prev, author: e.target.value }))}
+                  required
+                />
+                <select 
+                  className="smart-search-input"
+                  value={newBook.genre_id}
+                  onChange={e => setNewBook(prev => ({ ...prev, genre_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Select Genre...</option>
+                  {Object.entries(GENRE_META).map(([id, meta]) => (
+                    <option key={id} value={id}>{meta.genre_name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="form-actions">
                 <button type="submit" className="submit-btn" disabled={addStatus === 'saving'}>
                   {addStatus === 'saving' ? 'Archiving...' : addStatus === 'success' ? 'Added!' : 'Add to Checklist'}

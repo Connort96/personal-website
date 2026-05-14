@@ -441,6 +441,12 @@
   gap: var(--space-4);
 }
 
+.quick-add-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
 .smart-search-input {
   width: 100%;
   background: var(--bg-tertiary);
