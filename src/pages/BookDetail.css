@@ -756,3 +756,38 @@
   50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
+
+.book-detail-admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.enrichment-sync-btn {
+  background: transparent;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.enrichment-sync-btn:hover:not(:disabled) {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.enrichment-sync-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}

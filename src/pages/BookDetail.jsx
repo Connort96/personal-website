@@ -47,6 +47,7 @@ export default function BookDetail({ id: propId, onDelete }) {
 
     try {
       console.log(`[Archive] Starting deaccession for Work ID: ${work.id}`);
+      const workId = work.id;
       
       // 1. Cleanup Storage
       for (const ed of work.editions) {
@@ -57,7 +58,6 @@ export default function BookDetail({ id: propId, onDelete }) {
             if (pathParts.length > 1) {
               const filePath = pathParts[1];
               await supabase.storage.from('book-covers').remove([filePath]);
-              console.log(`[Archive Cleanup] Deleted storage file: ${filePath}`);
             }
           } catch (stErr) {
             console.warn("[Archive Cleanup] Storage cleanup failed:", stErr);
@@ -66,21 +66,22 @@ export default function BookDetail({ id: propId, onDelete }) {
       }
 
       // 2. Database Cleanup (Safe Order)
-      const workId = work.id;
+      // a. Clean series links
+      await supabase.from('series_works').delete().eq('work_id', workId);
 
-      // a. Clean user links
+      // b. Clean user links
       await supabase.from('user_books').delete().eq('book_id', workId); // Legacy fallback
       for (const ed of work.editions) {
         await supabase.from('user_books').delete().eq('edition_id', ed.id);
       }
 
-      // b. Clean legacy table
+      // c. Clean legacy table
       await supabase.from('books').delete().eq('work_id', workId);
 
-      // c. Clean modern editions
+      // d. Clean modern editions
       await supabase.from('editions').delete().eq('work_id', workId);
 
-      // d. Delete Master Work
+      // e. Delete Master Work
       const { error: workErr } = await supabase.from('works').delete().eq('id', workId);
       if (workErr) throw workErr;
 
@@ -94,6 +95,47 @@ export default function BookDetail({ id: propId, onDelete }) {
     } catch (err) {
       console.error("[Archive] Deaccession failed:", err);
       alert("Failed to remove book: " + err.message);
+    }
+  };
+
+  const [isEnriching, setIsEnriching] = useState(false);
+  const handleManualEnrich = async () => {
+    setIsEnriching(true);
+    try {
+      console.log(`[Enrichment] Manually triggering AI Taxonomy for "${work.title}"`);
+      const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+      const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+      const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+        body: { 
+          title: work.title, 
+          author: work.author, 
+          existing_vibes: existingVibes,
+          existing_motifs: existingMotifs
+        }
+      });
+
+      if (aiError) throw aiError;
+      if (!aiData) throw new Error("No AI data returned");
+
+      await supabase.from('works').update({
+        vibes: aiData.vibes || [],
+        motifs: aiData.motifs || [],
+        setting_era: aiData.setting_era || null,
+        setting_location: aiData.setting_location || null,
+        synopsis: aiData.synopsis || null,
+        ai_enriched: true,
+        series_name: aiData.series_name || null
+      }).eq('id', work.id);
+
+      alert("Literary metadata synchronized successfully!");
+      loadBookData();
+    } catch (err) {
+      console.error("[Enrichment] Manual sync failed:", err);
+      alert("Failed to synchronize metadata: " + err.message);
+    } finally {
+      setIsEnriching(false);
     }
   };
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -725,6 +767,13 @@ export default function BookDetail({ id: propId, onDelete }) {
 
             {isAdmin && (
               <div className="book-detail-admin-actions">
+                <button 
+                  className="enrichment-sync-btn"
+                  onClick={handleManualEnrich}
+                  disabled={isEnriching}
+                >
+                  {isEnriching ? '🔄 Syncing Metadata...' : '✨ Synchronize Literary Metadata'}
+                </button>
                 <button 
                   className={`deaccession-btn ${deleteConfirm ? 'confirm' : ''}`}
                   onClick={handleDeleteBook}
