@@ -178,24 +178,52 @@
 }
 
 .collection-genre-section {
-  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  transition: all 0.3s var(--ease-out);
+  position: relative;
 }
 
-.collection-genre-section:last-child {
-  border-bottom: none;
+.collection-genre-section:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
 }
 
 .collection-genre-header {
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-6) var(--space-8);
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  transition: background 0.2s ease;
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  transition: background 0.3s ease;
 }
 
 .collection-genre-header:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Colored accent line at the bottom of header */
+.collection-genre-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-subtle);
+  opacity: 0.3;
+  transition: all 0.3s ease;
+}
+
+.collection-genre-section.open .collection-genre-header::after {
+  height: 2px;
+  background: var(--cat-color);
+  opacity: 1;
 }
 
 .collection-genre-title-wrapper {
@@ -340,7 +368,7 @@
 
 /* ── Imprint Specifics ───────────────────────────────────── */
 .is-imprint .collection-genre-title {
-  color: var(--accent-secondary);
+  color: var(--cat-color);
 }
 
 /* ── Admin Form ─────────────────────────────────────────── */
