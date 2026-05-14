@@ -718,3 +718,41 @@
     justify-content: center;
   }
 }
+
+/* ── Deaccession Actions ─────────────────────────────────── */
+.book-detail-admin-actions {
+  margin-top: var(--space-20);
+  padding-top: var(--space-8);
+  border-top: 1px dashed var(--border-subtle);
+  display: flex;
+  justify-content: center;
+}
+
+.deaccession-btn {
+  background: transparent;
+  border: none;
+  color: rgba(127, 29, 29, 0.5); /* red-900/50 approx */
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.deaccession-btn:hover {
+  color: #ef4444; /* red-500 */
+}
+
+.deaccession-btn.confirm {
+  color: #ef4444;
+  font-weight: 700;
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}

@@ -24,7 +24,7 @@ const FormatIcon = ({ format }) => {
     </svg>
   );
 };
-export default function BookDetail({ id: propId }) {
+export default function BookDetail({ id: propId, onDelete }) {
   const { id: paramId } = useParams();
   const id = propId || paramId;
   const navigate = useNavigate();
@@ -35,7 +35,67 @@ export default function BookDetail({ id: propId }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSyncingSaga, setIsSyncingSaga] = useState(false);
   const [isDetectingAI, setIsDetectingAI] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const isAdmin = user?.email === 'theconison96@gmail.com';
+
+  const handleDeleteBook = async () => {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      setTimeout(() => setDeleteConfirm(false), 3000); // Reset after 3s
+      return;
+    }
+
+    try {
+      console.log(`[Archive] Starting deaccession for Work ID: ${work.id}`);
+      
+      // 1. Cleanup Storage
+      for (const ed of work.editions) {
+        const coverUrl = ed.cover_image_url || ed.cover_url;
+        if (coverUrl && coverUrl.includes('supabase.co/storage')) {
+          try {
+            const pathParts = coverUrl.split('/public/book-covers/');
+            if (pathParts.length > 1) {
+              const filePath = pathParts[1];
+              await supabase.storage.from('book-covers').remove([filePath]);
+              console.log(`[Archive Cleanup] Deleted storage file: ${filePath}`);
+            }
+          } catch (stErr) {
+            console.warn("[Archive Cleanup] Storage cleanup failed:", stErr);
+          }
+        }
+      }
+
+      // 2. Database Cleanup (Safe Order)
+      const workId = work.id;
+
+      // a. Clean user links
+      await supabase.from('user_books').delete().eq('book_id', workId); // Legacy fallback
+      for (const ed of work.editions) {
+        await supabase.from('user_books').delete().eq('edition_id', ed.id);
+      }
+
+      // b. Clean legacy table
+      await supabase.from('books').delete().eq('work_id', workId);
+
+      // c. Clean modern editions
+      await supabase.from('editions').delete().eq('work_id', workId);
+
+      // d. Delete Master Work
+      const { error: workErr } = await supabase.from('works').delete().eq('id', workId);
+      if (workErr) throw workErr;
+
+      console.log(`[Archive] Successfully deaccessioned Work ID: ${workId}`);
+      
+      if (onDelete) {
+        onDelete(workId);
+      } else {
+        navigate('/books');
+      }
+    } catch (err) {
+      console.error("[Archive] Deaccession failed:", err);
+      alert("Failed to remove book: " + err.message);
+    }
+  };
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const loadBookData = useCallback(async () => {
     setLoading(true);
@@ -662,6 +722,17 @@ export default function BookDetail({ id: propId }) {
               author={work.author}
               seriesName={work.saga?.name}
             />
+
+            {isAdmin && (
+              <div className="book-detail-admin-actions">
+                <button 
+                  className={`deaccession-btn ${deleteConfirm ? 'confirm' : ''}`}
+                  onClick={handleDeleteBook}
+                >
+                  {deleteConfirm ? 'Click again to confirm removal' : 'Remove from Archive'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

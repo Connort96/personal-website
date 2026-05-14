@@ -788,7 +788,18 @@ export default function Collection() {
         onClose={() => setSelectedWorkId(null)}
         title="Archival Record"
       >
-        {selectedWorkId && <BookDetail id={selectedWorkId} />}
+        {selectedWorkId && (
+          <BookDetail 
+            id={selectedWorkId} 
+            onDelete={(deletedId) => {
+              setSelectedWorkId(null);
+              setLibraryData(prev => prev.map(cat => ({
+                ...cat,
+                books: cat.books.filter(b => b.work_id !== deletedId && b.id !== deletedId)
+              })));
+            }} 
+          />
+        )}
       </Drawer>
     </div>
   );
