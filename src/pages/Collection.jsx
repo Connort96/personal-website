@@ -390,23 +390,15 @@ export default function Collection() {
       const genre = GENRE_META[targetGenreId];
       if (!genre) throw new Error("Invalid Genre");
       
-      // 1. Silent Scout: Find or Create Master Work
-      let workId = null;
-      const { data: existingWork, error: scoutErr } = await supabase
-        .from('works')
-        .select('id')
-        .ilike('title', newBook.title)
-        .ilike('author', targetAuthor)
-        .maybeSingle();
-      
-      if (scoutErr) console.warn("[Quick Add] Scout check error:", scoutErr);
+      const cleanTitle = newBook.title.trim();
+      const cleanAuthor = targetAuthor.trim();
 
-      // New: Check if this book already exists in the checklist to prevent duplicates
+      // 1. Duplicate Checklist Check
       const { data: existingBook } = await supabase
         .from('books')
         .select('id')
-        .ilike('title', newBook.title)
-        .ilike('author', targetAuthor)
+        .ilike('title', cleanTitle)
+        .ilike('author', cleanAuthor)
         .maybeSingle();
 
       if (existingBook) {
@@ -416,10 +408,8 @@ export default function Collection() {
         return;
       }
 
-      // 1. Silent Scout: Find or Create Master Work (Robust Detection)
+      // 2. Silent Scout: Find or Create Master Work (Robust Detection)
       let workId = null;
-      const cleanTitle = newBook.title.trim();
-      const cleanAuthor = targetAuthor.trim();
 
       // Step A: Try lookup by ISBN if available
       if (newBook.isbn) {
