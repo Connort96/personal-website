@@ -326,3 +326,74 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--accent-primary);
   color: white;
 }
+
+/* Fulfillment Modal Upgrades */
+.fulfillment-subtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
+.fulfillment-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border-subtle), transparent);
+  margin: var(--space-8) 0;
+  width: 100%;
+}
+
+.fulfillment-manual-override {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.fulfillment-manual-override:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 4px var(--accent-primary-alpha);
+}
+
+.fulfillment-manual-override input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: var(--space-2) 0;
+  outline: none;
+}
+
+.fulfillment-manual-submit {
+  background: transparent;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.fulfillment-manual-submit:hover:not(:disabled) {
+  transform: translateX(3px);
+}
+
+.fulfillment-manual-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.fulfillment-manual-submit .arrow {
+  font-size: 18px;
+  font-weight: 300;
+}

@@ -564,7 +564,7 @@ export default function Collection() {
         await supabase.from('works').update({ in_collection: true }).eq('id', finalWorkId);
       }
 
-      const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+      const coverUrl = edition.coverUrl || `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
       const storageUrl = await processAndUploadCover(coverUrl, isbn);
 
       const { data: newEd, error: neErr } = await supabase.from('editions').insert({
@@ -938,34 +938,36 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [manualIsbn, setManualIsbn] = useState('');
-  const [isSearchingIsbn, setIsSearchingIsbn] = useState(false);
 
-  const fetchResults = useCallback(async (isbn = null) => {
+  const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
-      // Increase search limit to 20 so we have a better chance of finding 3 with covers
-      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=20&fields=title,isbn,publisher,cover_i`;
-      if (isbn) {
-        url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
-      }
+      const q = `intitle:${encodeURIComponent(data.title)}+inauthor:${encodeURIComponent(data.author)}`;
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=8&printType=books`;
       const res = await fetch(url);
       const json = await res.json();
       
-      // Filter for records that actually have a cover and ISBN for the best UX
-      const withCovers = (json.docs || []).filter(r => r.isbn && r.isbn.length > 0 && r.cover_i);
-      
-      // Still only show 3 most relevant results to the user as requested
-      setResults(withCovers.slice(0, 3));
-      
-      // Fallback if none have covers
-      if (withCovers.length === 0) {
-        setResults((json.docs || []).slice(0, 3));
-      }
+      const mapped = (json.items || []).map(item => {
+        const info = item.volumeInfo;
+        const isbns = info.industryIdentifiers || [];
+        const isbn13 = isbns.find(i => i.type === 'ISBN_13')?.identifier;
+        const isbn10 = isbns.find(i => i.type === 'ISBN_10')?.identifier;
+        const finalIsbn = isbn13 || isbn10;
+        const thumb = info.imageLinks?.thumbnail?.replace('http:', 'https:').replace('&edge=curl', '');
+        
+        return {
+          title: info.title,
+          isbn: finalIsbn ? [finalIsbn] : null,
+          publisher: [info.publisher || 'Unknown Publisher'],
+          coverUrl: thumb
+        };
+      }).filter(r => r.isbn && r.coverUrl);
+
+      setResults(mapped.slice(0, 6));
     } catch (err) {
-      console.error("Fulfillment search failed:", err);
+      console.error("Google Books search failed:", err);
     } finally {
       setLoading(false);
-      setIsSearchingIsbn(false);
     }
   }, [data.title, data.author]);
 
@@ -973,64 +975,73 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
     fetchResults();
   }, [fetchResults]);
 
-  const handleIsbnSearch = (e) => {
+  const handleManualSubmit = (e) => {
     e.preventDefault();
     if (!manualIsbn || isFulfilling) return;
-    setIsSearchingIsbn(true);
-    fetchResults(manualIsbn);
+    // Normalize ISBN
+    const cleanIsbn = manualIsbn.replace(/[-\s]/g, '');
+    onFulfill({ 
+      isbn: [cleanIsbn], 
+      publisher: ['Manual Entry'] 
+    });
   };
 
   return (
     <div className="fulfillment-overlay">
       <div className="fulfillment-modal">
         <div className="fulfillment-modal-header">
-          <h3>Select Edition for "{data.title}"</h3>
+          <h3>Archive "{data.title}"</h3>
           <button className="fulfillment-close-top" onClick={onClose} disabled={isFulfilling}>✕</button>
         </div>
-        <p>Pick the cover that matches your copy to finalize archival.</p>
-
-        <form className="fulfillment-isbn-search" onSubmit={handleIsbnSearch}>
-          <input 
-            type="text" 
-            placeholder="Search by exact ISBN..." 
-            value={manualIsbn}
-            onChange={(e) => setManualIsbn(e.target.value)}
-            disabled={isFulfilling}
-          />
-          <button type="submit" disabled={isSearchingIsbn || isFulfilling}>
-            {isSearchingIsbn ? 'Searching...' : 'Find'}
-          </button>
-        </form>
+        <p className="fulfillment-subtitle">Select the correct edition to link your copy.</p>
         
         {(loading || isFulfilling) ? (
           <div className="fulfillment-loading">
             <div className="fulfillment-spinner"></div>
-            <span>{isFulfilling ? 'Finalizing Archival...' : 'Scouting editions...'}</span>
+            <span>{isFulfilling ? 'Archiving to Library...' : 'Scouting editions...'}</span>
           </div>
         ) : (
-          <div className="fulfillment-grid">
-            {results.filter(r => r.isbn && r.isbn.length > 0).map((r, i) => (
-              <div 
-                key={i} 
-                className="fulfillment-card" 
-                onClick={() => !isFulfilling && onFulfill(r)}
-                style={{ opacity: isFulfilling ? 0.5 : 1, pointerEvents: isFulfilling ? 'none' : 'auto' }}
-              >
-                <div className="fulfillment-cover-wrapper">
-                  <img src={`https://covers.openlibrary.org/b/isbn/${r.isbn[0]}-M.jpg`} alt="Cover" />
+          <>
+            <div className="fulfillment-grid">
+              {results.map((r, i) => (
+                <div 
+                  key={i} 
+                  className="fulfillment-card" 
+                  onClick={() => !isFulfilling && onFulfill(r)}
+                  style={{ opacity: isFulfilling ? 0.5 : 1, pointerEvents: isFulfilling ? 'none' : 'auto' }}
+                >
+                  <div className="fulfillment-cover-wrapper">
+                    <img src={r.coverUrl} alt="Cover" />
+                  </div>
+                  <div className="fulfillment-card-info">
+                    <span className="fulfillment-publisher">{r.publisher[0]}</span>
+                    <span className="fulfillment-isbn">{r.isbn[0]}</span>
+                  </div>
                 </div>
-                <div className="fulfillment-card-info">
-                  <span className="fulfillment-publisher">{r.publisher?.[0] || 'Unknown Publisher'}</span>
-                  <span className="fulfillment-isbn">{r.isbn[0]}</span>
+              ))}
+              {results.length === 0 && (
+                <div className="fulfillment-empty">
+                  No editions found with covers. Try manual ISBN below.
                 </div>
-              </div>
-            ))}
-            {results.length === 0 && (
-              <div className="fulfillment-empty">
-                No editions found. Try searching by ISBN above.
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+
+            <div className="fulfillment-divider" />
+
+            <form className="fulfillment-manual-override" onSubmit={handleManualSubmit}>
+              <input 
+                type="text" 
+                placeholder="Or enter specific ISBN manually..." 
+                value={manualIsbn}
+                onChange={(e) => setManualIsbn(e.target.value)}
+                disabled={isFulfilling}
+                autoFocus={false}
+              />
+              <button type="submit" disabled={!manualIsbn || isFulfilling} className="fulfillment-manual-submit">
+                <span className="arrow">→</span>
+              </button>
+            </form>
+          </>
         )}
         <button className="fulfillment-cancel" onClick={onClose} disabled={isFulfilling}>Cancel</button>
       </div>
