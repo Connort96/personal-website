@@ -401,6 +401,21 @@ export default function Collection() {
       
       if (scoutErr) console.warn("[Quick Add] Scout check error:", scoutErr);
 
+      // New: Check if this book already exists in the checklist to prevent duplicates
+      const { data: existingBook } = await supabase
+        .from('books')
+        .select('id')
+        .ilike('title', newBook.title)
+        .ilike('author', targetAuthor)
+        .maybeSingle();
+
+      if (existingBook) {
+        setAddStatus('error');
+        alert("This book is already in your checklist.");
+        setTimeout(() => setAddStatus(null), 2000);
+        return;
+      }
+
       if (existingWork) {
         workId = existingWork.id;
         await supabase.from('works').update({ in_collection: true }).eq('id', workId);
