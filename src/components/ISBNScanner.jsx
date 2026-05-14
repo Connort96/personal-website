@@ -365,311 +365,312 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       
       const targetUserId = adminSettings?.admin_user_id || user.id;
 
-      for (const bookData of sessionQueue) {
+      for (const item of sessionQueue) {
         try {
-        const isDraft = bookData.status === 'draft';
-        const genreId = bookData.genre_id || 'modern_post2000'; // Never null — books table requires NOT NULL
-        const genreMeta = getGenreMeta(genreId) || { genre_name: 'Modern Fiction (Post-2000)', color: '#4A8A8A' };
+          const bookData = item;
+          const isDraft = bookData.status === 'draft';
+          const genreId = bookData.genre_id || 'modern_post2000'; // Never null — books table requires NOT NULL
+          const genreMeta = getGenreMeta(genreId) || { genre_name: 'Modern Fiction (Post-2000)', color: '#4A8A8A' };
 
-        // 0. Prevent Duplicate ISBNs — but still ensure ownership link exists
-        if (bookData.isbn) {
-          const { data: existingEd } = await supabase
-            .from('editions')
-            .select('id, work_id')
-            .eq('isbn', bookData.isbn.trim())
-            .maybeSingle();
-          
-          if (existingEd) {
-            // Edition exists — just ensure the user_books link is there
-            const { data: legacyRow } = await supabase
-              .from('books')
-              .select('id')
-              .eq('work_id', existingEd.work_id)
-              .limit(1)
+          // 0. Prevent Duplicate ISBNs — but still ensure ownership link exists
+          if (bookData.isbn) {
+            const { data: existingEd } = await supabase
+              .from('editions')
+              .select('id, work_id')
+              .eq('isbn', bookData.isbn.trim())
               .maybeSingle();
             
-            if (legacyRow) {
-              await supabase.from('user_books').upsert({
-                user_id: targetUserId,
-                book_id: legacyRow.id,
-                edition_id: existingEd.id,
-                status: 'unread',
-                owned_at: new Date().toISOString()
-              }, { onConflict: 'user_id, edition_id' });
+            if (existingEd) {
+              // Edition exists — just ensure the user_books link is there
+              const { data: legacyRow } = await supabase
+                .from('books')
+                .select('id')
+                .eq('work_id', existingEd.work_id)
+                .limit(1)
+                .maybeSingle();
+              
+              if (legacyRow) {
+                await supabase.from('user_books').upsert({
+                  user_id: targetUserId,
+                  book_id: legacyRow.id,
+                  edition_id: existingEd.id,
+                  status: 'unread',
+                  owned_at: new Date().toISOString()
+                }, { onConflict: 'user_id, edition_id' });
+              }
+              console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
+              continue;
             }
-            console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
-            continue;
           }
-        }
 
-        // 1. Get or Create Work
-        let workId;
-        const { data: existingWork } = await supabase
-          .from('works')
-          .select('id')
-          .ilike('title', bookData.title)
-          .ilike('author', bookData.author)
-          .maybeSingle();
-
-        if (existingWork) {
-          workId = existingWork.id;
-        } else {
-          const { data: newWork } = await supabase
+          // 1. Get or Create Work
+          let workId;
+          const { data: existingWork } = await supabase
             .from('works')
-            .insert({ title: bookData.title, author: bookData.author })
-            .select().single();
-          workId = newWork.id;
-        }
-
-        // 1.5 Download, compress, and upload the cover image to our own Supabase Storage
-        let finalCoverUrl = bookData.cover;
-        if (bookData.cover && bookData.cover !== MISSING_COVER_URL && !bookData.cover.includes('supabase.co')) {
-          showToast(`Compressing & uploading cover for ${bookData.title}...`, 'info');
-          const uploadedUrl = await processAndUploadCover(bookData.cover, bookData.isbn);
-          if (uploadedUrl) {
-            finalCoverUrl = uploadedUrl;
-          }
-        }
-
-        // 2. Get or Create Edition (Intelligent Merger)
-        const { data: genericEd } = await supabase
-          .from('editions')
-          .select('id')
-          .eq('work_id', workId)
-          .is('isbn', null)
-          .maybeSingle();
-
-        let editionId;
-        const editionPayload = {
-          work_id: workId,
-          isbn: bookData.isbn,
-          publisher: bookData.publisher,
-          cover_image_url: finalCoverUrl,
-          cover_url: finalCoverUrl,
-          format: bookData.format || 'Hardcover',
-          page_count: bookData.pages,
-          genre_id: genreId,
-          genre_name: genreMeta.genre_name,
-          color: genreMeta.color,
-          publication_date: bookData.full_date,
-          needs_review: isDraft,
-        };
-
-        if (genericEd) {
-          const { data: updatedEd } = await supabase
-            .from('editions')
-            .update(editionPayload)
-            .eq('id', genericEd.id)
-            .select().single();
-          editionId = updatedEd.id;
-        } else {
-          const { data: newEdition } = await supabase
-            .from('editions')
-            .insert(editionPayload)
-            .select().single();
-          editionId = newEdition.id;
-        }
-
-        // 3. Sync to Legacy 'books' Table
-        const { data: genericBook } = await supabase
-          .from('books')
-          .select('id, book_index')
-          .eq('work_id', workId)
-          .is('isbn', null)
-          .maybeSingle();
-
-        const legacyPayload = {
-          title: bookData.title,
-          author: bookData.author,
-          publisher: bookData.publisher,
-          cover_url: finalCoverUrl,
-          isbn: bookData.isbn,
-          genre_id: genreId,
-          genre_name: genreMeta.genre_name,
-          color: genreMeta.color,
-          page_count: bookData.pages,
-          publication_date: bookData.full_date,
-          note: bookData.description || `Scanned via Batch Scanner on ${new Date().toLocaleDateString()}`,
-          work_id: workId,
-          needs_review: isDraft,
-        };
-
-        let legacyBookId;
-        if (genericBook) {
-          const { data: updatedBook } = await supabase.from('books')
-            .update(legacyPayload)
-            .eq('id', genericBook.id)
-            .select('id').single();
-          legacyBookId = updatedBook?.id;
-        } else {
-          const { data: genreBooks } = await supabase.from('books')
-            .select('book_index')
-            .eq('genre_name', genreMeta.genre_name)
-            .order('book_index', { ascending: false })
-            .limit(1);
-          const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-          
-          const { data: insertedBook } = await supabase.from('books').insert({
-            ...legacyPayload,
-            book_index: nextIndex
-          }).select('id').single();
-          legacyBookId = insertedBook?.id;
-        }
-
-        // 4. Link to User Archive
-
-        const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
-        const wEdIds = (workEds || []).map(e => e.id);
-        
-        const { data: workReview } = await supabase
-          .from('user_books')
-          .select('rating, review, status')
-          .eq('user_id', targetUserId)
-          .in('edition_id', wEdIds)
-          .order('review', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (legacyBookId) {
-          await supabase.from('user_books').upsert({
-            user_id: targetUserId,
-            book_id: legacyBookId,
-            edition_id: editionId,
-            status: workReview?.status || 'unread',
-            rating: workReview?.rating || 0,
-            review: workReview?.review || '',
-            owned_at: new Date().toISOString()
-          }, { onConflict: 'user_id, edition_id' });
-        }
-
-        // 4.5. Checklist Handshake
-        await supabase.from('books')
-          .update({ work_id: workId })
-          .ilike('title', bookData.title)
-          .ilike('author', bookData.author);
-
-        // 5. Auto-Saga: Map to series if detected
-        if (bookData.series) {
-          let { data: existingSeries } = await supabase
-            .from('series')
             .select('id')
-            .ilike('name', bookData.series.name)
+            .ilike('title', bookData.title)
+            .ilike('author', bookData.author)
             .maybeSingle();
-          
-          let sId;
-          if (existingSeries) {
-            sId = existingSeries.id;
+
+          if (existingWork) {
+            workId = existingWork.id;
           } else {
-            const { data: newS } = await supabase
-              .from('series')
-              .insert({ name: bookData.series.name, description: `The ${bookData.series.name} series.` })
-              .select('id')
-              .single();
-            sId = newS.id;
+            const { data: newWork } = await supabase
+              .from('works')
+              .insert({ title: bookData.title, author: bookData.author })
+              .select().single();
+            workId = newWork.id;
           }
 
-          await supabase.from('series_works').upsert({
-            series_id: sId,
+          // 1.5 Download, compress, and upload the cover image to our own Supabase Storage
+          let finalCoverUrl = bookData.cover;
+          if (bookData.cover && bookData.cover !== MISSING_COVER_URL && !bookData.cover.includes('supabase.co')) {
+            showToast(`Compressing & uploading cover for ${bookData.title}...`, 'info');
+            const uploadedUrl = await processAndUploadCover(bookData.cover, bookData.isbn);
+            if (uploadedUrl) {
+              finalCoverUrl = uploadedUrl;
+            }
+          }
+
+          // 2. Identify or Create Edition
+          let genericEd = null;
+          if (bookData.isbn) {
+            const { data } = await supabase
+              .from('editions')
+              .select('id, work_id')
+              .eq('isbn', bookData.isbn)
+              .maybeSingle();
+            genericEd = data;
+          } else {
+            // No ISBN, try to find a match for this specific work without ISBN
+            const { data } = await supabase
+              .from('editions')
+              .select('id, work_id')
+              .eq('work_id', workId)
+              .is('isbn', null)
+              .limit(1)
+              .maybeSingle();
+            genericEd = data;
+          }
+
+          let editionId;
+          const editionPayload = {
             work_id: workId,
-            sequence_order: bookData.series.sequence
-          }, { onConflict: 'series_id, work_id' });
+            isbn: bookData.isbn,
+            publisher: bookData.publisher,
+            cover_image_url: finalCoverUrl,
+            cover_url: finalCoverUrl,
+            format: bookData.format || 'Hardcover',
+            page_count: bookData.pages,
+            genre_id: genreId,
+            genre_name: genreMeta.genre_name,
+            color: genreMeta.color,
+            publication_date: bookData.full_date,
+            needs_review: isDraft,
+          };
 
-          // NEW: Denormalize series_name to works table for optimized RelatedWorks queries
-          await supabase.from('works').update({ series_name: bookData.series.name }).eq('id', workId);
+          if (genericEd) {
+            const { data: updatedEd } = await supabase
+              .from('editions')
+              .update(editionPayload)
+              .eq('id', genericEd.id)
+              .select().single();
+            editionId = updatedEd.id;
+          } else {
+            const { data: newEdition } = await supabase
+              .from('editions')
+              .insert(editionPayload)
+              .select().single();
+            editionId = newEdition.id;
+          }
 
-          // NEW: Automated Saga Expansion using robust utility
+          // 3. Sync to Legacy 'books' Table
+          const { data: genericBook } = await supabase
+            .from('books')
+            .select('id, book_index')
+            .eq('work_id', workId)
+            .is('isbn', null)
+            .maybeSingle();
+
+          const legacyPayload = {
+            title: bookData.title,
+            author: bookData.author,
+            publisher: bookData.publisher,
+            cover_url: finalCoverUrl,
+            isbn: bookData.isbn,
+            genre_id: genreId,
+            genre_name: genreMeta.genre_name,
+            color: genreMeta.color,
+            page_count: bookData.pages,
+            publication_date: bookData.full_date,
+            note: bookData.description || `Scanned via Batch Scanner on ${new Date().toLocaleDateString()}`,
+            work_id: workId,
+            needs_review: isDraft,
+          };
+
+          let legacyBookId;
+          if (genericBook) {
+            const { data: updatedBook } = await supabase.from('books')
+              .update(legacyPayload)
+              .eq('id', genericBook.id)
+              .select('id').single();
+            legacyBookId = updatedBook?.id;
+          } else {
+            const { data: genreBooks } = await supabase.from('books')
+              .select('book_index')
+              .eq('genre_name', genreMeta.genre_name)
+              .order('book_index', { ascending: false })
+              .limit(1);
+            const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+            
+            const { data: insertedBook } = await supabase.from('books').insert({
+              ...legacyPayload,
+              book_index: nextIndex
+            }).select('id').single();
+            legacyBookId = insertedBook?.id;
+          }
+
+          // 4. Link to User Archive
+          const { data: workEds } = await supabase.from('editions').select('id').eq('work_id', workId);
+          const wEdIds = (workEds || []).map(e => e.id);
+          
+          const { data: workReview } = await supabase
+            .from('user_books')
+            .select('rating, review, status')
+            .eq('user_id', targetUserId)
+            .in('edition_id', wEdIds)
+            .order('review', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (legacyBookId) {
+            await supabase.from('user_books').upsert({
+              user_id: targetUserId,
+              book_id: legacyBookId,
+              edition_id: editionId,
+              status: workReview?.status || 'unread',
+              rating: workReview?.rating || 0,
+              review: workReview?.review || '',
+              owned_at: new Date().toISOString()
+            }, { onConflict: 'user_id, edition_id' });
+          }
+
+          // 4.5. Checklist Handshake
+          await supabase.from('books')
+            .update({ work_id: workId })
+            .ilike('title', bookData.title)
+            .ilike('author', bookData.author);
+
+          // 5. Auto-Saga: Map to series if detected
+          if (bookData.series) {
+            let { data: existingSeries } = await supabase
+              .from('series')
+              .select('id')
+              .ilike('name', bookData.series.name)
+              .maybeSingle();
+            
+            let sId;
+            if (existingSeries) {
+              sId = existingSeries.id;
+            } else {
+              const { data: newS } = await supabase
+                .from('series')
+                .insert({ name: bookData.series.name, description: `The ${bookData.series.name} series.` })
+                .select('id')
+                .single();
+              sId = newS.id;
+            }
+
+            await supabase.from('series_works').upsert({
+              series_id: sId,
+              work_id: workId,
+              sequence_order: bookData.series.sequence
+            }, { onConflict: 'series_id, work_id' });
+
+            await supabase.from('works').update({ series_name: bookData.series.name }).eq('id', workId);
+
+            try {
+              const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence, bookData.author);
+              if (newWorks > 0) {
+                showToast(`Discovered ${newWorks} missing books in ${bookData.series.name} saga!`, 'success');
+              }
+            } catch (sagaErr) {
+              console.error(`[Batch Scanner] Saga Expansion failed for ${bookData.series.name}`, sagaErr);
+            }
+          }
+
+          // 6. AI Enrichment
           try {
-            const { found, newWorks } = await runSagaScout(supabase, sId, bookData.series.name, bookData.series.sequence, bookData.author);
-            if (newWorks > 0) {
-              showToast(`Discovered ${newWorks} missing books in ${bookData.series.name} saga!`, 'success');
+            await new Promise(r => setTimeout(r, 500));
+            const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+            const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
+            const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
+
+            const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+              body: { 
+                title: bookData.title, 
+                author: bookData.author, 
+                provenance_string: provenanceNote || null,
+                existing_vibes: existingVibes,
+                existing_motifs: existingMotifs
+              }
+            });
+
+            if (!aiError && aiData) {
+              if (aiData.vibes?.length || aiData.motifs?.length || aiData.setting_location || aiData.setting_era || aiData.synopsis) {
+                await supabase.from('works').update({
+                  vibes: aiData.vibes || [],
+                  motifs: aiData.motifs || [],
+                  setting_era: aiData.setting_era || null,
+                  setting_location: aiData.setting_location || null,
+                  synopsis: aiData.synopsis || null,
+                  ai_enriched: true
+                }).eq('id', workId);
+              }
+
+              if (aiData.provenance && editionId) {
+                const prov = aiData.provenance;
+                if (prov.condition || prov.defects?.length || prov.acquisition_source || prov.acquisition_year) {
+                  await supabase.from('editions').update({
+                    condition: prov.condition || null,
+                    defects: prov.defects || [],
+                    acquisition_notes: prov.acquisition_source || null,
+                    acquisition_year: prov.acquisition_year || null
+                  }).eq('id', editionId);
+                }
+              }
+
+              if (aiData.is_series && aiData.series_name && !bookData.series) {
+                let { data: existingSeries } = await supabase
+                  .from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
+                let sId = existingSeries?.id;
+                if (!sId) {
+                  const { data: newS } = await supabase.from('series')
+                    .insert({ name: aiData.series_name }).select('id').single();
+                  sId = newS?.id;
+                }
+                if (sId) {
+                  await supabase.from('series_works').upsert({
+                    series_id: sId, work_id: workId,
+                    sequence_order: aiData.series_index || 1
+                  }, { onConflict: 'series_id, work_id' });
+
+                  await supabase.from('works').update({ series_name: aiData.series_name }).eq('id', workId);
+                  
+                  await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, bookData.author);
+                }
+              }
             }
-          } catch (sagaErr) {
-            console.error(`[Batch Scanner] Saga Expansion failed for ${bookData.series.name}`, sagaErr);
+          } catch (aiErr) {
+            console.warn(`[Batch Scanner] AI Enrichment failed (non-blocking):`, aiErr);
           }
-        }
-
-        // 6. AI Enrichment: fetch vibes, motifs, setting, provenance from Gemini
-        try {
-          await new Promise(r => setTimeout(r, 500)); // Concurrency stagger
-
-          // NEW: Dynamic Taxonomy - fetch existing tags to maintain standardization
-          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
-          const existingVibes = [...new Set(tagPool?.flatMap(w => w.vibes || []) || [])].slice(0, 50);
-          const existingMotifs = [...new Set(tagPool?.flatMap(w => w.motifs || []) || [])].slice(0, 50);
-
-          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
-            body: { 
-              title: bookData.title, 
-              author: bookData.author, 
-              provenance_string: provenanceNote || null,
-              existing_vibes: existingVibes,
-              existing_motifs: existingMotifs
-            }
-          });
-
-          if (!aiError && aiData) {
-            // Write literary metadata and synopsis to works table
-            if (aiData.vibes?.length || aiData.motifs?.length || aiData.setting_location || aiData.setting_era || aiData.synopsis) {
-              await supabase.from('works').update({
-                vibes: aiData.vibes || [],
-                motifs: aiData.motifs || [],
-                setting_era: aiData.setting_era || null,
-                setting_location: aiData.setting_location || null,
-                synopsis: aiData.synopsis || null,
-                ai_enriched: true
-              }).eq('id', workId);
-            }
-
-            // Write provenance to editions table
-            if (aiData.provenance && editionId) {
-              const prov = aiData.provenance;
-              if (prov.condition || prov.defects?.length || prov.acquisition_source || prov.acquisition_year) {
-                await supabase.from('editions').update({
-                  condition: prov.condition || null,
-                  defects: prov.defects || [],
-                  acquisition_notes: prov.acquisition_source || null,
-                  acquisition_year: prov.acquisition_year || null
-                }).eq('id', editionId);
-              }
-            }
-
-            // If AI found series data and the scanner didn't, link it now
-            if (aiData.is_series && aiData.series_name && !bookData.series) {
-              let { data: existingSeries } = await supabase
-                .from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
-              let sId = existingSeries?.id;
-              if (!sId) {
-                const { data: newS } = await supabase.from('series')
-                  .insert({ name: aiData.series_name }).select('id').single();
-                sId = newS?.id;
-              }
-              if (sId) {
-                await supabase.from('series_works').upsert({
-                  series_id: sId, work_id: workId,
-                  sequence_order: aiData.series_index || 1
-                }, { onConflict: 'series_id, work_id' });
-
-                // Denormalize series_name
-                await supabase.from('works').update({ series_name: aiData.series_name }).eq('id', workId);
-                
-                await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, bookData.author);
-              }
-            }
-
-            console.log(`[Batch Scanner] AI Enrichment complete for "${bookData.title}"`);
-          }
-        } catch (aiErr) {
-          // Non-blocking: book is already saved, enrichment is best-effort
-          console.warn(`[Batch Scanner] AI Enrichment failed (non-blocking):`, aiErr);
-        }
-        } catch (bookErr) {
-          console.error(`[Batch Scanner] Error archiving "${bookData.title}":`, bookErr);
-          showToast(`Error: ${bookData.title} — ${bookErr.message}`, 'error');
-          // Continue with next book instead of aborting the entire batch
+        } catch (itemErr) {
+          console.error(`Failed to commit book ${item.title}:`, itemErr);
+          showToast(`Failed to archive "${item.title}". Skipping.`, 'error');
         }
       }
-
-      // All done — clear queue and close
+      
+      showToast("Batch Archival Complete!", "success");
       setSessionQueue([]);
       if (onComplete) onComplete();
       onClose();
