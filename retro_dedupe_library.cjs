@@ -18,6 +18,9 @@ function normalize(str) {
   if (!str) return '';
   return str.toLowerCase()
     .replace(/&/g, 'and')      // Expand ampersands
+    // Strip common edition suffixes that prevent matching
+    .replace(/\s*(-|:)\s*(gryffindor|slytherin|hufflepuff|ravenclaw|anniversary|special|limited|collector|deluxe|illustrated|large print).*/i, '')
+    .replace(/\s*\((gryffindor|slytherin|hufflepuff|ravenclaw|anniversary|special|limited|collector|deluxe|illustrated|large print).*\)/i, '')
     .replace(/[^a-z0-9]/g, '') // Strip EVERYTHING except alphanumeric
     .trim();
 }
@@ -55,15 +58,43 @@ async function deduplicateWorks() {
 
   console.log(`Total works to process: ${allWorks.length}`);
 
-  // 2. Group by normalized Title + Author
+  // 2. Group by normalized Title (+ Author, but handle 'Unknown Author' specially)
   const groups = {};
   allWorks.forEach(work => {
-    const key = `${normalize(work.title)}|${normalize(work.author)}`;
+    const normTitle = normalize(work.title);
+    const normAuthor = normalize(work.author);
+    const isUnknownAuthor = normAuthor === 'unknownauthor';
+    
+    // If author is unknown, we group by title only, but we'll prioritize groups with known authors
+    const key = isUnknownAuthor ? `TITLEONLY|${normTitle}` : `FULL|${normTitle}|${normAuthor}`;
+    
     if (!groups[key]) groups[key] = [];
     groups[key].push(work);
   });
 
-  const duplicateGroups = Object.values(groups).filter(g => g.length > 1);
+  // Second pass: merge TITLEONLY groups into FULL groups if the title matches
+  const finalizedGroups = {};
+  Object.keys(groups).forEach(key => {
+    if (key.startsWith('FULL|')) {
+      const title = key.split('|')[1];
+      const titleOnlyKey = `TITLEONLY|${title}`;
+      const group = [...groups[key]];
+      if (groups[titleOnlyKey]) {
+        console.log(`  Found potential matches for "${title}" with Unknown Author. Merging...`);
+        group.push(...groups[titleOnlyKey]);
+        delete groups[titleOnlyKey];
+      }
+      finalizedGroups[key] = group;
+    }
+  });
+  // Add remaining TITLEONLY groups (ones that didn't have a FULL match)
+  Object.keys(groups).forEach(key => {
+    if (key.startsWith('TITLEONLY|')) {
+      finalizedGroups[key] = groups[key];
+    }
+  });
+
+  const duplicateGroups = Object.values(finalizedGroups).filter(g => g.length > 1);
   console.log(`Found ${duplicateGroups.length} sets of duplicate works.`);
   
   if (duplicateGroups.length === 0) {

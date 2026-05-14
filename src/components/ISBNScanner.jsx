@@ -85,9 +85,21 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
             const data = await res.json();
             if (data) {
               console.log(`[Batch Scanner] OL Direct ISBN hit: ${data.title}`);
+              
+              let authors = null;
+              if (data.authors?.[0]?.key) {
+                try {
+                  const authorRes = await fetch(`https://openlibrary.org${data.authors[0].key}.json`);
+                  if (authorRes.ok) {
+                    const authorData = await authorRes.json();
+                    authors = [authorData.name];
+                  }
+                } catch (e) {}
+              }
+
               searchInfo = {
                 title: data.title,
-                author_name: null, // Will be filled by other tasks or fallback
+                author_name: authors,
                 subject: data.subjects || [],
                 series_name: data.series ? [data.series] : null,
                 cover_i: data.covers?.[0]
@@ -158,7 +170,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
 
     // Merge strategy
     const finalTitle = gbInfo?.title || olInfo?.title || searchInfo?.title || 'Unknown Title';
-    const finalAuthor = gbInfo?.authors?.[0] || olInfo?.authors?.[0]?.name || searchInfo?.author_name?.[0] || 'Unknown Author';
+    const finalAuthor = gbInfo?.authors?.[0] || olInfo?.authors?.[0]?.name || (searchInfo?.author_name?.[0] !== 'Unknown Author' ? searchInfo?.author_name?.[0] : null) || 'Unknown Author';
     
     const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
     const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
