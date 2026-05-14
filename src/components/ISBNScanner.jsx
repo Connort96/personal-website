@@ -58,21 +58,69 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   }, []);
 
   // Fetch book metadata from APIs
+  // Fetch book metadata from APIs
   const fetchBookMetadata = useCallback(async (isbn) => {
+    let olInfo = null;
+    let gbInfo = null;
+
+    // 1. Open Library Data API
     try {
-      const [olRes, gbRes] = await Promise.all([
-        fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`),
-        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
-      ]);
+      const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+      if (olRes.ok) {
+        const olData = await olRes.json();
+        olInfo = olData[`ISBN:${isbn}`];
+      }
+    } catch (err) {
+      console.warn("[Batch Scanner] Open Library API failed:", err);
+    }
 
-      const olData = await olRes.json();
-      const gbData = await gbRes.json();
-      
-      const olInfo = olData[`ISBN:${isbn}`];
-      const gbInfo = gbData.items?.[0]?.volumeInfo;
+    // 2. Google Books API (with fallback for 429 rate limiting)
+    try {
+      const gbRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      if (gbRes.ok) {
+        const gbData = await gbRes.json();
+        gbInfo = gbData.items?.[0]?.volumeInfo;
+      } else if (gbRes.status === 429) {
+        console.warn("[Batch Scanner] Google Books Rate Limited (429). Skipping...");
+      }
+    } catch (err) {
+      console.warn("[Batch Scanner] Google Books API failed:", err);
+    }
 
+    try {
       if (!olInfo && !gbInfo) {
-        // Draft state — API returned nothing
+        // TRIPLE-HUNT FALLBACK for basic title/author if primary APIs failed
+        try {
+          const searchRes = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&fields=title,author_name,cover_i,subject`);
+          const searchData = await searchRes.json();
+          if (searchData.docs?.[0]) {
+            const doc = searchData.docs[0];
+            return {
+              title: doc.title || 'Unknown Book',
+              subtitle: '',
+              author: doc.author_name?.[0] || 'Unknown Author',
+              publisher: 'Unknown Publisher',
+              year: 'Unknown',
+              full_date: null,
+              cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : MISSING_COVER_URL,
+              pages: 0,
+              isbn: isbn,
+              description: '',
+              format: 'Hardcover',
+              series: null,
+              status: 'identified',
+              genre_id: null,
+              genre_name: null,
+              genre_color: null,
+              subjects: (doc.subject || []).slice(0, 5),
+              categories: [],
+            };
+          }
+        } catch (sErr) {
+          console.warn("[Batch Scanner] Search fallback failed:", sErr);
+        }
+
+        // Final Draft state — APIs returned nothing
         return {
           title: 'Unknown Book',
           subtitle: '',
