@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { detectGenre, GENRE_META } from '../lib/genreMap';
 import { runSagaScout } from '../lib/sagaScout';
+import { processAndUploadCover } from '../lib/imageProcessing';
 import Drawer from '../components/Drawer';
 import BookDetail from './BookDetail';
 import './Collection.css';
@@ -60,7 +61,7 @@ export default function Collection() {
   const [isSyncing, setIsSyncing] = useState(true);
   const isInitialMount = useRef(true);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '' });
+  const [newBook, setNewBook] = useState({ title: '', author: '', genre_id: '', isbn: '' });
   const [addStatus, setAddStatus] = useState(null); // 'saving', 'success', 'error'
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -505,7 +506,7 @@ export default function Collection() {
     try {
       const genre = libraryData.find(g => g.id === newBook.genre_id);
       
-      // Silent Scout: Try to find an existing work for this title/author
+      // 1. Silent Scout: Find or Create Master Work
       let workId = null;
       const { data: existingWork } = await supabase
         .from('works')
@@ -517,8 +518,41 @@ export default function Collection() {
       if (existingWork) {
         workId = existingWork.id;
         console.log(`[Silent Scout] Found existing master record for "${newBook.title}":`, workId);
+      } else {
+        const { data: newWork } = await supabase
+          .from('works')
+          .insert({ title: newBook.title, author: newBook.author })
+          .select().single();
+        workId = newWork.id;
+        console.log(`[Silent Scout] Created new master record for "${newBook.title}":`, workId);
       }
 
+      // 2. Create Modern Edition with ISBN
+      const { data: newEd } = await supabase.from('editions').insert({
+        work_id: workId,
+        isbn: newBook.isbn || null,
+        genre_id: newBook.genre_id,
+        genre_name: genre.name,
+        color: genre.color,
+        publisher: 'Unknown Publisher'
+      }).select().single();
+
+      // 3. Trigger Cover Art Pipeline
+      let finalCoverUrl = null;
+      if (newBook.isbn) {
+        try {
+          const olUrl = `https://covers.openlibrary.org/b/isbn/${newBook.isbn}-L.jpg`;
+          finalCoverUrl = await processAndUploadCover(olUrl, newBook.isbn);
+          if (finalCoverUrl) {
+            await supabase.from('editions').update({ cover_image_url: finalCoverUrl }).eq('id', newEd.id);
+            await supabase.from('works').update({ cover_image_url: finalCoverUrl }).eq('id', workId);
+          }
+        } catch (coverErr) {
+          console.warn("[Quick Add] Cover upload failed:", coverErr);
+        }
+      }
+
+      // 4. Create Legacy Book Entry
       const { data: lastBook } = await supabase
         .from('books')
         .select('book_index')
@@ -532,19 +566,21 @@ export default function Collection() {
       const { data, error } = await supabase.from('books').insert({
         title: newBook.title,
         author: newBook.author,
-        work_id: workId, // Linked immediately if found
+        work_id: workId,
         genre_id: newBook.genre_id,
         genre_name: genre.name,
         color: genre.color,
         badge: genre.badge,
         badge_label: genre.badgeLabel,
-        book_index: nextIndex
+        book_index: nextIndex,
+        cover_url: finalCoverUrl,
+        isbn: newBook.isbn
       }).select().single();
 
       if (error) throw error;
 
       setAddStatus('success');
-      setNewBook({ title: '', author: '', genre_id: '' });
+      setNewBook({ title: '', author: '', genre_id: '', isbn: '' });
       
       // Update local state to show the new book immediately
       setLibraryData(prev => prev.map(g => {
@@ -587,7 +623,7 @@ export default function Collection() {
     
     setIsSearching(true);
     try {
-      const res = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent(val)}&limit=5&fields=title,author_name,cover_i,first_publish_year,subject`);
+      const res = await fetch(`https://openlibrary.org/search.json?q=title:${encodeURIComponent(val)}&limit=5&fields=title,author_name,cover_i,first_publish_year,subject,isbn`);
       const data = await res.json();
       setSearchSuggestions(data.docs || []);
     } catch (err) {
@@ -605,7 +641,8 @@ export default function Collection() {
     setNewBook({
       title: s.title,
       author: s.author_name?.[0] || 'Unknown Author',
-      genre_id: detected?.genre_id || newBook.genre_id // Use detected genre, or keep existing
+      genre_id: detected?.genre_id || newBook.genre_id, // Use detected genre, or keep existing
+      isbn: s.isbn ? s.isbn[0] : ''
     });
     setSearchSuggestions([]);
   };
