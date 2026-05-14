@@ -591,7 +591,7 @@ export default function Collection() {
         edition_id: newEd.id,
         status: 'unread',
         owned_at: new Date().toISOString()
-      }, { onConflict: 'user_id, book_id' });
+      }, { onConflict: 'user_id, edition_id' });
 
       setOwnedBooks(prev => {
         const next = new Set(prev);
