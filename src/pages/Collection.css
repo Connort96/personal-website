@@ -405,6 +405,24 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.collection-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: var(--space-2);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collection-delete-btn:hover {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.08);
+}
+
 /* ── Imprint Specifics ───────────────────────────────────── */
 .is-imprint .collection-genre-title {
   color: var(--cat-color);

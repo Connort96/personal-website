@@ -601,9 +601,31 @@ export default function Collection() {
 
       setFulfillmentData(null);
       setAddStatus('success');
-      setTimeout(() => {
-        if (addStatus === 'success') setAddStatus(null);
-      }, 2000);
+      setTimeout(() => setAddStatus(null), 2000);
+    } catch (err) {
+      console.error("Fulfillment failed:", err);
+      setAddStatus('error');
+    }
+  };
+
+  const handleDeleteFromChecklist = async (bookId, e) => {
+    e.stopPropagation();
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to remove this book from the checklist?")) return;
+
+    try {
+      const { error } = await supabase.from('books').delete().eq('id', bookId);
+      if (error) throw error;
+
+      setLibraryData(prev => prev.map(cat => ({
+        ...cat,
+        books: cat.books.filter(b => b.id !== bookId)
+      })));
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to remove book: " + err.message);
+    }
+  };
 
       // 6. AI Enrichment (Background)
       (async () => {
@@ -904,18 +926,31 @@ export default function Collection() {
                           <div className="collection-book-author">{book.a}</div>
                         </div>
 
-                        <button 
-                          className="collection-view-details-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedWorkId(book.work_id || book.id);
-                          }}
-                          title="View Details"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 18l6-6-6-6" />
-                          </svg>
-                        </button>
+                        <div className="collection-item-actions">
+                          {isAdmin && (
+                            <button 
+                              className="collection-delete-btn"
+                              onClick={(e) => handleDeleteFromChecklist(book.id, e)}
+                              title="Remove from Checklist"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+                              </svg>
+                            </button>
+                          )}
+                          <button 
+                            className="collection-view-details-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWorkId(book.work_id || book.id);
+                            }}
+                            title="View Details"
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </motion.div>
