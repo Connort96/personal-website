@@ -601,11 +601,14 @@ export default function Collection() {
 
       setFulfillmentData(null);
       setAddStatus('success');
-      setTimeout(() => setAddStatus(null), 2000);
+      setTimeout(() => {
+        if (addStatus === 'success') setAddStatus(null);
+      }, 2000);
 
       // 6. AI Enrichment (Background)
       (async () => {
         try {
+          setAddStatus('enriching'); // Visual cue for background work
           console.log(`[Fulfillment] Background AI Enrichment for Work: ${finalWorkId} ("${title}")`);
           
           const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
@@ -652,8 +655,13 @@ export default function Collection() {
 
             await runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, author);
           }
+          
+          setAddStatus('success');
+          setTimeout(() => setAddStatus(null), 2000);
         } catch (bgErr) {
           console.error(`[Fulfillment] Background enrichment failed for ${title}:`, bgErr);
+          // Don't show error to user for background enrichment to keep UX smooth
+          setAddStatus(null); 
         }
       })();
     } catch (err) {
@@ -935,13 +943,15 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const fetchResults = useCallback(async (isbn = null) => {
     setLoading(true);
     try {
-      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=6&fields=title,isbn,publisher,cover_i`;
+      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=3&fields=title,isbn,publisher,cover_i`;
       if (isbn) {
         url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
       }
       const res = await fetch(url);
       const json = await res.json();
-      setResults(json.docs || []);
+      // Filter for records that actually have a cover and ISBN for the best UX
+      const filtered = (json.docs || []).filter(r => r.isbn && r.isbn.length > 0 && r.cover_i);
+      setResults(filtered.length > 0 ? filtered : (json.docs || []).slice(0, 3));
     } catch (err) {
       console.error("Fulfillment search failed:", err);
     } finally {
