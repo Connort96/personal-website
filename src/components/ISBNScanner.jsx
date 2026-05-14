@@ -390,26 +390,50 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
               .maybeSingle();
 
             if (existingEd) {
-              // 1. Identify associated legacy book row (if any) to satisfy FK constraints
-              const { data: legacyRow } = await supabase
+              // 1. Identify associated legacy book row (if any)
+              let { data: legacyRow } = await supabase
                 .from('books')
                 .select('id')
                 .eq('work_id', existingEd.work_id)
                 .limit(1)
                 .maybeSingle();
               
-              // 2. Ensure ownership link exists in user_books
+              // 2. Ensure checklist entry exists to satisfy NOT NULL constraint on user_books
+              if (!legacyRow) {
+                const { data: genreBooks } = await supabase.from('books')
+                  .select('book_index')
+                  .eq('genre_name', bookData.genre_name || 'Uncategorized')
+                  .order('book_index', { ascending: false })
+                  .limit(1);
+                const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+
+                const { data: newBk, error: bkErr } = await supabase.from('books').insert({
+                  title: bookData.title,
+                  author: bookData.author,
+                  isbn: bookData.isbn,
+                  work_id: existingEd.work_id,
+                  genre_id: bookData.genre_id || 'uncategorized',
+                  genre_name: bookData.genre_name || 'Uncategorized',
+                  book_index: nextIndex
+                }).select('id').single();
+
+                if (bkErr || !newBk) {
+                  throw new Error(`Failed to create required checklist record: ${bkErr?.message || 'Unknown error'}`);
+                }
+                legacyRow = newBk;
+              }
+
+              // 3. Ensure ownership link exists in user_books
               const { error: ubErr } = await supabase.from('user_books').upsert({
                 user_id: targetUserId,
-                book_id: legacyRow?.id || null, // Optional legacy link
+                book_id: legacyRow.id,
                 edition_id: existingEd.id,
                 status: 'unread',
                 owned_at: new Date().toISOString()
               }, { onConflict: 'user_id, edition_id' });
 
               if (ubErr) {
-                console.error(`[Batch Scanner] Failed to link existing edition ${bookData.isbn}:`, ubErr.message);
-                throw new Error(`Ownership link failed for existing edition: ${ubErr.message}`);
+                throw new Error(`Ownership link failed: ${ubErr.message}`);
               }
 
               console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
