@@ -428,11 +428,20 @@ export default function BookDetail() {
                     <div className="archival-meta-column">
                       <h4 className="archival-meta-subtitle">Literary Elements</h4>
                       {(work.setting_era || work.setting_location) && (
-                        <p className="archival-meta-setting">
-                          {work.setting_era && !work.setting_location && `Set in the ${work.setting_era}.`}
-                          {!work.setting_era && work.setting_location && `Set primarily in ${work.setting_location}.`}
-                          {work.setting_era && work.setting_location && `Set in the ${work.setting_era}, primarily in ${work.setting_location}.`}
-                        </p>
+                        <div className="archival-meta-setting-grid">
+                          {work.setting_era && (
+                            <div className="setting-grid-item">
+                              <span className="setting-label">ERA</span>
+                              <span className="setting-value">{work.setting_era}</span>
+                            </div>
+                          )}
+                          {work.setting_location && (
+                            <div className="setting-grid-item">
+                              <span className="setting-label">LOCATION</span>
+                              <span className="setting-value">{work.setting_location}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
                       {work.vibes && work.vibes.length > 0 && (
                         <div className="meta-index-row">

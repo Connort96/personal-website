@@ -192,14 +192,16 @@
   font-family: 'Crimson Pro', var(--font-serif);
   font-size: var(--text-base);
   font-style: italic;
-  line-height: 1.6;
+  line-height: 1.8;
   color: var(--text-muted);
   max-width: 65ch;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  opacity: 0.8;
+  opacity: 0.9;
+}
+
+@media (min-width: 768px) {
+  .synopsis-text {
+    font-size: var(--text-lg);
+  }
 }
 
 .book-detail-archival-meta {
@@ -239,26 +241,47 @@
   letter-spacing: 0.05em;
 }
 
-.archival-meta-setting {
+.archival-meta-setting-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  margin-bottom: var(--space-10);
+}
+
+.setting-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.setting-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  letter-spacing: 0.2em;
+  opacity: 0.8;
+}
+
+.setting-value {
   font-family: 'Crimson Pro', var(--font-serif);
-  font-size: var(--text-base);
-  font-style: italic;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: var(--space-6);
+  font-size: var(--text-lg);
+  color: #e5e7eb; /* text-gray-200 equivalent */
+  line-height: 1.4;
 }
 
 .meta-index-row {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8); /* Increased spacing between taxonomy rows */
 }
 
 .meta-index-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-3); /* More horizontal gap between items */
+  line-height: 1.8;
 }
 
 .meta-index-btn {
@@ -267,9 +290,9 @@
   padding: 0;
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: 12px; /* Standard text-sm equivalent for UI density */
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s ease;
@@ -290,12 +313,13 @@
 
 .meta-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  color: var(--accent-secondary);
-  opacity: 0.6;
-  letter-spacing: 0.1em;
+  color: var(--accent-primary);
+  opacity: 0.8;
+  letter-spacing: 0.2em;
   flex-shrink: 0;
+  margin-bottom: var(--space-1);
 }
 
 .meta-value {
