@@ -942,44 +942,23 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
-      // Try precise search first
-      const q = `intitle:${encodeURIComponent(data.title)}+inauthor:${encodeURIComponent(data.author)}`;
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&printType=books`;
-      let res = await fetch(url);
-      let json = await res.json();
+      console.log(`[Fulfillment] Scouting Open Library for: "${data.title}"`);
+      const url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=20&fields=title,isbn,publisher,cover_i`;
+      const res = await fetch(url);
+      const json = await res.json();
       
-      let items = json.items || [];
-
-      // Fallback: if precise search is empty or too few results, try keyword search
-      if (items.length < 2) {
-        const fallbackUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(data.title + ' ' + data.author)}&maxResults=10&printType=books`;
-        const fbRes = await fetch(fallbackUrl);
-        const fbJson = await fbRes.json();
-        const fbItems = fbJson.items || [];
-        // Merge and deduplicate by ID
-        const existingIds = new Set(items.map(i => i.id));
-        items = [...items, ...fbItems.filter(i => !existingIds.has(i.id))];
-      }
-      
-      const mapped = items.map(item => {
-        const info = item.volumeInfo;
-        const isbns = info.industryIdentifiers || [];
-        const isbn13 = isbns.find(i => i.type === 'ISBN_13')?.identifier;
-        const isbn10 = isbns.find(i => i.type === 'ISBN_10')?.identifier;
-        const finalIsbn = isbn13 || isbn10;
-        const thumb = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail)?.replace('http:', 'https:').replace('&edge=curl', '');
-        
+      const mapped = (json.docs || []).map(doc => {
         return {
-          title: info.title,
-          isbn: finalIsbn ? [finalIsbn] : null,
-          publisher: [info.publisher || 'Unknown Publisher'],
-          coverUrl: thumb
+          title: doc.title,
+          isbn: doc.isbn && doc.isbn.length > 0 ? [doc.isbn[0]] : null,
+          publisher: [doc.publisher?.[0] || 'Unknown Publisher'],
+          coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null
         };
       }).filter(r => r.isbn && r.coverUrl);
 
       setResults(mapped.slice(0, 6));
     } catch (err) {
-      console.error("Google Books search failed:", err);
+      console.error("Open Library search failed:", err);
     } finally {
       setLoading(false);
     }
