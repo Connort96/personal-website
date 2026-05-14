@@ -388,9 +388,9 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
               .select('id, work_id')
               .eq('isbn', bookData.isbn.trim())
               .maybeSingle();
-            
+
             if (existingEd) {
-              // Edition exists — just ensure the user_books link is there
+              // 1. Identify associated legacy book row (if any) to satisfy FK constraints
               const { data: legacyRow } = await supabase
                 .from('books')
                 .select('id')
@@ -398,15 +398,20 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
                 .limit(1)
                 .maybeSingle();
               
-              if (legacyRow) {
-                await supabase.from('user_books').upsert({
-                  user_id: targetUserId,
-                  book_id: legacyRow.id,
-                  edition_id: existingEd.id,
-                  status: 'unread',
-                  owned_at: new Date().toISOString()
-                }, { onConflict: 'user_id, edition_id' });
+              // 2. Ensure ownership link exists in user_books
+              const { error: ubErr } = await supabase.from('user_books').upsert({
+                user_id: targetUserId,
+                book_id: legacyRow?.id || null, // Optional legacy link
+                edition_id: existingEd.id,
+                status: 'unread',
+                owned_at: new Date().toISOString()
+              }, { onConflict: 'user_id, edition_id' });
+
+              if (ubErr) {
+                console.error(`[Batch Scanner] Failed to link existing edition ${bookData.isbn}:`, ubErr.message);
+                throw new Error(`Ownership link failed for existing edition: ${ubErr.message}`);
               }
+
               console.log(`[Batch Scanner] ISBN ${bookData.isbn} exists — ensured ownership link`);
               continue;
             }
