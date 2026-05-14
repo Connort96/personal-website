@@ -943,15 +943,24 @@ const FulfillmentModal = ({ data, onFulfill, onClose, isFulfilling }) => {
   const fetchResults = useCallback(async (isbn = null) => {
     setLoading(true);
     try {
-      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=3&fields=title,isbn,publisher,cover_i`;
+      // Increase search limit to 20 so we have a better chance of finding 3 with covers
+      let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(data.title)}&author=${encodeURIComponent(data.author)}&limit=20&fields=title,isbn,publisher,cover_i`;
       if (isbn) {
         url = `https://openlibrary.org/search.json?q=isbn:${isbn}&limit=1&fields=title,isbn,publisher,cover_i`;
       }
       const res = await fetch(url);
       const json = await res.json();
+      
       // Filter for records that actually have a cover and ISBN for the best UX
-      const filtered = (json.docs || []).filter(r => r.isbn && r.isbn.length > 0 && r.cover_i);
-      setResults(filtered.length > 0 ? filtered : (json.docs || []).slice(0, 3));
+      const withCovers = (json.docs || []).filter(r => r.isbn && r.isbn.length > 0 && r.cover_i);
+      
+      // Still only show 3 most relevant results to the user as requested
+      setResults(withCovers.slice(0, 3));
+      
+      // Fallback if none have covers
+      if (withCovers.length === 0) {
+        setResults((json.docs || []).slice(0, 3));
+      }
     } catch (err) {
       console.error("Fulfillment search failed:", err);
     } finally {
