@@ -82,11 +82,12 @@
 /* ── Camera Viewport ─────────────────────────────────────── */
 .scanner-viewport {
   position: relative;
-  aspect-ratio: 4/5;
+  aspect-ratio: 1/1;
   background: #000;
   overflow: hidden;
   transition: border-color 0.3s ease;
   border: 3px solid transparent;
+  flex-shrink: 0;
 }
 
 .scanner-viewport--flash {

@@ -24,7 +24,6 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   const [flashActive, setFlashActive] = useState(false);
   const [genres, setGenres] = useState([]);
   const [cameraError, setCameraError] = useState('');
-  const [provenanceNote, setProvenanceNote] = useState('');
 
   // Load genre list from DB on mount
   useEffect(() => {
@@ -488,7 +487,6 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
               body: { 
                 title: bookData.title, 
                 author: bookData.author, 
-                provenance_string: provenanceNote || null,
                 existing_vibes: existingVibes,
                 existing_motifs: existingMotifs
               }
@@ -504,17 +502,6 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
                 synopsis: aiData.synopsis || bookData.description || null,
                 ai_enriched: true
               }).eq('id', workId);
-
-              // Update Edition with Provenance details
-              if (aiData.provenance) {
-                const prov = aiData.provenance;
-                await supabase.from('editions').update({
-                  condition: prov.condition || null,
-                  defects: prov.defects || [],
-                  acquisition_notes: prov.acquisition_source || provenanceNote || null,
-                  acquisition_year: prov.acquisition_year || null
-                }).eq('id', editionId);
-              }
             }
           } catch (aiErr) {
             console.warn(`[Batch Scanner] AI Enrichment failed (non-blocking) for ${bookData.title}:`, aiErr);
@@ -583,17 +570,6 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
                 <p>{cameraError}</p>
               </div>
             )}
-          </div>
-
-          {/* Provenance Note */}
-          <div className="scanner-provenance">
-            <input
-              type="text"
-              className="scanner-provenance-input"
-              placeholder="Quick Provenance Note (Optional) — e.g. 'Strand Bookstore 2022, slightly foxed'"
-              value={provenanceNote}
-              onChange={(e) => setProvenanceNote(e.target.value)}
-            />
           </div>
 
           {/* Session Queue */}
