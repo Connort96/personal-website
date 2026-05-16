@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import './Checklist.css';
 
 const OPEN_LIBRARY_API = 'https://openlibrary.org/search.json';
 
 export default function Checklist() {
+  const { user } = useAuth();
   const [editions, setEditions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTrackerName, setActiveTrackerName] = useState(null);
@@ -149,24 +151,66 @@ export default function Checklist() {
     if (!fulfillmentTarget) return;
     setIsFulfilling(true);
     
-    const { error } = await supabase
-      .from('editions')
-      .update({
-        isbn: isbn || null,
-        cover_url: coverUrl || null,
-        cover_image_url: coverUrl || null,
-        status: 'Owned'
-      })
-      .eq('id', fulfillmentTarget.id);
+    try {
+      const { data: adminSettings } = await supabase
+        .from('admin_settings')
+        .select('admin_user_id')
+        .single();
+      const targetUserId = adminSettings?.admin_user_id || user?.id;
 
-    if (error) {
-      console.error('Fulfillment commit failed:', error);
-      alert('Failed to update record. Check if "status" column exists.');
-    } else {
+      const { error } = await supabase
+        .from('editions')
+        .update({
+          isbn: isbn || null,
+          cover_url: coverUrl || null,
+          cover_image_url: coverUrl || null,
+          status: 'Owned'
+        })
+        .eq('id', fulfillmentTarget.id);
+
+      if (error) throw error;
+
+      const workId = fulfillmentTarget.work_id;
+      let legacyBookId = fulfillmentTarget.id;
+
+      if (workId) {
+        const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
+        if (legacyRow) {
+          legacyBookId = legacyRow.id;
+        } else {
+          const title = fulfillmentTarget.works?.title || 'Unknown Title';
+          const author = fulfillmentTarget.works?.author || 'Unknown Author';
+          const genreId = fulfillmentTarget.genre_id || 'modern_post2000';
+          const genreName = fulfillmentTarget.genre_name || 'Modern Fiction (Post-2000)';
+          const color = fulfillmentTarget.color || '#4A8A8A';
+
+          const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreName).order('book_index', { ascending: false }).limit(1);
+          const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+          const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title, author, work_id: workId, genre_id: genreId, genre_name: genreName, color, book_index: nextIndex }).select('id').single();
+          if (!bkErr && newBk) {
+            legacyBookId = newBk.id;
+          }
+        }
+      }
+
+      if (targetUserId) {
+        await supabase.from('user_books').upsert({
+          user_id: targetUserId,
+          book_id: legacyBookId,
+          edition_id: fulfillmentTarget.id,
+          status: 'unread',
+          owned_at: new Date().toISOString()
+        }, { onConflict: 'user_id, edition_id' });
+      }
+
       await fetchChecklist();
       setFulfillmentTarget(null);
+    } catch (err) {
+      console.error('Fulfillment commit failed:', err);
+      alert(`Failed to update record: ${err.message}`);
+    } finally {
+      setIsFulfilling(false);
     }
-    setIsFulfilling(false);
   }
 
   // Deletion Handlers
@@ -174,7 +218,11 @@ export default function Checklist() {
     if (!confirm(`Are you sure you want to remove "${book.works?.title || 'this book'}" from the tracker?`)) return;
     setIsDeletingBook(true);
     try {
+      // 1. Unlink primary_edition_id if this book is the primary edition
+      await supabase.from('works').update({ primary_edition_id: null }).eq('primary_edition_id', book.id);
+      // 2. Delete linked user_books
       await supabase.from('user_books').delete().eq('edition_id', book.id);
+      // 3. Delete edition
       const { error } = await supabase.from('editions').delete().eq('id', book.id);
       if (error) throw error;
       console.log('[Delete Book] Successfully removed edition:', book.id);
@@ -193,6 +241,9 @@ export default function Checklist() {
     try {
       const editionIds = activeTracker.books.map(b => b.id);
       if (editionIds.length > 0) {
+        // 1. Unlink primary_edition_id from works
+        await supabase.from('works').update({ primary_edition_id: null }).in('primary_edition_id', editionIds);
+        // 2. Delete linked user_books
         await supabase.from('user_books').delete().in('edition_id', editionIds);
       }
 
