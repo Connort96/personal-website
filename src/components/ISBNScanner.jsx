@@ -347,7 +347,7 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
   }, []);
 
   // ── COMMIT: Write all queued books to Supabase ──
-  // ── COMMIT: Write all queued books to Supabase ──
+  // ── COMMIT: Write all queued books  // ── COMMIT: Write all queued books to Supabase ──
   const handleCommitAll = async () => {
     if (!user || sessionQueue.length === 0) return;
     setCommitting(true);
@@ -359,6 +359,7 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
         .single();
       
       const targetUserId = adminSettings?.admin_user_id || user.id;
+      let anyFulfilled = false;
 
       for (const item of sessionQueue) {
         try {
@@ -374,114 +375,85 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
           let legacyBookId;
           let fulfillmentFound = false;
 
-          // ── STEP A: Strict Edition Match (ISBN) ──
-          const { data: strictEd } = await supabase
-            .from('editions')
-            .select('id, work_id')
-            .eq('isbn', scannedIsbn)
+          // ── STEP A: Query works (titles table) to see if a matching story already exists ──
+          const { data: existingWork } = await supabase
+            .from('works')
+            .select('id')
+            .ilike('title', scannedTitle)
+            .ilike('author', scannedAuthor)
             .maybeSingle();
 
-          if (strictEd) {
-            const { data: wantedLink } = await supabase
-              .from('user_books')
-              .select('id, book_id')
-              .eq('user_id', targetUserId)
-              .eq('edition_id', strictEd.id)
-              .eq('status', 'wanted')
-              .maybeSingle();
+          if (existingWork) {
+            workId = existingWork.id;
 
-            if (wantedLink) {
-              console.log(`[Waterfall] Step A: Exact ISBN match found for Wanted item. Fulfilling...`);
-              await supabase.from('user_books').update({
+            // ── STEP B: Query editions (copies table) for Wanted items in this work ──
+            const { data: wantedEditions } = await supabase
+              .from('editions')
+              .select('*')
+              .eq('work_id', workId)
+              .eq('status', 'Wanted');
+
+            if (wantedEditions && wantedEditions.length > 0) {
+              // Prioritize rows where collection_imprint != 'General Wishlist' if multiple exist
+              const targetWanted = wantedEditions.find(ed => ed.collection_imprint && ed.collection_imprint !== 'General Wishlist') || wantedEditions[0];
+
+              console.log(`[Scanner Intercept] Found Wanted copy in tracker "${targetWanted.collection_imprint || 'General Wishlist'}". Fulfilling...`);
+
+              // Fulfillment Action: UPDATE existing row in editions. Set status = 'Owned', isbn = scannedIsbn, cover_url = bookData.cover
+              await supabase.from('editions').update({
+                status: 'Owned',
+                isbn: scannedIsbn || null,
+                cover_url: bookData.cover || null,
+                cover_image_url: bookData.cover || null,
+                publisher: bookData.publisher || 'Unknown Publisher'
+              }).eq('id', targetWanted.id);
+
+              editionId = targetWanted.id;
+              fulfillmentFound = true;
+              anyFulfilled = true;
+
+              // Ensure user_books ownership is linked
+              const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
+              if (legacyRow) { 
+                legacyBookId = legacyRow.id; 
+              } else {
+                const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreMeta.genre_name).order('book_index', { ascending: false }).limit(1);
+                const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+                const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, work_id: workId, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
+                if (bkErr) throw bkErr;
+                legacyBookId = newBk.id;
+              }
+
+              await supabase.from('user_books').upsert({
+                user_id: targetUserId,
+                book_id: legacyBookId,
+                edition_id: editionId,
                 status: 'unread',
                 owned_at: new Date().toISOString()
-              }).eq('id', wantedLink.id);
-              
-              workId = strictEd.work_id;
-              editionId = strictEd.id;
-              legacyBookId = wantedLink.book_id;
-              fulfillmentFound = true;
+              }, { onConflict: 'user_id, edition_id' });
             }
           }
 
-          // ── STEP B: Fuzzy Work Match (Generic Wanted) ──
+          // ── STEP C: If NO Wanted copy is found: Proceed normally. Create title & insert brand new Owned copy ──
           if (!fulfillmentFound) {
-            const { data: fuzzyWork } = await supabase
-              .from('works')
-              .select('id')
-              .ilike('title', scannedTitle)
-              .ilike('author', scannedAuthor)
-              .maybeSingle();
-
-            if (fuzzyWork) {
-              workId = fuzzyWork.id;
-              const { data: genericWanted } = await supabase
-                .from('editions')
-                .select('id, user_books!inner(id, book_id)')
-                .eq('work_id', fuzzyWork.id)
-                .is('isbn', null)
-                .eq('user_books.status', 'wanted')
-                .eq('user_books.user_id', targetUserId)
-                .maybeSingle();
-
-              if (genericWanted) {
-                console.log(`[Waterfall] Step B: Fuzzy Work match found for Generic Wanted item. Upgrading...`);
-                
-                // Upgrade the generic edition with real data
-                await supabase.from('editions').update({
-                  isbn: scannedIsbn,
-                  cover_image_url: bookData.cover,
-                  cover_url: bookData.cover,
-                  publisher: bookData.publisher || 'Unknown Publisher'
-                }).eq('id', genericWanted.id);
-
-                // Mark as owned
-                await supabase.from('user_books').update({
-                  status: 'unread',
-                  owned_at: new Date().toISOString()
-                }).eq('id', genericWanted.user_books[0].id);
-
-                editionId = genericWanted.id;
-                legacyBookId = genericWanted.user_books[0].book_id;
-                fulfillmentFound = true;
-              }
-            }
-          }
-
-          // ── STEP C: Insert New (Fallthrough) ──
-          if (!fulfillmentFound) {
-            console.log(`[Waterfall] Step C: No existing Wanted item found. Creating new archive entry...`);
+            console.log(`[Scanner Intercept] No Wanted copy found. Creating new archive entry...`);
             
             // Resolve Work
             if (!workId) {
-              const { data: existingWork } = await supabase
-                .from('works')
-                .select('id')
-                .ilike('title', scannedTitle)
-                .ilike('author', scannedAuthor)
-                .maybeSingle();
-              
-              if (existingWork) {
-                workId = existingWork.id;
-              } else {
-                const { data: newWork, error: workErr } = await supabase.from('works').insert({
-                  title: scannedTitle,
-                  author: scannedAuthor
-                }).select().single();
-                if (workErr) throw workErr;
-                workId = newWork.id;
-              }
+              const { data: newWork, error: workErr } = await supabase.from('works').insert({
+                title: scannedTitle,
+                author: scannedAuthor
+              }).select().single();
+              if (workErr) throw workErr;
+              workId = newWork.id;
             }
 
             // Resolve Edition
-            const { data: existingEd } = await supabase
-              .from('editions')
-              .select('id')
-              .eq('isbn', scannedIsbn)
-              .maybeSingle();
-
+            const { data: existingEd } = await supabase.from('editions').select('id').eq('isbn', scannedIsbn).maybeSingle();
             if (existingEd) {
               editionId = existingEd.id;
+              // Ensure status is Owned
+              await supabase.from('editions').update({ status: 'Owned' }).eq('id', editionId);
             } else {
               const { data: newEd, error: neErr } = await supabase.from('editions').insert({
                 work_id: workId,
@@ -490,6 +462,7 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
                 cover_url: bookData.cover,
                 publisher: bookData.publisher || 'Unknown Publisher',
                 format: 'Hardcover',
+                status: 'Owned',
                 genre_id: genreId,
                 genre_name: genreMeta.genre_name,
                 color: genreMeta.color
@@ -499,31 +472,13 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
             }
 
             // Resolve Checklist Link
-            const { data: legacyRow } = await supabase
-              .from('books')
-              .select('id')
-              .eq('work_id', workId)
-              .maybeSingle();
-            
-            if (legacyRow) {
-              legacyBookId = legacyRow.id;
+            const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
+            if (legacyRow) { 
+              legacyBookId = legacyRow.id; 
             } else {
-              const { data: genreBooks } = await supabase.from('books')
-                .select('book_index')
-                .eq('genre_name', genreMeta.genre_name)
-                .order('book_index', { ascending: false })
-                .limit(1);
+              const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreMeta.genre_name).order('book_index', { ascending: false }).limit(1);
               const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-
-              const { data: newBk, error: bkErr } = await supabase.from('books').insert({
-                title: scannedTitle,
-                author: scannedAuthor,
-                work_id: workId,
-                genre_id: genreId,
-                genre_name: genreMeta.genre_name,
-                color: genreMeta.color,
-                book_index: nextIndex
-              }).select('id').single();
+              const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, work_id: workId, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
               if (bkErr) throw bkErr;
               legacyBookId = newBk.id;
             }
@@ -536,7 +491,6 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
               status: 'unread',
               owned_at: new Date().toISOString()
             }, { onConflict: 'user_id, edition_id' });
-
             if (ubErr) throw ubErr;
           }
 
@@ -599,7 +553,11 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
         }
       }
 
-      showToast("Batch Archival Complete!", "success");
+      if (anyFulfilled) {
+        showToast("Tracker Fulfilled!", "success");
+      } else {
+        showToast("Batch Archival Complete!", "success");
+      }
       setSessionQueue([]);
       if (onComplete) onComplete();
       onClose();
