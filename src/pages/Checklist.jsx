@@ -20,6 +20,18 @@ export default function Checklist() {
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiError, setAiError] = useState('');
 
+  // Universal Add Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSearchQuery, setAddSearchQuery] = useState('');
+  const [addSearchResults, setAddSearchResults] = useState([]);
+  const [isSearchingAdd, setIsSearchingAdd] = useState(false);
+  const [selectedAddBook, setSelectedAddBook] = useState(null);
+  const [addMode, setAddMode] = useState(null); // 'existing' | 'new'
+  const [selectedExistingTracker, setSelectedExistingTracker] = useState('');
+  const [newTrackerInput, setNewTrackerInput] = useState('');
+  const [isAddingBook, setIsAddingBook] = useState(false);
+  const [addError, setAddError] = useState('');
+
   useEffect(() => {
     fetchChecklist();
   }, []);
@@ -159,6 +171,97 @@ export default function Checklist() {
     }
   }
 
+  // Universal Add Smart Search Handler
+  async function handleSmartSearch(e) {
+    e.preventDefault();
+    if (!addSearchQuery) return;
+    setIsSearchingAdd(true);
+    setAddSearchResults([]);
+    setSelectedAddBook(null);
+    setAddMode(null);
+    setAddError('');
+
+    try {
+      const res = await fetch(`${GOOGLE_BOOKS_API}${encodeURIComponent(addSearchQuery)}&maxResults=10`);
+      const data = await res.json();
+
+      const results = data.items?.map(item => ({
+        title: item.volumeInfo?.title || 'Unknown Title',
+        author: item.volumeInfo?.authors?.[0] || 'Unknown Author',
+        cover: item.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+        isbn: item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier || 
+              item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier || null
+      })) || [];
+
+      setAddSearchResults(results);
+    } catch (err) {
+      console.error('Smart search failed:', err);
+      setAddError('Failed to search Google Books.');
+    } finally {
+      setIsSearchingAdd(false);
+    }
+  }
+
+  // Universal Add Commit Handler
+  async function commitUniversalAdd(e) {
+    e.preventDefault();
+    if (!selectedAddBook) return;
+
+    const targetTracker = addMode === 'existing' ? selectedExistingTracker : newTrackerInput.trim();
+    if (!targetTracker) {
+      setAddError('Please specify a tracker name.');
+      return;
+    }
+
+    setIsAddingBook(true);
+    setAddError('');
+
+    try {
+      // Step 1: Upsert Work
+      const { data: workData, error: workErr } = await supabase
+        .from('works')
+        .upsert(
+          { title: selectedAddBook.title, author: selectedAddBook.author },
+          { onConflict: 'title, author' }
+        )
+        .select('id')
+        .single();
+
+      if (workErr) throw workErr;
+      const work_id = workData.id;
+
+      // Step 2: Insert Edition
+      const { error: edErr } = await supabase
+        .from('editions')
+        .insert({
+          work_id: work_id,
+          collection_imprint: targetTracker,
+          cover_url: selectedAddBook.cover || null,
+          cover_image_url: selectedAddBook.cover || null,
+          isbn: selectedAddBook.isbn || null,
+          status: 'Wanted',
+          publisher: 'Unknown Publisher'
+        });
+
+      if (edErr) throw edErr;
+
+      console.log('[Universal Add] Successfully added book to tracker:', targetTracker);
+      setShowAddModal(false);
+      setAddSearchQuery('');
+      setAddSearchResults([]);
+      setSelectedAddBook(null);
+      setAddMode(null);
+      setSelectedExistingTracker('');
+      setNewTrackerInput('');
+      await fetchChecklist();
+    } catch (err) {
+      console.error('[Universal Add] Error:', err);
+      setAddError(err.message || 'Failed to add book to tracker.');
+    } finally {
+      setIsAddingBook(false);
+    }
+  }
+
   if (loading) return <div className="checklist-container"><p>Loading your roadmap...</p></div>;
 
   return (
@@ -226,6 +329,172 @@ export default function Checklist() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Add Button */}
+      <button 
+        className="floating-add-btn" 
+        onClick={() => {
+          setShowAddModal(true);
+          setAddSearchQuery('');
+          setAddSearchResults([]);
+          setSelectedAddBook(null);
+          setAddMode(null);
+          setAddError('');
+        }}
+        title="Universal Add Modal"
+      >
+        +
+      </button>
+
+      {/* Universal Add Modal */}
+      {showAddModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '700px' }}>
+            <header className="modal-header">
+              <h2>Universal Add Modal</h2>
+              <p>Smart search Google Books to add new volumes or create new trackers.</p>
+            </header>
+
+            {addError && <div className="ai-error-msg">{addError}</div>}
+
+            <form onSubmit={handleSmartSearch}>
+              <div className="ai-form-group">
+                <label htmlFor="smartSearch">Smart Search (Title, Author, or ISBN)</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input 
+                    id="smartSearch"
+                    type="text" 
+                    placeholder="e.g., The Odyssey Homer..." 
+                    value={addSearchQuery}
+                    onChange={(e) => setAddSearchQuery(e.target.value)}
+                    required
+                    disabled={isSearchingAdd || isAddingBook}
+                  />
+                  <button 
+                    type="submit" 
+                    className="fulfill-btn" 
+                    style={{ marginTop: '12px', padding: '0 24px' }}
+                    disabled={isSearchingAdd || isAddingBook || !addSearchQuery}
+                  >
+                    {isSearchingAdd ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {addSearchResults.length > 0 && (
+              <div className="smart-search-results">
+                {addSearchResults.map((book, i) => (
+                  <div 
+                    key={i} 
+                    className={`smart-search-item ${selectedAddBook === book ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedAddBook(book);
+                      setAddMode(null);
+                      setAddError('');
+                    }}
+                  >
+                    <img src={book.cover || 'https://via.placeholder.com/40x60?text=?'} alt="" className="smart-search-cover" />
+                    <div className="smart-search-info">
+                      <div className="smart-search-title">{book.title}</div>
+                      <div className="smart-search-author">{book.author}</div>
+                    </div>
+                    {selectedAddBook === book && <div className="status-indicator owned">✓</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedAddBook && (
+              <div className="add-mode-container animate-fade-in">
+                <div className="add-mode-actions">
+                  <button 
+                    type="button" 
+                    className={`add-mode-btn ${addMode === 'existing' ? 'active' : ''}`}
+                    onClick={() => {
+                      setAddMode('existing');
+                      if (trackerList.length > 0) setSelectedExistingTracker(trackerList[0].name);
+                    }}
+                    disabled={isAddingBook}
+                  >
+                    Add to Existing Tracker
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`add-mode-btn ${addMode === 'new' ? 'active' : ''}`}
+                    onClick={() => {
+                      setAddMode('new');
+                      setNewTrackerInput('');
+                    }}
+                    disabled={isAddingBook}
+                  >
+                    Create New Tracker
+                  </button>
+                </div>
+
+                {addMode === 'existing' && (
+                  <form onSubmit={commitUniversalAdd} className="ai-form-group animate-fade-in">
+                    <label htmlFor="selectTracker">Select Existing Tracker</label>
+                    <select 
+                      id="selectTracker"
+                      value={selectedExistingTracker}
+                      onChange={(e) => setSelectedExistingTracker(e.target.value)}
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.05)', 
+                        border: '1px solid rgba(255, 255, 255, 0.1)', 
+                        padding: '16px', 
+                        borderRadius: '16px', 
+                        color: '#fff', 
+                        fontSize: '1rem',
+                        width: '100%',
+                        marginTop: '8px'
+                      }}
+                      disabled={isAddingBook}
+                      required
+                    >
+                      {trackerList.map(t => (
+                        <option key={t.name} value={t.name} style={{ background: '#111', color: '#fff' }}>
+                          {t.name} ({t.owned}/{t.total})
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit" className="ai-generate-btn" style={{ marginTop: '24px' }} disabled={isAddingBook}>
+                      {isAddingBook ? 'Adding Book...' : 'Confirm Add to Tracker'}
+                    </button>
+                  </form>
+                )}
+
+                {addMode === 'new' && (
+                  <form onSubmit={commitUniversalAdd} className="ai-form-group animate-fade-in">
+                    <label htmlFor="newTrackerName">New Tracker Name</label>
+                    <input 
+                      id="newTrackerName"
+                      type="text" 
+                      placeholder="e.g., Vintage (Japanese Literature)" 
+                      value={newTrackerInput}
+                      onChange={(e) => setNewTrackerInput(e.target.value)}
+                      required
+                      disabled={isAddingBook}
+                    />
+                    <button type="submit" className="ai-generate-btn" style={{ marginTop: '24px' }} disabled={isAddingBook || !newTrackerInput}>
+                      {isAddingBook ? 'Creating Tracker & Adding Book...' : 'Confirm Create & Add'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            <button 
+              className="back-button" 
+              style={{ marginTop: '40px', width: '100%', justifyContent: 'center', marginBottom: 0 }}
+              onClick={() => setShowAddModal(false)}
+              disabled={isSearchingAdd || isAddingBook}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

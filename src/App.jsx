@@ -70,6 +70,14 @@ export default function App() {
               } 
             />
             <Route 
+              path="/trackers" 
+              element={
+                <ProtectedRoute>
+                  <Checklist />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/admin" 
               element={
                 <ProtectedRoute>
