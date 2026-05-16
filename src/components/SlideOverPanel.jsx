@@ -94,24 +94,17 @@ function SlideOverContent({ book, onClose, onSave, isAdmin }) {
     console.log(`[Art Hunt] Searching for ISBN: ${cleanIsbn}...`);
 
     try {
-      // Parallel hunt for better covers
-      const [olRes, gbRes] = await Promise.all([
-        fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`),
-        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`)
-      ]);
-
+      // Hunt for covers via Open Library Data API
+      const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
       const olData = await olRes.json();
-      const gbData = await gbRes.json();
       
       const olInfo = olData[`ISBN:${cleanIsbn}`];
-      const gbInfo = gbData.items?.[0]?.volumeInfo;
 
-      console.log(`[Art Hunt] OL Found: ${!!olInfo}, GB Found: ${!!gbInfo}`);
+      console.log(`[Art Hunt] OL Found: ${!!olInfo}`);
 
-      const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
       const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
       
-      let bestCover = (gbCover || olCover || '').replace('http://', 'https://');
+      let bestCover = (olCover || '').replace('http://', 'https://');
       
       // TRIPLE-HUNT FALLBACK: If no cover found in primary APIs, try the Search API (more aggressive)
       if (!bestCover) {

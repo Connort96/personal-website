@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import './Checklist.css';
 
-const GOOGLE_BOOKS_API = 'https://www.googleapis.com/books/v1/volumes?q=';
+const OPEN_LIBRARY_API = 'https://openlibrary.org/search.json';
 
 export default function Checklist() {
   const [editions, setEditions] = useState([]);
@@ -98,14 +98,13 @@ export default function Checklist() {
     setManualIsbn('');
     
     try {
-      const query = `intitle:${encodeURIComponent(book.works?.title || '')}+inauthor:${encodeURIComponent(book.works?.author || '')}`;
-      const res = await fetch(`${GOOGLE_BOOKS_API}${query}&maxResults=6`);
+      const query = `${book.works?.title || ''} ${book.works?.author || ''}`.trim();
+      const res = await fetch(`${OPEN_LIBRARY_API}?q=${encodeURIComponent(query)}&limit=6&fields=isbn,cover_i`);
       const data = await res.json();
       
-      const options = data.items?.map(item => ({
-        isbn: item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier || 
-              item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier,
-        thumbnail: item.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:')
+      const options = data.docs?.map(doc => ({
+        isbn: doc.isbn?.[0] || null,
+        thumbnail: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null
       })).filter(opt => opt.thumbnail) || [];
       
       setCoverOptions(options);
@@ -182,21 +181,20 @@ export default function Checklist() {
     setAddError('');
 
     try {
-      const res = await fetch(`${GOOGLE_BOOKS_API}${encodeURIComponent(addSearchQuery)}&maxResults=10`);
+      const res = await fetch(`${OPEN_LIBRARY_API}?q=${encodeURIComponent(addSearchQuery)}&limit=10&fields=title,author_name,cover_i,isbn`);
       const data = await res.json();
 
-      const results = data.items?.map(item => ({
-        title: item.volumeInfo?.title || 'Unknown Title',
-        author: item.volumeInfo?.authors?.[0] || 'Unknown Author',
-        cover: item.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
-        isbn: item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier || 
-              item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier || null
+      const results = data.docs?.map(doc => ({
+        title: doc.title || 'Unknown Title',
+        author: doc.author_name?.[0] || 'Unknown Author',
+        cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null,
+        isbn: doc.isbn?.[0] || null
       })) || [];
 
       setAddSearchResults(results);
     } catch (err) {
       console.error('Smart search failed:', err);
-      setAddError('Failed to search Google Books.');
+      setAddError('Failed to search Open Library.');
     } finally {
       setIsSearchingAdd(false);
     }

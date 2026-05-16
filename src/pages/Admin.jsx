@@ -13,39 +13,10 @@ import './Admin.css';
 
 const ISBNScanner = React.lazy(() => import('../components/ISBNScanner'));
 
-// ─── Dual-API lookup helper ───────────────────────────────────────────────────
+// ─── Open Library lookup helper ───────────────────────────────────────────────────
 async function lookupBookMetadata(title, author) {
-  // Try Google Books first
   try {
-    const q = encodeURIComponent(`intitle:${title}${author ? ` inauthor:${author}` : ''}`);
-    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1`);
-    if (res.status !== 429) {
-      const data = await res.json();
-      if (data.items && data.items.length > 0) {
-        const info = data.items[0].volumeInfo;
-        const ids = data.items[0].volumeInfo.industryIdentifiers || [];
-        const isbn = ids.find(i => i.type === 'ISBN_13')?.identifier
-                  || ids.find(i => i.type === 'ISBN_10')?.identifier
-                  || null;
-        let coverUrl = info.imageLinks?.thumbnail || null;
-        if (coverUrl) coverUrl = coverUrl.replace('http:', 'https:').replace('&edge=curl', '');
-
-        return {
-          source: 'Google Books',
-          cover_url: coverUrl,
-          publisher: info.publisher || null,
-          page_count: info.pageCount || null,
-          isbn,
-          publication_date: info.publishedDate ? info.publishedDate.substring(0, 4) + '-01-01' : null,
-          translator: null, // Google Books rarely has this
-        };
-      }
-    }
-  } catch (_) {}
-
-  // Fallback: Open Library
-  try {
-    const q = encodeURIComponent(`${title} ${author || ''}`);
+    const q = encodeURIComponent(`${title} ${author || ''}`.trim());
     const res = await fetch(`https://openlibrary.org/search.json?q=${q}&limit=1&fields=title,author_name,cover_i,isbn,number_of_pages_median,first_publish_year,publisher`);
     const data = await res.json();
     if (data.docs && data.docs.length > 0) {
@@ -146,7 +117,7 @@ export default function Admin() {
       setLookupSource(result.source);
       setFormStatus({ type: 'success', message: `Metadata pre-filled from ${result.source}. Review and edit before saving.` });
     } else {
-      setFormStatus({ type: 'error', message: 'No results found on Google Books or Open Library.' });
+      setFormStatus({ type: 'error', message: 'No results found on Open Library.' });
     }
     setFormLoading(false);
   };
@@ -701,11 +672,11 @@ export default function Admin() {
         <div className="admin-card">
           <h3 style={{ fontFamily: 'var(--font-serif)', marginBottom: 'var(--space-3)' }}>Bulk Metadata Backfill</h3>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 1.6 }}>
-            For every book missing a cover, this will automatically query <strong>Google Books</strong> (then fall back to <strong>Open Library</strong> if rate-limited) 
+            For every book missing a cover, this will automatically query <strong>Open Library</strong> 
             and save: cover image, publisher, page count, ISBN, publication date, and translator. Takes ~10–15 minutes for 1,800 books.
           </p>
           <button type="button" className="admin-submit-btn" onClick={handleBackfillCovers}>
-            Start Dual-API Backfill
+            Start Open Library Backfill
           </button>
           {backfillStatus && (
             <p style={{ marginTop: 'var(--space-4)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--accent-secondary)', lineHeight: 1.8 }}>

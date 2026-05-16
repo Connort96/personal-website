@@ -59,7 +59,6 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
   // Fetch book metadata from APIs
   const fetchBookMetadata = useCallback(async (isbn) => {
     let olInfo = null;
-    let gbInfo = null;
     let searchInfo = null;
 
     console.log(`[Batch Scanner] Initiating deep scan for ISBN: ${isbn}`);
@@ -91,17 +90,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         } catch (e) { console.warn("OL Data task failed", e); }
       })(),
 
-      // TIER 2: Supplementary & Direct APIs
-      (async () => {
-        try {
-          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-          if (res.ok) {
-            const data = await res.json();
-            gbInfo = data.items?.[0]?.volumeInfo;
-            if (gbInfo) console.log(`[Batch Scanner] Google Books hit for ${isbn}`);
-          }
-        } catch (e) { console.warn("Google Books task failed", e); }
-      })(),
+      // TIER 2: Supplementary Direct APIs
       (async () => {
         try {
           const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
@@ -140,8 +129,8 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       timeoutPromise
     ]);
 
-    if (!olInfo && !gbInfo && !searchInfo) {
-      console.warn(`[Batch Scanner] No metadata found for ${isbn} across 4 providers`);
+    if (!olInfo && !searchInfo) {
+      console.warn(`[Batch Scanner] No metadata found for ${isbn} across Open Library providers`);
       return {
         title: 'Unknown Book',
         subtitle: '',
@@ -165,14 +154,13 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
     }
 
     // Merge strategy
-    const finalTitle = gbInfo?.title || olInfo?.title || searchInfo?.title || 'Unknown Title';
-    const finalAuthor = gbInfo?.authors?.[0] || olInfo?.authors?.[0]?.name || (searchInfo?.author_name?.[0] !== 'Unknown Author' ? searchInfo?.author_name?.[0] : null) || 'Unknown Author';
+    const finalTitle = olInfo?.title || searchInfo?.title || 'Unknown Title';
+    const finalAuthor = olInfo?.authors?.[0]?.name || (searchInfo?.author_name?.[0] !== 'Unknown Author' ? searchInfo?.author_name?.[0] : null) || 'Unknown Author';
     
-    const gbCover = gbInfo?.imageLinks?.extraLarge || gbInfo?.imageLinks?.large || gbInfo?.imageLinks?.medium || gbInfo?.imageLinks?.thumbnail;
     const olCover = olInfo?.cover?.large || olInfo?.cover?.medium || '';
     const searchCover = searchInfo?.cover_i ? `https://covers.openlibrary.org/b/id/${searchInfo.cover_i}-L.jpg` : '';
     
-    let bestCover = (gbCover || olCover || searchCover || MISSING_COVER_URL).replace('http://', 'https://');
+    let bestCover = (olCover || searchCover || MISSING_COVER_URL).replace('http://', 'https://');
 
     // TRIPLE-HUNT FALLBACK for covers (if first doc has better cover)
     if (!bestCover || bestCover === MISSING_COVER_URL) {
@@ -229,26 +217,24 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
       }
 
       // Auto-detect genre from API subjects
-      // Combine subjects from BOTH the Books API and the Search API for best coverage
       const olSubjects = olInfo?.subjects || [];
       const searchSubjects = (searchInfo?.subject || []).map(s => typeof s === 'string' ? { name: s } : s);
       const combinedSubjects = [...olSubjects, ...searchSubjects];
-      const gbCategories = gbInfo?.categories || [];
-      const detectedGenre = detectGenre(finalTitle, combinedSubjects, gbCategories);
+      const detectedGenre = detectGenre(finalTitle, combinedSubjects, []);
 
       return {
         title: finalTitle,
-        subtitle: olInfo?.subtitle || gbInfo?.subtitle || '',
+        subtitle: olInfo?.subtitle || '',
         author: finalAuthor,
-        publisher: olInfo?.publishers?.[0]?.name || gbInfo?.publisher || 'Unknown Publisher',
-        year: olInfo?.publish_date || gbInfo?.publishedDate || 'Unknown',
-        full_date: (olInfo?.publish_date || gbInfo?.publishedDate)?.match(/\d{4}/) 
-          ? `${(olInfo?.publish_date || gbInfo?.publishedDate).match(/\d{4}/)[0]}-01-01` 
+        publisher: olInfo?.publishers?.[0]?.name || 'Unknown Publisher',
+        year: olInfo?.publish_date || 'Unknown',
+        full_date: olInfo?.publish_date?.match(/\d{4}/) 
+          ? `${olInfo.publish_date.match(/\d{4}/)[0]}-01-01` 
           : null,
         cover: bestCover || MISSING_COVER_URL,
-        pages: olInfo?.number_of_pages || gbInfo?.pageCount || 0,
+        pages: olInfo?.number_of_pages || 0,
         isbn: isbn,
-        description: olInfo?.description || gbInfo?.description || olInfo?.notes || '',
+        description: olInfo?.description || olInfo?.notes || '',
         format: 'Hardcover',
         series: seriesInfo,
         status: 'identified',
@@ -256,7 +242,7 @@ const ISBNScanner = ({ isOpen, onClose, onComplete }) => {
         genre_name: detectedGenre?.genre_name || null,
         genre_color: detectedGenre?.color || null,
         subjects: olSubjects.map(s => s.name || s),
-        categories: gbCategories,
+        categories: [],
     };
   }, []);
 
