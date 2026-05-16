@@ -7,7 +7,7 @@ const GOOGLE_BOOKS_API = 'https://www.googleapis.com/books/v1/volumes?q=';
 export default function Checklist() {
   const [editions, setEditions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTracker, setActiveTracker] = useState(null);
+  const [activeTrackerName, setActiveTrackerName] = useState(null);
   const [fulfillmentTarget, setFulfillmentTarget] = useState(null);
   const [coverOptions, setCoverOptions] = useState([]);
   const [manualIsbn, setManualIsbn] = useState('');
@@ -23,13 +23,14 @@ export default function Checklist() {
       .from('editions')
       .select(`
         *,
-        works (
+        works!editions_work_id_fkey (
           title,
           author
         )
       `)
       .order('collection_imprint', { ascending: true });
 
+    console.log('[Checklist] Data fetched:', data);
     if (error) {
       console.error('Error fetching checklist:', error);
     } else {
@@ -51,6 +52,7 @@ export default function Checklist() {
   }, {});
 
   const trackerList = Object.values(trackers).sort((a, b) => b.total - a.total);
+  const activeTracker = activeTrackerName ? trackerList.find(t => t.name === activeTrackerName) : null;
 
   // Fulfillment logic
   async function openFulfillmentModal(book) {
@@ -59,14 +61,14 @@ export default function Checklist() {
     setManualIsbn('');
     
     try {
-      const query = `intitle:${encodeURIComponent(book.works.title)}+inauthor:${encodeURIComponent(book.works.author)}`;
+      const query = `intitle:${encodeURIComponent(book.works?.title || '')}+inauthor:${encodeURIComponent(book.works?.author || '')}`;
       const res = await fetch(`${GOOGLE_BOOKS_API}${query}&maxResults=6`);
       const data = await res.json();
       
       const options = data.items?.map(item => ({
-        isbn: item.volumeInfo.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier || 
-              item.volumeInfo.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier,
-        thumbnail: item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:')
+        isbn: item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier || 
+              item.volumeInfo?.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier,
+        thumbnail: item.volumeInfo?.imageLinks?.thumbnail?.replace('http:', 'https:')
       })).filter(opt => opt.thumbnail) || [];
       
       setCoverOptions(options);
@@ -83,6 +85,7 @@ export default function Checklist() {
       .from('editions')
       .update({
         isbn: isbn || null,
+        cover_url: coverUrl || null,
         cover_image_url: coverUrl || null,
         status: 'Owned'
       })
@@ -113,13 +116,13 @@ export default function Checklist() {
             <TrackerCard 
               key={tracker.name} 
               tracker={tracker} 
-              onClick={() => setActiveTracker(tracker)}
+              onClick={() => setActiveTrackerName(tracker.name)}
             />
           ))}
         </div>
       ) : (
         <div className="drill-down-container">
-          <button className="back-button" onClick={() => setActiveTracker(null)}>
+          <button className="back-button" onClick={() => setActiveTrackerName(null)}>
             ← Back to Dashboard
           </button>
           
@@ -130,27 +133,31 @@ export default function Checklist() {
 
           <div className="tracker-books-list">
             {activeTracker.books.map(book => (
-              <div key={book.id} className={`book-row ${book.status?.toLowerCase()}`}>
+              <div key={book.id} className={`book-row ${book.status?.toLowerCase() || 'wanted'}`}>
                 <img 
-                  src={book.cover_image_url || 'https://via.placeholder.com/50x75?text=?'} 
+                  src={book.cover_image_url || book.cover_url || 'https://via.placeholder.com/50x75?text=?'} 
                   alt="" 
                   className="book-cover-mini"
                 />
                 <div className="book-info">
-                  <div className="book-title">{book.works.title}</div>
-                  <div className="book-author">{book.works.author}</div>
+                  <div className="book-title">{book.works?.title || 'Unknown Title'}</div>
+                  <div className="book-author">{book.works?.author || 'Unknown Author'}</div>
                   {book.isbn && <div className="book-meta">ISBN: {book.isbn}</div>}
                 </div>
                 
                 {book.status === 'Owned' ? (
                   <div className="status-indicator owned">✓</div>
                 ) : (
-                  <button 
-                    className="fulfill-btn"
-                    onClick={() => openFulfillmentModal(book)}
-                  >
-                    Fulfill
-                  </button>
+                  <div className="fulfillment-actions">
+                    <div className="status-indicator wanted" title="Wanted - Not Owned"></div>
+                    <button 
+                      className="fulfill-btn"
+                      onClick={() => openFulfillmentModal(book)}
+                      disabled={isFulfilling}
+                    >
+                      Fulfill
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -162,7 +169,7 @@ export default function Checklist() {
         <div className="modal-overlay">
           <div className="modal-content">
             <header className="modal-header">
-              <h2>Fulfill: {fulfillmentTarget.works.title}</h2>
+              <h2>Fulfill: {fulfillmentTarget.works?.title}</h2>
               <p>Select the correct edition to mark as Owned.</p>
             </header>
 
@@ -193,9 +200,9 @@ export default function Checklist() {
                   className="fulfill-btn" 
                   style={{ marginTop: '12px' }}
                   onClick={() => commitFulfillment(manualIsbn, null)}
-                  disabled={!manualIsbn}
+                  disabled={!manualIsbn || isFulfilling}
                 >
-                  Confirm Manual
+                  {isFulfilling ? 'Saving...' : 'Confirm Manual'}
                 </button>
               </div>
             </div>
@@ -204,6 +211,7 @@ export default function Checklist() {
               className="back-button" 
               style={{ marginTop: '40px', width: '100%', justifyContent: 'center' }}
               onClick={() => setFulfillmentTarget(null)}
+              disabled={isFulfilling}
             >
               Cancel
             </button>
