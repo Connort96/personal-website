@@ -170,26 +170,23 @@ export default function Checklist() {
 
       if (error) throw error;
 
-      const workId = fulfillmentTarget.work_id;
+      const title = fulfillmentTarget.works?.title || 'Unknown Title';
+      const author = fulfillmentTarget.works?.author || 'Unknown Author';
       let legacyBookId = fulfillmentTarget.id;
 
-      if (workId) {
-        const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
-        if (legacyRow) {
-          legacyBookId = legacyRow.id;
-        } else {
-          const title = fulfillmentTarget.works?.title || 'Unknown Title';
-          const author = fulfillmentTarget.works?.author || 'Unknown Author';
-          const genreId = fulfillmentTarget.genre_id || 'modern_post2000';
-          const genreName = fulfillmentTarget.genre_name || 'Modern Fiction (Post-2000)';
-          const color = fulfillmentTarget.color || '#4A8A8A';
+      const { data: legacyRow } = await supabase.from('books').select('id').ilike('title', title).ilike('author', author).maybeSingle();
+      if (legacyRow) {
+        legacyBookId = legacyRow.id;
+      } else {
+        const genreId = fulfillmentTarget.genre_id || 'modern_post2000';
+        const genreName = fulfillmentTarget.genre_name || 'Modern Fiction (Post-2000)';
+        const color = fulfillmentTarget.color || '#4A8A8A';
 
-          const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreName).order('book_index', { ascending: false }).limit(1);
-          const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-          const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title, author, work_id: workId, genre_id: genreId, genre_name: genreName, color, book_index: nextIndex }).select('id').single();
-          if (!bkErr && newBk) {
-            legacyBookId = newBk.id;
-          }
+        const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreName).order('book_index', { ascending: false }).limit(1);
+        const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
+        const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title, author, genre_id: genreId, genre_name: genreName, color, book_index: nextIndex }).select('id').single();
+        if (!bkErr && newBk) {
+          legacyBookId = newBk.id;
         }
       }
 

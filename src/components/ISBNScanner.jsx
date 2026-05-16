@@ -413,13 +413,13 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
               anyFulfilled = true;
 
               // Ensure user_books ownership is linked
-              const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
+              const { data: legacyRow } = await supabase.from('books').select('id').ilike('title', scannedTitle).ilike('author', scannedAuthor).maybeSingle();
               if (legacyRow) { 
                 legacyBookId = legacyRow.id; 
               } else {
                 const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreMeta.genre_name).order('book_index', { ascending: false }).limit(1);
                 const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-                const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, work_id: workId, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
+                const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
                 if (bkErr) throw bkErr;
                 legacyBookId = newBk.id;
               }
@@ -472,13 +472,13 @@ genre_id: genreId === 'uncategorized' ? null : genreId,
             }
 
             // Resolve Checklist Link
-            const { data: legacyRow } = await supabase.from('books').select('id').eq('work_id', workId).maybeSingle();
+            const { data: legacyRow } = await supabase.from('books').select('id').ilike('title', scannedTitle).ilike('author', scannedAuthor).maybeSingle();
             if (legacyRow) { 
               legacyBookId = legacyRow.id; 
             } else {
               const { data: genreBooks } = await supabase.from('books').select('book_index').eq('genre_name', genreMeta.genre_name).order('book_index', { ascending: false }).limit(1);
               const nextIndex = (genreBooks?.[0]?.book_index || 0) + 1;
-              const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, work_id: workId, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
+              const { data: newBk, error: bkErr } = await supabase.from('books').insert({ title: scannedTitle, author: scannedAuthor, genre_id: genreId, genre_name: genreMeta.genre_name, color: genreMeta.color, book_index: nextIndex }).select('id').single();
               if (bkErr) throw bkErr;
               legacyBookId = newBk.id;
             }
