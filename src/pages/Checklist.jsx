@@ -28,6 +28,7 @@ export default function Checklist() {
           author
         )
       `)
+      .limit(10000)
       .order('collection_imprint', { ascending: true });
 
     console.log('[Checklist] Data fetched:', data);
