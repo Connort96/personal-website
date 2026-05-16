@@ -19,24 +19,41 @@ export default function Checklist() {
 
   async function fetchChecklist() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('editions')
-      .select(`
-        *,
-        works!editions_work_id_fkey (
-          title,
-          author
-        )
-      `)
-      .limit(10000)
-      .order('collection_imprint', { ascending: true });
+    let allEditions = [];
+    let page = 0;
+    const pageSize = 1000;
 
-    console.log('[Checklist] Data fetched:', data);
-    if (error) {
-      console.error('Error fetching checklist:', error);
-    } else {
-      setEditions(data || []);
+    while (true) {
+      const { data, error } = await supabase
+        .from('editions')
+        .select(`
+          *,
+          works!editions_work_id_fkey (
+            title,
+            author
+          )
+        `)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .order('collection_imprint', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching checklist page:', error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      allEditions = allEditions.concat(data);
+      if (data.length < pageSize) {
+        break; // Reached the last page
+      }
+      page++;
     }
+
+    console.log('[Checklist] Total Data fetched:', allEditions.length);
+    setEditions(allEditions);
     setLoading(false);
   }
 
