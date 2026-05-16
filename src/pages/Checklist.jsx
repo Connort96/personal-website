@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { runSagaScout } from '../lib/sagaScout';
 import './Checklist.css';
 
 const OPEN_LIBRARY_API = 'https://openlibrary.org/search.json';
@@ -198,6 +199,59 @@ export default function Checklist() {
           status: 'unread',
           owned_at: new Date().toISOString()
         }, { onConflict: 'user_id, edition_id' });
+      }
+
+      // ── AI ENRICHMENT (Post-Fulfillment) ──
+      if (workId) {
+        try {
+          const { data: tagPool } = await supabase.from('works').select('vibes, motifs');
+          const vibeCounts = {};
+          const motifCounts = {};
+          (tagPool || []).forEach(w => {
+            (w.vibes || []).forEach(v => vibeCounts[v] = (vibeCounts[v] || 0) + 1);
+            (w.motifs || []).forEach(m => motifCounts[m] = (motifCounts[m] || 0) + 1);
+          });
+          const topVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
+          const topMotifs = Object.entries(motifCounts).sort((a, b) => b[1] - a[1]).slice(0, 40).map(e => e[0]);
+
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('fetch-enriched-metadata', {
+            body: { title, author, existing_vibes: topVibes, existing_motifs: topMotifs }
+          });
+
+          if (!aiError && aiData) {
+            await supabase.from('works').update({
+              vibes: aiData.vibes || [],
+              motifs: aiData.motifs || [],
+              setting_era: aiData.setting_era || null,
+              setting_location: aiData.setting_location || null,
+              synopsis: aiData.synopsis || null,
+              ai_enriched: true,
+              series_name: aiData.series_name || null
+            }).eq('id', workId);
+
+            // ── SERIES DISCOVERY & SAGA SCOUTING ──
+            if (aiData.is_series && aiData.series_name) {
+              let { data: series } = await supabase.from('series').select('id').ilike('name', aiData.series_name).maybeSingle();
+              let sId = series?.id;
+              if (!sId) {
+                const { data: newS } = await supabase.from('series').insert({ name: aiData.series_name }).select('id').single();
+                sId = newS?.id;
+              }
+
+              if (sId) {
+                await supabase.from('series_works').upsert({
+                  series_id: sId,
+                  work_id: workId,
+                  sequence_order: aiData.series_index || 1
+                }, { onConflict: 'series_id, work_id' });
+
+                runSagaScout(supabase, sId, aiData.series_name, aiData.series_index || 1, author).catch(e => console.warn(e));
+              }
+            }
+          }
+        } catch (aiErr) {
+          console.warn(`[Checklist Fulfillment] AI Enrichment skipped:`, aiErr.message);
+        }
       }
 
       await fetchChecklist();
