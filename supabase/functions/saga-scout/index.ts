@@ -79,8 +79,8 @@ Return ONLY valid JSON in this exact format: {"series_name": "The Hunger Games",
 If it does not belong to a series, return {"series_name": null, "sequence": null}. 
 Do not include markdown code blocks, backticks, or any other text. Just the raw JSON object.`;
 
-    // Model: gemini-1.5-flash (free-tier friendly)
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // Model: gemini-2.5-flash (free-tier friendly)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const geminiBody = {
       contents: [{
         parts: [{ text: prompt }]

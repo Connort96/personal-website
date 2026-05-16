@@ -39,7 +39,7 @@ serve(async (req) => {
     4. Do not include spin-offs, companion guides, or novellas unless they are part of the core numbered sequence. 
     5. Return ONLY the JSON array. No markdown, no backticks, no explanation.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const geminiBody = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
