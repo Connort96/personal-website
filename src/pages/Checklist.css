@@ -213,39 +213,47 @@
 /* Local Search & Sort Controls */
 .tracker-controls {
   position: sticky;
-  top: 80px;
-  background: rgba(17, 17, 17, 0.95);
+  top: 72px;
+  background: var(--bg-glass);
   backdrop-filter: blur(12px);
-  padding: 16px 0;
-  margin-bottom: 24px;
+  -webkit-backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  margin: 0 -24px 24px -24px;
   z-index: 100;
   display: flex;
   gap: 16px;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0 0 16px 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .tracker-search-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
   padding: 12px 16px;
   border-radius: 12px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 0.95rem;
   transition: all 0.2s;
 }
 
+.tracker-search-input::placeholder {
+  color: var(--text-muted);
+}
+
 .tracker-search-input:focus {
   outline: none;
-  border-color: #c8a84b;
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent-primary);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .tracker-sort-toggle {
   display: flex;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 4px;
   gap: 4px;
@@ -254,7 +262,7 @@
 .tracker-sort-btn {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   padding: 8px 16px;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -263,9 +271,13 @@
   transition: all 0.2s;
 }
 
+.tracker-sort-btn:hover {
+  color: var(--text-primary);
+}
+
 .tracker-sort-btn.active {
-  background: #c8a84b;
-  color: #000;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
 }
 
 .book-info {
