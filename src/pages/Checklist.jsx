@@ -18,6 +18,11 @@ export default function Checklist() {
   const [trackerSortMode, setTrackerSortMode] = useState('unowned'); // 'unowned' | 'az'
   const [coverErrors, setCoverErrors] = useState({});
 
+  // Deletion State
+  const [isDeletingTracker, setIsDeletingTracker] = useState(false);
+  const [showDeleteTrackerModal, setShowDeleteTrackerModal] = useState(false);
+  const [isDeletingBook, setIsDeletingBook] = useState(false);
+
   // AI Ingestion State
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiTrackerName, setAiTrackerName] = useState('');
@@ -162,6 +167,53 @@ export default function Checklist() {
       setFulfillmentTarget(null);
     }
     setIsFulfilling(false);
+  }
+
+  // Deletion Handlers
+  async function handleDeleteBook(book) {
+    if (!confirm(`Are you sure you want to remove "${book.works?.title || 'this book'}" from the tracker?`)) return;
+    setIsDeletingBook(true);
+    try {
+      await supabase.from('user_books').delete().eq('edition_id', book.id);
+      const { error } = await supabase.from('editions').delete().eq('id', book.id);
+      if (error) throw error;
+      console.log('[Delete Book] Successfully removed edition:', book.id);
+      await fetchChecklist();
+    } catch (err) {
+      console.error('[Delete Book] Error:', err);
+      alert(`Failed to delete book: ${err.message}`);
+    } finally {
+      setIsDeletingBook(false);
+    }
+  }
+
+  async function handleDeleteTracker() {
+    if (!activeTracker) return;
+    setIsDeletingTracker(true);
+    try {
+      const editionIds = activeTracker.books.map(b => b.id);
+      if (editionIds.length > 0) {
+        await supabase.from('user_books').delete().in('edition_id', editionIds);
+      }
+
+      if (activeTracker.name === 'General Wishlist') {
+        const { error } = await supabase.from('editions').delete().is('collection_imprint', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('editions').delete().eq('collection_imprint', activeTracker.name);
+        if (error) throw error;
+      }
+
+      console.log('[Delete Tracker] Successfully deleted tracker:', activeTracker.name);
+      setShowDeleteTrackerModal(false);
+      setActiveTrackerName(null);
+      await fetchChecklist();
+    } catch (err) {
+      console.error('[Delete Tracker] Error:', err);
+      alert(`Failed to delete tracker: ${err.message}`);
+    } finally {
+      setIsDeletingTracker(false);
+    }
   }
 
   // AI Generation Handler
@@ -315,9 +367,14 @@ export default function Checklist() {
         </div>
       ) : (
         <div className="drill-down-container">
-          <button className="back-button" onClick={() => setActiveTrackerName(null)}>
-            ← Back to Dashboard
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '16px' }}>
+            <button className="back-button" style={{ marginBottom: 0 }} onClick={() => setActiveTrackerName(null)}>
+              ← Back to Dashboard
+            </button>
+            <button className="delete-tracker-btn" onClick={() => setShowDeleteTrackerModal(true)}>
+              🗑️ Delete Tracker
+            </button>
+          </div>
           
           <div className="checklist-header">
             <h1>{activeTracker.name}</h1>
@@ -374,16 +431,34 @@ export default function Checklist() {
                   </div>
                   
                   {book.status === 'Owned' ? (
-                    <div className="status-indicator owned">✓</div>
+                    <div className="fulfillment-actions">
+                      <div className="status-indicator owned">✓</div>
+                      <button 
+                        className="delete-book-btn"
+                        onClick={() => handleDeleteBook(book)}
+                        disabled={isDeletingBook}
+                        title="Remove from Tracker"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   ) : (
                     <div className="fulfillment-actions">
                       <div className="status-indicator wanted" title="Wanted - Not Owned"></div>
                       <button 
                         className="fulfill-btn"
                         onClick={() => openFulfillmentModal(book)}
-                        disabled={isFulfilling}
+                        disabled={isFulfilling || isDeletingBook}
                       >
                         Fulfill
+                      </button>
+                      <button 
+                        className="delete-book-btn"
+                        onClick={() => handleDeleteBook(book)}
+                        disabled={isDeletingBook}
+                        title="Remove from Tracker"
+                      >
+                        🗑️
                       </button>
                     </div>
                   )}
@@ -672,6 +747,44 @@ export default function Checklist() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Tracker Confirmation Modal */}
+      {showDeleteTrackerModal && activeTracker && (
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-content" style={{ maxWidth: '500px', textAlign: 'center' }}>
+            <header className="modal-header">
+              <h2 style={{ color: '#ff6b6b' }}>Delete Tracker?</h2>
+              <p style={{ marginTop: '12px', fontSize: '1.05rem', color: 'rgba(255,255,255,0.8)' }}>
+                Are you sure? This will delete all <strong>{activeTracker.total}</strong> items in this tracker.
+              </p>
+              <p style={{ marginTop: '8px', fontSize: '0.9rem', color: 'rgba(255,107,107,0.8)' }}>
+                This action cannot be undone.
+              </p>
+            </header>
+
+            <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
+              <button 
+                type="button" 
+                className="back-button" 
+                style={{ margin: 0, flex: 1, justifyContent: 'center' }}
+                onClick={() => setShowDeleteTrackerModal(false)}
+                disabled={isDeletingTracker}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="ai-generate-btn" 
+                style={{ flex: 1, background: 'linear-gradient(135deg, #ff6b6b 0%, #c53030 100%)', color: '#fff' }}
+                onClick={handleDeleteTracker}
+                disabled={isDeletingTracker}
+              >
+                {isDeletingTracker ? 'Deleting...' : 'Yes, Delete Tracker'}
+              </button>
+            </div>
           </div>
         </div>
       )}
