@@ -103,6 +103,7 @@ export default function Checklist() {
 
   const trackerList = Object.values(trackers).sort((a, b) => b.total - a.total);
   const activeTracker = activeTrackerName ? trackerList.find(t => t.name === activeTrackerName) : null;
+  const ownedWorkIds = new Set(editions.filter(ed => ed.status === 'Owned' && ed.work_id).map(ed => ed.work_id));
 
   let displayedBooks = [];
   if (activeTracker) {
@@ -259,6 +260,57 @@ export default function Checklist() {
     } catch (err) {
       console.error('Fulfillment commit failed:', err);
       alert(`Failed to update record: ${err.message}`);
+    } finally {
+      setIsFulfilling(false);
+    }
+  }
+
+  async function handleLinkExistingCopy() {
+    if (!fulfillmentTarget || !activeTracker) return;
+    setIsFulfilling(true);
+    try {
+      const workId = fulfillmentTarget.work_id;
+      const wantedEditionId = fulfillmentTarget.id;
+      const currentTrackerName = activeTracker.name === 'General Wishlist' ? null : activeTracker.name;
+
+      // Step A: Find the existing copies row for this title_id where status = 'Owned'
+      const { data: existingOwned, error: findErr } = await supabase
+        .from('editions')
+        .select('id')
+        .eq('work_id', workId)
+        .eq('status', 'Owned')
+        .limit(1)
+        .single();
+
+      if (findErr || !existingOwned) {
+        throw new Error('Could not find existing owned copy in the database.');
+      }
+
+      const ownedEditionId = existingOwned.id;
+
+      // Step B: Update that existing 'Owned' row's tracker_name (collection_imprint) to be the current tracker
+      const { error: updErr } = await supabase
+        .from('editions')
+        .update({ collection_imprint: currentTrackerName })
+        .eq('id', ownedEditionId);
+
+      if (updErr) throw updErr;
+
+      // Step C: Delete the 'Wanted' ghost row that the user originally clicked on.
+      // 1. Unlink primary_edition_id if necessary
+      await supabase.from('works').update({ primary_edition_id: null }).eq('primary_edition_id', wantedEditionId);
+      // 2. Delete linked user_books if any
+      await supabase.from('user_books').delete().eq('edition_id', wantedEditionId);
+      // 3. Delete the wanted edition row
+      const { error: delErr } = await supabase.from('editions').delete().eq('id', wantedEditionId);
+      if (delErr) throw delErr;
+
+      console.log('[Link Existing Copy] Successfully linked owned copy and removed wanted ghost row.');
+      await fetchChecklist();
+      setFulfillmentTarget(null);
+    } catch (err) {
+      console.error('[Link Existing Copy] Error:', err);
+      alert(`Failed to link existing copy: ${err.message}`);
     } finally {
       setIsFulfilling(false);
     }
@@ -516,6 +568,7 @@ export default function Checklist() {
           <div className="tracker-books-list">
             {displayedBooks.map(book => {
               const hasCover = (book.cover_image_url || book.cover_url) && !coverErrors[book.id];
+              const isAlternativeOwned = book.status !== 'Owned' && book.work_id && ownedWorkIds.has(book.work_id);
               return (
                 <div key={book.id} className={`book-row ${book.status?.toLowerCase() || 'wanted'}`}>
                   {hasCover ? (
@@ -531,7 +584,14 @@ export default function Checklist() {
                     </div>
                   )}
                   <div className="book-info">
-                    <div className="book-title">{book.works?.title || 'Unknown Title'}</div>
+                    <div className="book-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {book.works?.title || 'Unknown Title'}
+                      {isAlternativeOwned && (
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid #D4AF37', padding: '2px 8px', borderRadius: '12px', fontWeight: '600', letterSpacing: '0.05em' }}>
+                          Alternative Edition Owned
+                        </span>
+                      )}
+                    </div>
                     <div className="book-author">{book.works?.author || 'Unknown Author'}</div>
                     {book.isbn && <div className="book-meta">ISBN: {book.isbn}</div>}
                   </div>
@@ -803,15 +863,35 @@ export default function Checklist() {
       )}
 
       {/* Fulfillment Modal */}
-      {fulfillmentTarget && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <header className="modal-header">
-              <h2>Fulfill: {fulfillmentTarget.works?.title}</h2>
-              <p>Select the correct edition to mark as Owned.</p>
-            </header>
+      {fulfillmentTarget && (() => {
+        const hasAlternativeOwned = fulfillmentTarget && fulfillmentTarget.status !== 'Owned' && fulfillmentTarget.work_id && ownedWorkIds.has(fulfillmentTarget.work_id);
+        return (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <header className="modal-header">
+                <h2>Fulfill: {fulfillmentTarget.works?.title}</h2>
+                <p>Select the correct edition to mark as Owned.</p>
+              </header>
 
-            <div className="cover-selection-grid">
+              {hasAlternativeOwned && (
+                <div style={{ marginTop: '16px', marginBottom: '24px', padding: '20px', background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(212,175,55,0.05) 100%)', border: '1px solid rgba(212,175,55,0.4)', borderRadius: '16px', textAlign: 'center' }}>
+                  <h3 style={{ color: '#D4AF37', fontSize: '1.15rem', marginBottom: '8px' }}>✨ Alternative Edition Already Owned</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.95rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                    You already own a copy of this title elsewhere in your library. Would you like to link your existing copy to this tracker?
+                  </p>
+                  <button 
+                    type="button" 
+                    className="ai-generate-btn" 
+                    style={{ width: '100%', background: 'linear-gradient(135deg, #D4AF37 0%, #AA8000 100%)', color: '#000', fontWeight: '700' }}
+                    onClick={handleLinkExistingCopy}
+                    disabled={isFulfilling}
+                  >
+                    {isFulfilling ? 'Linking Copy...' : 'Link Existing Copy'}
+                  </button>
+                </div>
+              )}
+
+              <div className="cover-selection-grid">
               {coverOptions.length > 0 ? coverOptions.map((opt, i) => (
                 <div 
                   key={i} 
@@ -855,7 +935,7 @@ export default function Checklist() {
             </button>
           </div>
         </div>
-      )}
+      );})()}
 
       {/* Delete Tracker Confirmation Modal */}
       {showDeleteTrackerModal && activeTracker && (
