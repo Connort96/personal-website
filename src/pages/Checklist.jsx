@@ -13,6 +13,13 @@ export default function Checklist() {
   const [manualIsbn, setManualIsbn] = useState('');
   const [isFulfilling, setIsFulfilling] = useState(false);
 
+  // AI Ingestion State
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiTrackerName, setAiTrackerName] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+
   useEffect(() => {
     fetchChecklist();
   }, []);
@@ -119,13 +126,53 @@ export default function Checklist() {
     setIsFulfilling(false);
   }
 
+  // AI Generation Handler
+  async function handleAiGeneration(e) {
+    e.preventDefault();
+    if (!aiTrackerName || !aiPrompt) return;
+    setIsAiGenerating(true);
+    setAiError('');
+
+    try {
+      const { data: funcData, error: funcErr } = await supabase.functions.invoke('v2_bulk_ingest', {
+        body: { tracker_name: aiTrackerName, ai_prompt: aiPrompt }
+      });
+
+      if (funcErr) {
+        throw new Error(funcErr.message || 'Failed to invoke AI ingest function');
+      }
+
+      if (funcData?.error) {
+        throw new Error(funcData.error);
+      }
+
+      console.log('[Bulk Ingest AI] Success:', funcData);
+      setAiTrackerName('');
+      setAiPrompt('');
+      setShowAiModal(false);
+      await fetchChecklist();
+    } catch (err) {
+      console.error('[Bulk Ingest AI] Error:', err);
+      setAiError(err.message || 'An error occurred during AI generation.');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  }
+
   if (loading) return <div className="checklist-container"><p>Loading your roadmap...</p></div>;
 
   return (
     <div className="checklist-container">
-      <header className="checklist-header">
-        <h1>Tracker Dashboard</h1>
-        <p>Curated archival roadmap & physical collection progress.</p>
+      <header className="checklist-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h1>Tracker Dashboard</h1>
+          <p>Curated archival roadmap & physical collection progress.</p>
+        </div>
+        {!activeTracker && (
+          <button className="ai-generate-btn" onClick={() => setShowAiModal(true)}>
+            ✨ Generate Tracker with AI
+          </button>
+        )}
       </header>
 
       {!activeTracker ? (
@@ -183,6 +230,68 @@ export default function Checklist() {
         </div>
       )}
 
+      {/* AI Ingestion Modal */}
+      {showAiModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '650px' }}>
+            <header className="modal-header">
+              <h2>✨ Generate Tracker with AI</h2>
+              <p>Harness LLM knowledge to automatically build massive collection roadmaps.</p>
+            </header>
+
+            {aiError && <div className="ai-error-msg">{aiError}</div>}
+
+            <form onSubmit={handleAiGeneration}>
+              <div className="ai-form-group">
+                <label htmlFor="trackerName">Tracker Name</label>
+                <input 
+                  id="trackerName"
+                  type="text" 
+                  placeholder="e.g., Penguin Classics: The Ancient World" 
+                  value={aiTrackerName}
+                  onChange={(e) => setAiTrackerName(e.target.value)}
+                  required
+                  disabled={isAiGenerating}
+                />
+              </div>
+
+              <div className="ai-form-group">
+                <label htmlFor="aiPrompt">AI Prompt & Curation Rules</label>
+                <textarea 
+                  id="aiPrompt"
+                  placeholder="e.g., List 50 essential Ancient Greek books featured in The Penguin Classics Book. Return only canonical titles and authors." 
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  required
+                  disabled={isAiGenerating}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
+                <button 
+                  type="button" 
+                  className="back-button" 
+                  style={{ margin: 0, flex: 1, justifyContent: 'center' }}
+                  onClick={() => setShowAiModal(false)}
+                  disabled={isAiGenerating}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="ai-generate-btn" 
+                  style={{ flex: 2 }}
+                  disabled={isAiGenerating || !aiTrackerName || !aiPrompt}
+                >
+                  {isAiGenerating ? '✨ Generating & Building...' : 'Generate & Build Tracker'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fulfillment Modal */}
       {fulfillmentTarget && (
         <div className="modal-overlay">
           <div className="modal-content">

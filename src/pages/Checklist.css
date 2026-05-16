@@ -330,6 +330,83 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* AI Ingestion Modal */
+.ai-form-group {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-form-group label {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #c8a84b;
+}
+
+.ai-form-group input,
+.ai-form-group textarea {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px;
+  border-radius: 16px;
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.ai-form-group input:focus,
+.ai-form-group textarea:focus {
+  outline: none;
+  border-color: #c8a84b;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ai-form-group textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.ai-generate-btn {
+  background: linear-gradient(135deg, #c8a84b 0%, #b08d37 100%);
+  color: #000;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.ai-generate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(200, 168, 75, 0.3);
+}
+
+.ai-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ai-error-msg {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 768px) {
   .checklist-container {
     padding: 100px 20px 40px;
