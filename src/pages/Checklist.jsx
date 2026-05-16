@@ -236,23 +236,27 @@ export default function Checklist() {
     if (!activeTracker) return;
     setIsDeletingTracker(true);
     try {
-      const editionIds = activeTracker.books.map(b => b.id);
-      if (editionIds.length > 0) {
-        // 1. Unlink primary_edition_id from works
-        await supabase.from('works').update({ primary_edition_id: null }).in('primary_edition_id', editionIds);
-        // 2. Delete linked user_books
-        await supabase.from('user_books').delete().in('edition_id', editionIds);
+      const unownedBooks = activeTracker.books.filter(b => b.status !== 'Owned');
+      const ownedBooks = activeTracker.books.filter(b => b.status === 'Owned');
+
+      const unownedIds = unownedBooks.map(b => b.id);
+      const ownedIds = ownedBooks.map(b => b.id);
+
+      // 1. Fully delete unowned/wanted books
+      if (unownedIds.length > 0) {
+        await supabase.from('works').update({ primary_edition_id: null }).in('primary_edition_id', unownedIds);
+        await supabase.from('user_books').delete().in('edition_id', unownedIds);
+        const { error: delErr } = await supabase.from('editions').delete().in('id', unownedIds);
+        if (delErr) throw delErr;
       }
 
-      if (activeTracker.name === 'General Wishlist') {
-        const { error } = await supabase.from('editions').delete().is('collection_imprint', null);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('editions').delete().eq('collection_imprint', activeTracker.name);
-        if (error) throw error;
+      // 2. Unlink owned books from the tracker so they stay safely in My Library
+      if (ownedIds.length > 0) {
+        const { error: updErr } = await supabase.from('editions').update({ collection_imprint: null }).in('id', ownedIds);
+        if (updErr) throw updErr;
       }
 
-      console.log('[Delete Tracker] Successfully deleted tracker:', activeTracker.name);
+      console.log('[Delete Tracker] Successfully processed tracker deletion:', activeTracker.name);
       setShowDeleteTrackerModal(false);
       setActiveTrackerName(null);
       await fetchChecklist();
@@ -806,11 +810,12 @@ export default function Checklist() {
             <header className="modal-header">
               <h2 style={{ color: '#ff6b6b' }}>Delete Tracker?</h2>
               <p style={{ marginTop: '12px', fontSize: '1.05rem', color: 'rgba(255,255,255,0.8)' }}>
-                Are you sure? This will delete all <strong>{activeTracker.total}</strong> items in this tracker.
+                Are you sure you want to delete the <strong>{activeTracker.name}</strong> tracker?
               </p>
-              <p style={{ marginTop: '8px', fontSize: '0.9rem', color: 'rgba(255,107,107,0.8)' }}>
-                This action cannot be undone.
-              </p>
+              <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', textAlign: 'left', fontSize: '0.95rem' }}>
+                <p style={{ color: '#ff6b6b', marginBottom: '8px' }}>• <strong>{activeTracker.total - activeTracker.owned} Wanted Books</strong>: Will be permanently deleted.</p>
+                <p style={{ color: '#48bb78' }}>• <strong>{activeTracker.owned} Owned Books</strong>: Will be preserved in your My Library archive.</p>
+              </div>
             </header>
 
             <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
