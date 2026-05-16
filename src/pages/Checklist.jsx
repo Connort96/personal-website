@@ -13,6 +13,11 @@ export default function Checklist() {
   const [manualIsbn, setManualIsbn] = useState('');
   const [isFulfilling, setIsFulfilling] = useState(false);
 
+  // Tracker Local Search, Sort & Fallback State
+  const [trackerSearchQuery, setTrackerSearchQuery] = useState('');
+  const [trackerSortMode, setTrackerSortMode] = useState('unowned'); // 'unowned' | 'az'
+  const [coverErrors, setCoverErrors] = useState({});
+
   // AI Ingestion State
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiTrackerName, setAiTrackerName] = useState('');
@@ -90,6 +95,28 @@ export default function Checklist() {
 
   const trackerList = Object.values(trackers).sort((a, b) => b.total - a.total);
   const activeTracker = activeTrackerName ? trackerList.find(t => t.name === activeTrackerName) : null;
+
+  let displayedBooks = [];
+  if (activeTracker) {
+    displayedBooks = activeTracker.books.filter(book => {
+      if (!trackerSearchQuery) return true;
+      const q = trackerSearchQuery.toLowerCase();
+      const title = book.works?.title?.toLowerCase() || '';
+      const author = book.works?.author?.toLowerCase() || '';
+      return title.includes(q) || author.includes(q);
+    });
+
+    displayedBooks.sort((a, b) => {
+      if (trackerSortMode === 'unowned') {
+        const aOwned = a.status === 'Owned' ? 1 : 0;
+        const bOwned = b.status === 'Owned' ? 1 : 0;
+        if (aOwned !== bOwned) return aOwned - bOwned; // 0 (Wanted) comes before 1 (Owned)
+      }
+      const aTitle = a.works?.title || '';
+      const bTitle = b.works?.title || '';
+      return aTitle.localeCompare(bTitle);
+    });
+  }
 
   // Fulfillment logic
   async function openFulfillmentModal(book) {
@@ -297,36 +324,72 @@ export default function Checklist() {
             <p>{activeTracker.owned} of {activeTracker.total} collected</p>
           </div>
 
+          <div className="tracker-controls">
+            <input 
+              type="text" 
+              placeholder="Search tracker by title or author..." 
+              value={trackerSearchQuery}
+              onChange={(e) => setTrackerSearchQuery(e.target.value)}
+              className="tracker-search-input"
+            />
+            <div className="tracker-sort-toggle">
+              <button 
+                type="button" 
+                className={`tracker-sort-btn ${trackerSortMode === 'unowned' ? 'active' : ''}`}
+                onClick={() => setTrackerSortMode('unowned')}
+              >
+                Unowned First
+              </button>
+              <button 
+                type="button" 
+                className={`tracker-sort-btn ${trackerSortMode === 'az' ? 'active' : ''}`}
+                onClick={() => setTrackerSortMode('az')}
+              >
+                A-Z by Title
+              </button>
+            </div>
+          </div>
+
           <div className="tracker-books-list">
-            {activeTracker.books.map(book => (
-              <div key={book.id} className={`book-row ${book.status?.toLowerCase() || 'wanted'}`}>
-                <img 
-                  src={book.cover_image_url || book.cover_url || 'https://via.placeholder.com/50x75?text=?'} 
-                  alt="" 
-                  className="book-cover-mini"
-                />
-                <div className="book-info">
-                  <div className="book-title">{book.works?.title || 'Unknown Title'}</div>
-                  <div className="book-author">{book.works?.author || 'Unknown Author'}</div>
-                  {book.isbn && <div className="book-meta">ISBN: {book.isbn}</div>}
-                </div>
-                
-                {book.status === 'Owned' ? (
-                  <div className="status-indicator owned">✓</div>
-                ) : (
-                  <div className="fulfillment-actions">
-                    <div className="status-indicator wanted" title="Wanted - Not Owned"></div>
-                    <button 
-                      className="fulfill-btn"
-                      onClick={() => openFulfillmentModal(book)}
-                      disabled={isFulfilling}
-                    >
-                      Fulfill
-                    </button>
+            {displayedBooks.map(book => {
+              const hasCover = (book.cover_image_url || book.cover_url) && !coverErrors[book.id];
+              return (
+                <div key={book.id} className={`book-row ${book.status?.toLowerCase() || 'wanted'}`}>
+                  {hasCover ? (
+                    <img 
+                      src={book.cover_image_url || book.cover_url} 
+                      alt="" 
+                      className="book-cover-mini"
+                      onError={() => setCoverErrors(prev => ({ ...prev, [book.id]: true }))}
+                    />
+                  ) : (
+                    <div className="fallback-cover">
+                      <span>{book.works?.title || 'Unknown Title'}</span>
+                    </div>
+                  )}
+                  <div className="book-info">
+                    <div className="book-title">{book.works?.title || 'Unknown Title'}</div>
+                    <div className="book-author">{book.works?.author || 'Unknown Author'}</div>
+                    {book.isbn && <div className="book-meta">ISBN: {book.isbn}</div>}
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  {book.status === 'Owned' ? (
+                    <div className="status-indicator owned">✓</div>
+                  ) : (
+                    <div className="fulfillment-actions">
+                      <div className="status-indicator wanted" title="Wanted - Not Owned"></div>
+                      <button 
+                        className="fulfill-btn"
+                        onClick={() => openFulfillmentModal(book)}
+                        disabled={isFulfilling}
+                      >
+                        Fulfill
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

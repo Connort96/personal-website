@@ -159,7 +159,7 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 20px;
+  padding: 12px 20px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
@@ -181,6 +181,91 @@
   border-radius: 6px;
   object-fit: cover;
   flex-shrink: 0;
+}
+
+.fallback-cover {
+  background-color: #1a1a1a;
+  border: 1px solid #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+  width: 50px;
+  height: 75px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.fallback-cover span {
+  font-family: 'Playfair Display', serif;
+  color: #c8a84b;
+  font-size: 0.65rem;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Local Search & Sort Controls */
+.tracker-controls {
+  position: sticky;
+  top: 80px;
+  background: rgba(17, 17, 17, 0.95);
+  backdrop-filter: blur(12px);
+  padding: 16px 0;
+  margin-bottom: 24px;
+  z-index: 100;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tracker-search-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.tracker-search-input:focus {
+  outline: none;
+  border-color: #c8a84b;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tracker-sort-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.tracker-sort-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tracker-sort-btn.active {
+  background: #c8a84b;
+  color: #000;
 }
 
 .book-info {
